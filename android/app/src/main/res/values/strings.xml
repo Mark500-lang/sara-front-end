@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Sara Stories</string>
+    <string name="title_activity_main">Sara Stories</string>
+    <string name="package_name">com.littlestories.app</string>
+    <string name="custom_url_scheme">com.littlestories.app</string>
+</resources>

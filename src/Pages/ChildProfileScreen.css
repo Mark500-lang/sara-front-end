@@ -1,0 +1,228 @@
+/* ChildProfileScreen.css - Updated */
+
+.child-profile-main-container{
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.profile-header-icons {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 10px 20px 0px;
+    position: relative;
+    z-index: 10; /* Ensure header stays above images */
+}
+
+.profile-header-icons img {
+    width: 100px;
+    height: auto;
+    cursor: pointer;
+}
+
+.profile-header-text {
+    color: #ff9f0f;
+    font-size: 24px;
+    font-weight: bold;
+    text-align: center;
+    flex-grow: 1;
+}
+
+.child-profile-content {
+    position: relative;
+    width: 100%;
+    height: calc(100% - 100px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.child-profile-container{
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+}
+
+/* Container for the animated images */
+.child-illustration-1-container,
+.child-illustration-2-container {
+    position: absolute;
+    bottom: 0;
+    height: 280px; /* Fixed height for container */
+    display: flex;
+    align-items: flex-end; /* Align images to bottom */
+}
+
+.child-illustration-1-container {
+    left: 50px;
+}
+
+.child-illustration-2-container {
+    right: 50px;
+}
+
+.child-illustration-1,
+.child-illustration-2 {
+    width: auto;
+    height: 280px;
+    max-height: 100%; /* Ensure images don't exceed container */
+}  
+
+.child-profile-form {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+} 
+
+.profile-labels {
+    color: #ff9f0f;
+    font-size: 19px;
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.child-name-form-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
+.child-name-form-section input {
+    width: 100%;
+    margin-top: 10px;
+    padding: 10px 70px; 
+    border-radius: 9999px;
+    border: 0px solid #ccc;
+    color: #0d3345;
+    font-size: 16px;
+    line-height: 1.5;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    height: 35px;
+}
+
+.child-name-form-section input:focus {
+  border-color: #f0ad4e; /* highlight on focus */
+}
+.gender-select-icons {
+    display: flex;
+    gap: 30px;
+}
+
+.gender-icon {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.gender-icon:hover {
+    transform: scale(1.1);
+}
+
+.gender-icon img {
+    width: 70px;
+    height: auto;
+    transition: filter 0.3s ease;
+}
+
+/* When selected */
+.gender-icon.selected {
+    filter: invert(55%) sepia(99%) saturate(1500%) hue-rotate(15deg) brightness(95%) contrast(105%);
+}
+
+.gender-icon.selected img {
+    filter: invert(55%) sepia(99%) saturate(1500%) hue-rotate(15deg) brightness(95%) contrast(105%);
+}
+.continue-child-btn {
+    background: #ff9f0f;
+    color: #0d3345;
+    font-weight: bolder;
+    font-size: 18px;
+    padding: 12px 30px;
+    border: none;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+
+.continue-child-btn:hover {
+    border: #0d3345 solid 2px;
+}
+
+@media (max-width: 700px) {
+    .child-profile-main-container {
+        padding: 0 8px;
+        height: 100vh;
+    }
+
+    .profile-header-icons {
+        padding: 8px 8px 0px;
+    }
+
+    .profile-header-icons img {
+        width: 85px;
+    }
+
+    .profile-header-text {
+        font-size: 24px;
+    }
+
+    .child-profile-content {
+        height: calc(100% - 70px);
+        padding: 0 4px;
+    }
+
+    /* .child-profile-container {
+        gap: 8px;
+    } */
+    .child-illustration-1,
+    .child-illustration-2 {
+        height: 240px;
+        max-height: 100%; /* Ensure images don't exceed container */
+    } 
+    .child-illustration-1-container {
+        left: 10px;
+    }
+
+    .child-illustration-2-container {
+        right: 10px;
+    }
+
+    .child-profile-form {
+        padding: 10px;
+    }
+
+    .profile-labels {
+        font-size: 18px;
+        margin-bottom: 4px;
+    }
+
+    .child-name-form-section input {
+        padding: 10px 50px; 
+        font-size: 14px;
+        height: 30px;
+    }
+
+    .gender-select-icons {
+        gap: 12px;
+    }
+
+    .gender-icon img {
+        width: 60px;
+    }
+
+    .continue-child-btn {
+        font-size: 16px;
+        padding: 8px 18px;
+        border-radius: 8px;
+    }
+}

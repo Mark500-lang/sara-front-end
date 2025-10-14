@@ -1,0 +1,10 @@
+{
+  "appId": "com.littlestories.app",
+  "appName": "Sara Stories",
+  "webDir": "build",
+  "plugins": {
+    "App": {
+      "deepLinkingEnabled": true
+    }
+  }
+}

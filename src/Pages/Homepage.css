@@ -1,0 +1,349 @@
+.home-page {
+  position: relative;
+  min-height: 100vh;
+  transition: opacity 0.5s ease;
+}
+
+/* When animation is active, fade out other content */
+.animation-active .home-page > *:not(.book-opening-animation-container) {
+  opacity: 0.3;
+  transition: opacity 0.5s ease;
+}
+
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  /* background: linear-gradient(to bottom, #1e3a8a, #3b82f6); */
+  padding-left: 8px;
+  padding-right: 8px;
+  padding-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items:flex-start;
+}
+
+.icon-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+}
+.home-nav-icon{
+  width: 100px;
+  height: auto;
+  cursor: pointer;
+}
+.green-icon {
+  color: #ffffff;
+  font-size: 34px;
+  cursor: pointer;
+  /* border: solid red 1px; */
+  border-radius: 100%;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #24a359;
+}
+
+.blue-icon {
+  color: #ffffff;
+  font-size: 34px;
+  cursor: pointer;
+  border-radius: 100%;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #2e8cb5;
+}
+
+.music-icon {
+  /* position: absolute;
+  top: 20px;
+  right: 20px; */
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  border-radius: 100%;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #2057c3;
+}
+
+.profile-icon{
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  border-radius: 100%;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #0840b0;
+}
+
+.unlock-btn {
+  background: #f96d27;
+  color: white;
+  font-weight: bold;
+  font-size: 20px;
+  padding: 5px 20px;
+  border: none;
+  border-radius: 40px;
+  cursor: pointer;
+}
+
+.book-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); 
+  row-gap: 3rem; 
+  column-gap: 1rem;
+  justify-items: center;
+  padding: 0px 95px 50px; 
+  margin-top: -60px;
+  transition: opacity 0.3s ease;
+}
+
+.book-item {
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.book-container {
+  position: relative;
+  width: 250px;
+  padding: 0px;
+  height: auto; 
+}
+
+.book-cover {
+  width: 100%;
+  height: 100%;
+  position: relative; 
+}
+
+.book-lock {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 50px;
+  color: white;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 50px;
+  width: 40px;
+  padding: 5px;
+}
+.book-title {
+  position: absolute;
+  bottom: 0; 
+  width: 100%;
+  font-weight: bolder;
+  color: white;
+  text-align: center;
+  padding: 5px 20px; 
+  box-sizing: border-box; 
+  text-shadow: 2px 5px 8px rgb(0, 0, 0);
+}
+
+
+/* Book Opening Animation Styles */
+.book-opening-animation-container {
+  overflow: visible;
+}
+
+.book-wrapper {
+  position: relative;
+  overflow: visible;
+  perspective: 2000px;
+}
+
+.book-animated {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--initial-width); 
+  height: var(--initial-height);
+  transform-style: preserve-3d;
+  transition: transform 1.5s ease-in-out;
+}
+
+.book-opening-animation-container,
+.book-opening-animation-container * {
+  opacity: 1 !important;
+}
+
+.book-cover-all {
+  position: absolute;
+  width: var(--initial-width);
+  height: var(--initial-height);
+  transform-style: preserve-3d;
+  transform-origin: left center;
+  transition: transform 1.5s ease-in-out;
+  z-index: 20;
+}
+
+.book-open .book-cover-all {
+  transform: rotateY(-180deg);
+  transition: transform 1.5s ease-in-out;
+}
+
+.cover-image {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  backface-visibility: hidden;
+  border-radius: 5px 2px 2px 5px;
+}
+
+.book-cover-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-color: #376d13;
+  transform: rotateY(180deg);
+  backface-visibility: hidden;
+  border-radius: 5px 2px 2px 5px;
+}
+
+.cover-back-inside {
+  width: 100%;
+  height: 100%;
+  background: 
+      linear-gradient(90deg, transparent 98%, rgba(0,0,0,0.1) 100%),
+      linear-gradient(transparent 98%, rgba(0,0,0,0.05) 100%);
+}
+
+/* Blank pages */
+.page-animated {
+  position: absolute;
+  width: calc(var(--initial-width) - 10px);
+  height: calc(var(--initial-height) - 10px);
+  background: white;
+  transform-origin: left center;
+  transition: transform 1.5s ease-in-out;
+  z-index: 20;
+  left: 0;
+  top: 5px;
+  border-radius: 10px 2px 2px 10px;
+  box-shadow: 
+      inset -1px 0 1px rgba(0,0,0,0.1),
+      0 2px 5px rgba(0,0,0,0.2);
+}
+
+.blank-page-1 {
+  transition-delay: 0.1s;
+  z-index: 14;
+}
+.blank-page-2 {
+  transition-delay: 0.2s;
+  z-index: 13;
+}
+.blank-page-3 {
+  transition-delay: 0.3s;
+  z-index: 12;
+}
+.blank-page-4 {
+  transition-delay: 0.4s;
+  z-index: 11;
+}
+
+.book-open .page-animated {
+  transform: rotateY(-180deg);
+}
+
+/* First page - left side */
+.first-page-left {
+  position: absolute;
+  width: calc(var(--initial-width) - 10px);
+  height: calc(var(--initial-height) - 10px);
+  transform-style: preserve-3d;
+  transform-origin: left center;
+  transition: transform 1.5s ease-in-out;
+  top: 5px;
+  left: 0;
+}
+
+.book-open .first-page-left {
+  transform: rotateY(-180deg);
+  transition-delay: 0.5s;
+  z-index: 20;
+}
+
+.page-left-front, .page-left-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border-radius: 2px 0 0 2px;
+}
+
+.page-left-front {
+  background-color: #fffff0;
+  transform: rotateY(0deg);
+}
+
+.page-left-back {
+  background: white;
+  transform: rotateY(180deg);
+  overflow: hidden;
+}
+
+/* First page - right side */
+.first-page-right {
+  position: absolute;
+  width: calc(var(--initial-width) - 10px);
+  height: calc(var(--initial-height) - 10px);
+  background: rgb(209, 209, 209);
+  z-index: 5;
+  transform: rotateY(0deg);
+  overflow: hidden;
+  top: 5px;
+  left: 0;
+}
+
+/* Image containers */
+.page-image-left, .page-image-right {
+  width: 100%;
+  height: 100%;
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+}
+
+.page-image-left {
+  background-position: left center;
+}
+
+.page-image-right {
+  background-position: right center;
+}
+
+.book-back-cover {
+  position: absolute;
+  width: var(--initial-width);
+  height: var(--initial-height);
+  background-color: #376d13;
+  z-index: 1;
+  border-radius: 2px 10px 10px 2px;
+  left: 0;
+}
+
+/* Fade the rest of the UI when the animation is active */
+body.animation-active .sticky-header,
+body.animation-active .book-grid {
+  opacity: 0.3;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+
+body.animation-active {
+  overflow: hidden;
+}

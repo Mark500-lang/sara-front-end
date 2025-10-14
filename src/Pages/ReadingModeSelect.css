@@ -1,0 +1,211 @@
+/* ReadingModeSelect.css - Updated with animation support */
+
+.action-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #0d3345a8;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+}
+
+.action-icons{
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.action-header-container{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px 1%;
+  width: 100%;
+  top: 10px;
+  z-index: 10;
+}
+
+.action-header-container img{
+  width: 100px;
+  height: auto;
+  cursor: pointer;
+}
+
+.select-mode-container{
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.action-icons-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  /* flex-shrink: 0;  */
+  position: relative;
+  z-index: 2; /* Ensure buttons stay above dialogue */
+}
+
+.mode-button {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0px 30px;
+  border: 2px solid white;
+  border-radius: 30px;
+  background-color: #e29b00;
+  transition: background-color 0.3s ease;
+}
+
+.clicked-mode-btn{
+  background-color: white;
+}
+
+.mode-button img {
+  width: 40px;
+  height: auto;
+}
+
+.mode-button p {
+  font-size: 18px;
+  font-weight: bolder;
+  color: #0d3345;
+  margin: auto;
+}
+
+.select-mode-dialogue-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background-color: #ffffff;
+  padding: 15px;
+  border-radius: 20px;
+  min-width: 300px;
+  max-width: 350px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  margin-left: -80px; /* Initial overlap */
+  position: relative;
+  z-index: 1; /* Behind buttons initially */
+}
+/* .action-icons-container {
+  transition: transform 0.7s ease;
+}
+
+.action-icons-container:has(+ .select-mode-dialogue-box) {
+  transform: scale(0.98); 
+} */
+
+/* Add a background gradient to dialogue for depth */
+/* .select-mode-dialogue-box {
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  border: 1px solid #e9ecef;
+} */
+.select-mode-dialogue-box h3{
+  font-size: 20px;
+  font-weight: bolder;
+  color: #0d3345;
+  text-align: center;
+}
+.select-mode-dialogue-box h4{
+  font-size: 16px;
+  font-weight: bolder;
+  color: #103a4e;
+  margin: 0 0 10px 0;
+  text-align: center;
+}
+
+.recordings-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.recordings-box input {
+  width: 100%;
+  padding: 7px 15px;
+  background-color: #f1f1f1;
+  border-radius: 9999px;
+  border: 1px solid #ccc;
+  font-size: 16px;
+  text-align: center;
+  margin: 0 0 15px;
+  transition: all 0.3s ease;
+}
+.record-button{
+  background-color: #bdbdbd;
+  color: #ebebeb;
+  font-weight: bolder;
+  font-size: 18px;
+  padding: 10px 30px;
+  border: none;
+  border-radius: 40px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.record-button.active{
+  background-color: #e29b00;
+  color: #0d3345;
+}
+
+.record-button:disabled {
+  cursor: not-allowed;
+}
+
+.audio-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  margin: 0;
+  padding: 5px 10px;
+  color: #0d3345;
+  font-weight: 900;
+  background-color: #f8f8f8;
+  border-radius: 10px;
+  width: 100%;
+}
+
+.play-button {
+  background-color: #e29b00;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.3s ease;
+}
+
+.play-button.playing {
+  background-color: #0d3345;
+}
+
+.play-button:hover {
+  background-color: #c28500;
+}
+
+/* Animation classes */
+.motion-element {
+  will-change: transform, opacity;
+}
+
+/* Ensure smooth transitions */
+.select-mode-dialogue-box,
+.mode-button,
+.audio-item {
+  transition: all 0.3s ease;
+}
