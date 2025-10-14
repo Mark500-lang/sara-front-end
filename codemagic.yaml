@@ -1,0 +1,28 @@
+workflows:
+  ios-publish:
+    name: iOS Publish
+    environment:
+      vars:
+        XCODE_WORKSPACE: "Runner.xcworkspace"
+        XCODE_SCHEME: "Runner"
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: "com.sarastories.app"
+    scripts:
+      - name: Install dependencies
+        script: |
+          flutter pub get
+      - name: Set up code signing
+        script: |
+          keychain initialize
+      - name: Build iOS app
+        script: |
+          flutter build ipa --release \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        submit_to_app_store: false
