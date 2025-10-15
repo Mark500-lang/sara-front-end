@@ -28,7 +28,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
   const [isClearedView, setIsClearedView] = useState(false);
   const [preloadedImages, setPreloadedImages] = useState({});
   const [professionalAudios, setProfessionalAudios] = useState({});
-  const [myAudios, setMyAudios] = useState({}); // {narrator: {page: audioData}}
+  const [myAudios, setMyAudios] = useState({});
   const [currentAudio, setCurrentAudio] = useState(null);
   const [audioPlayingUI, setAudioPlayingUI] = useState(false);
   const [narrationVolume] = useState(1);
@@ -47,8 +47,8 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
   const [showContinueModal, setShowContinueModal] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const uploadQueue = useRef([]);
-  const pendingFetches = useRef(new Set()); // Track pending fetch requests
-  const isInitialRecordPage = useRef(false); // Flag for initial record page
+  const pendingFetches = useRef(new Set());
+  const isInitialRecordPage = useRef(true);
 
   const [readingMode, setReadingMode] = useState(() => {
     return sessionStorage.getItem(`readingMode_${bookId}`) || "read";
@@ -127,7 +127,6 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     fetchBookPages();
   }, [bookId]);
 
-  // Fetch narrators with complete and incomplete recordings
   useEffect(() => {
     if (!bookPages.length) return;
 
@@ -153,7 +152,6 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     fetchNarrators();
   }, [bookPages, bookId]);
 
-  // Fetch audio for a specific page and narrator
   const fetchAudioForPage = async (pageNumber, narrator) => {
     const key = `${narrator}_${pageNumber}`;
     if (pendingFetches.current.has(key) || myAudios[narrator]?.[pageNumber]) return myAudios[narrator]?.[pageNumber] || null;
@@ -201,8 +199,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     return null;
   };
 
-  // Preload images and audios (current + next 4)
-  useEffect(() => {
+useEffect(() => {
     if (!bookPages.length) return;
 
     const preloadRange = async (start, end) => {
@@ -259,7 +256,6 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     }
   }, [bookPages, currentPageId]);
 
-  // Handle audio playback
   useEffect(() => {
     if (readingMode !== "listen") return;
 
@@ -388,6 +384,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     sessionStorage.setItem(`overlayDismissed_${bookId}`, "true");
     setReadingMode("record");
     await VoiceRecorder.startRecording();
+    isInitialRecordPage.current = false;
     console.log(`Started recording for page ${currentPageId}`);
   };
 
@@ -423,7 +420,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     }
 
     const narr = narratorName;
-    const fileName = `${narr}.mp3`;
+    const fileName = `${narr}_${page}.mp3`;
     const audioFile = new File([blob], fileName, { type: "audio/mp3" });
     const formData = new FormData();
 
@@ -439,7 +436,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
         alert("Please set up your child profile again to upload audio.");
         return;
       }
-      
+
       console.log(`Starting upload for page ${page}, book ${bookId}`);
 
       const response = await fetch(
@@ -448,6 +445,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
           method: "POST",
           headers: {
             Authorization: `Bearer ${authToken}`,
+            Accept: 'application/json'
           },
           body: formData,
         }
@@ -456,18 +454,13 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
       const result = await response.json();
 
       if (response.ok) {
-        console.log(`Upload complete for page ${page}`)
+        console.log(`Upload complete for page ${page}`);
         const audioUrlFromApi = result.audio_url;
-        let finalAudioUrl = audioUrlFromApi ? audioUrlFromApi.replace(
-          'https://kithia.com/website_b5d91c8e/storage/',
-          'https://kithia.com/website_b5d91c8e/book-backend/public/storage/'
-        ) : null;
-
         setMyAudios(prev => {
           const newPrev = { ...prev };
           if (!newPrev[narr]) newPrev[narr] = {};
           newPrev[narr][page] = {
-            url: finalAudioUrl,
+            url: audioUrlFromApi,
             name: narratorName || "My Recording",
             narrator: narr,
             id: result.audio?.id,
@@ -475,11 +468,10 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
           return newPrev;
         });
 
-        // Update narrators list after upload
         const res = await fetch(
           `https://kithia.com/website_b5d91c8e/api/audio/complete-narrators/${bookId}`,
           {
-            headers: { Authorization: `Bearer ${authToken}` }
+            headers: { Authorization: `Bearer ${authToken}`, Accept: 'application/json' }
           }
         );
         if (res.ok) {
@@ -494,7 +486,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
         } else if (response.status === 413) {
           alert("The audio file is too large. Please try a shorter recording.");
         } else {
-          alert(result.message || "Upload failed. Please try again.");
+          alert(result.errors?.audio_path?.[0] || result.message || "Upload failed. Please try again.");
         }
       }
     } catch (error) {
@@ -517,8 +509,9 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
   }, [uploadQueue.current.length]);
 
   const playCurrent = () => {
-    if (previewAudio.current) {
+    if (previewAudio.current && !previewAudio.current.paused) {
       previewAudio.current.pause();
+      return;
     }
     previewAudio.current = new Audio(audioURL);
     previewAudio.current.play();
@@ -540,7 +533,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
   };
 
   const navigateToDraft = async (pageNum) => {
-    isInitialRecordPage.current = true; // Treat draft navigation as initial, require manual start
+    isInitialRecordPage.current = true;
     await goToPage(pageNum);
     setShowOverlay(false);
     setReadingMode("record");
@@ -598,18 +591,16 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
       setTimeout(() => {
         startRecording();
       }, 100);
-    } else if (readingMode === "record") {
-      isInitialRecordPage.current = false;
     }
   };
 
   const handleModeSelect = (mode) => {
     if (mode === "record") {
-      isInitialRecordPage.current = true; // Require manual start on initial mode select
+      isInitialRecordPage.current = true;
     }
     setReadingMode(mode);
-    sessionStorage.setItem(`overlayDismissed_${bookId}`, "true");
     setShowOverlay(false);
+    sessionStorage.setItem(`overlayDismissed_${bookId}`, "true");
   };
 
   const handlePlayNarration = async (narrator, type) => {
@@ -619,9 +610,8 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     }
     setSelectedNarration(type === "professional" ? "professional" : narrator);
     setReadingMode("listen");
-    sessionStorage.setItem(`overlayDismissed_${bookId}`, "true");
     setShowOverlay(false);
-    // Ensure audio is fetched for current page
+    sessionStorage.setItem(`overlayDismissed_${bookId}`, "true");
     if (type !== "professional" && !myAudios[narrator]?.[currentPageId]) {
       await fetchAudioForPage(currentPageId, narrator);
     }
@@ -702,6 +692,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     setShowModal(false);
     setCurrentPageId(1);
     setIsBookCompleted(false);
+    isInitialRecordPage.current = true;
   };
 
   const sentences = currentPage?.words?.split(/\. ?/).filter(Boolean) || [];
@@ -821,26 +812,24 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
             />
             <div className="page-number">
               {currentPageId}/{bookPages.length}
-              {isAudioLoading && readingMode === "listen" && (
+              {/* {isAudioLoading && readingMode === "listen" && (
                 <span className="audio-loading"> (Loading audio...)</span>
-              )}
+              )} */}
             </div>
           </div>
           <div className="middle-icon-container">
             {readingMode === "read" && (
-              <>
-                <div className="volume-bar">
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={volume}
-                    onChange={(e) => setVolume(parseFloat(e.target.value))}
-                    className="volume-slider"
-                  />
-                </div>
-              </>
+              <div className="volume-bar">
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={volume}
+                  onChange={(e) => setVolume(parseFloat(e.target.value))}
+                  className="volume-slider"
+                />
+              </div>
             )}
             {readingMode === "listen" && (
               <>
@@ -899,7 +888,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
                   onClick={playCurrent}
                   disabled={isRecording || !audioURL}
                 >
-                  <FaPlay />
+                  {previewAudio.current && !previewAudio.current.paused ? <FaPause /> : <FaPlay />}
                 </button>
               </div>
             )}
@@ -989,6 +978,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
             narratorName={narratorName}
             setNarratorName={setNarratorName}
             audioURL={audioURL}
+            currentBlob={currentBlob}
             onStartRecording={startRecording}
             onStopRecording={stopRecording}
             onDeleteAudio={deleteAudio}
@@ -1020,7 +1010,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="modal-content custom-popup">
-                <div className="modal-body">
+                <div className="popup-modal-body">
                   <MdCancel 
                     className="custom-btn-cancel"
                     onClick={() => setShowModal(false)}
@@ -1071,7 +1061,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="modal-content custom-popup">
-                <div className="modal-body">
+                <div className="popup-modal-body">
                   <MdCancel 
                     className="custom-btn-cancel"
                     onClick={() => setShowContinueModal(false)}

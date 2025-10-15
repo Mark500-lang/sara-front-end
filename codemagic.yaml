@@ -1,28 +1,128 @@
 workflows:
-  ios-publish:
-    name: iOS Publish
+  ios-capacitor-manual-sign:
+    name: iOS (Capacitor) — Manual Signing
+    max_build_duration: 120
     environment:
+      node: 18.16.0
       vars:
-        XCODE_WORKSPACE: "Runner.xcworkspace"
-        XCODE_SCHEME: "Runner"
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: "com.sarastories.app"
+        APP_IDENTIFIER: "com.littlestories.app"
+        APP_NAME: "Sara Stories"
+        APP_SCHEME: "App" 
+        BUILD_NUMBER: "1"
+        # The following MUST be added in Codemagic app settings as secure env variables:
+        # P12_BASE64, P12_PASSWORD, MOBILEPROVISION_BASE64, APP_STORE_CONNECT_PRIVATE_KEY,
+        # APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_ID, APPLE_DEVELOPER_TEAM_ID
     scripts:
-      - name: Install dependencies
+      - name: Install Node modules
         script: |
-          flutter pub get
-      - name: Set up code signing
+          npm ci
+
+      - name: Build web assets (React)
         script: |
-          keychain initialize
-      - name: Build iOS app
+          npm run build
+          ls -la build
+
+      - name: Capacitor: add/sync iOS
         script: |
-          flutter build ipa --release \
-            --export-options-plist=/Users/builder/export_options.plist
-    artifacts:
-      - build/ios/ipa/*.ipa
+          # If ios folder does not exist in repo, Capacitor will create it.
+          if [ ! -d "ios" ]; then
+            npx cap add ios
+          fi
+          npx cap sync ios
+          ls -la ios
+
+      - name: Prepare iOS signing files (write env vars to disk)
+        script: |
+          echo "Writing provided base64 files to disk..."
+          mkdir -p ~/sara-certs
+          # write p12
+          echo $P12_BASE64 | base64 --decode > ~/sara-certs/ios_distribution.p12
+          # write provisioning profile
+          echo $MOBILEPROVISION_BASE64 | base64 --decode > ~/sara-certs/SaraStories_Provisioning.mobileprovision
+          # write App Store Connect .p8
+          mkdir -p ~/sara-certs/appstore
+          echo "$APP_STORE_CONNECT_PRIVATE_KEY" > ~/sara-certs/appstore/appstore_connect_key.p8
+          chmod 600 ~/sara-certs/appstore/appstore_connect_key.p8
+          ls -la ~/sara-certs
+
+      - name: Setup temporary keychain & import certificate
+        script: |
+          set -e
+          KEYCHAIN_NAME=build_keychain
+          KEYCHAIN_PASS="${P12_PASSWORD}"
+          # create keychain
+          security create-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN_NAME"
+          security default-keychain -s "$KEYCHAIN_NAME"
+          security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN_NAME"
+          security set-keychain-settings -u "$KEYCHAIN_NAME"
+          # import the p12 to the keychain
+          security import ~/sara-certs/ios_distribution.p12 -k "$KEYCHAIN_NAME" -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          # allow codesign to use the key
+          security set-key-partition-list -S apple-tool:,codesign: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN_NAME" || true
+          echo "Keychain and certificate imported."
+
+      - name: Install provisioning profile
+        script: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp ~/sara-certs/SaraStories_Provisioning.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          echo "Installed provisioning profiles:"
+          ls -la ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: CocoaPods install
+        script: |
+          # cd into ios App folder (adjust if different)
+          cd ios/App || cd ios/App\ \(or\ App\) || true
+          if [ -f Podfile ]; then
+            pod install --repo-update
+          else
+            echo "Podfile not found in ios/App; listing ios dir to debug"
+            ls -la ../
+            exit 1
+          fi
+
+      - name: xcodebuild: archive & export .ipa
+        script: |
+          set -e
+          cd ios/App
+          echo "Using scheme: ${APP_SCHEME} and bundle id: ${APP_IDENTIFIER}"
+          # Export options for manual signing using provisioning profile and automatic export method = app-store
+          cat > ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+            <dict>
+              <key>method</key>
+              <string>app-store</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>uploadSymbols</key>
+              <true/>
+            </dict>
+          </plist>
+          EOF
+
+          # Archive
+          xcodebuild -workspace App.xcworkspace \
+            -scheme "${APP_SCHEME}" \
+            -configuration Release \
+            -allowProvisioningUpdates \
+            -derivedDataPath build/derived_data \
+            -archivePath $CM_BUILD_DIR/App.xcarchive \
+            PRODUCT_BUNDLE_IDENTIFIER="${APP_IDENTIFIER}" \
+            DEVELOPMENT_TEAM="${APPLE_DEVELOPER_TEAM_ID}" \
+            BUILD_NUMBER="${BUILD_NUMBER}" \
+            archive
+
+          # Export archive using ExportOptions.plist (manual signing uses the provisioning profile already installed)
+          xcodebuild -exportArchive -archivePath $CM_BUILD_DIR/App.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath $CM_BUILD_DIR/ipa || ( echo "Export failed. Listing useful info:" ; security find-identity ; ls -la ~/Library/MobileDevice/Provisioning\ Profiles ; exit 1 )
+          echo "IPA exported to $CM_BUILD_DIR/ipa"
+
     publishing:
       app_store_connect:
-        auth: integration
-        submit_to_testflight: true
-        submit_to_app_store: false
+        api_key:                         # use env variables for .p8
+          private_key: $APP_STORE_CONNECT_PRIVATE_KEY
+          key_id: $APP_STORE_CONNECT_KEY_ID
+          issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        ipa: $CM_BUILD_DIR/ipa/*.ipa
+        distribute_to_testflight: true
+        submit_for_review: false

@@ -1,7 +1,7 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.sarastories.app',
+  appId: 'com.littlestories.app',
   appName: 'sara-stories',
   webDir: 'build',
   server: {

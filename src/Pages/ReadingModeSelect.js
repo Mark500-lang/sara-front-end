@@ -27,6 +27,7 @@ const ActionIcons = ({
   narratorName,
   setNarratorName,
   audioURL,
+  currentBlob,
   onStartRecording,
   onStopRecording,
   onDeleteAudio,
@@ -119,8 +120,6 @@ const ActionIcons = ({
     setNarratorName(e.target.value);
     localStorage.setItem("narratorName", e.target.value);
   };
-
-  const childName = localStorage.getItem("childName") || "";
 
   return (
     <div className={`action-icons ${overlayMode ? "overlay-style" : ""}`}>
@@ -268,7 +267,7 @@ const ActionIcons = ({
                       <div className="audio-item mt-2">
                         <span>Current: {narratorName || "Untitled"}</span>
                         <button className="play-button" onClick={onPlayCurrent}>Play</button>
-                        <button className="upload-button" onClick={() => onUploadAudio(audioURL)}>Upload</button>
+                        <button className="upload-button" onClick={() => onUploadAudio(currentBlob)}>Upload</button>
                         <button className="delete-button" onClick={onDeleteAudio}>Delete</button>
                       </div>
                     )}
@@ -286,11 +285,12 @@ const ActionIcons = ({
                               let firstUnrecorded = 1;
                               for (let i = 1; i <= totalPages; i++) {
                                 if (!myAudios[narrator]?.[i]) {
+                                  console.log("First unrecorded page:", i);
                                   firstUnrecorded = i;
                                   break;
                                 }
                               }
-                              onNavigateToDraft(firstUnrecorded);
+                              onNavigateToDraft(page_count + 1);
                             }}
                             style={{ cursor: 'pointer', textDecoration: 'underline' }}
                           >

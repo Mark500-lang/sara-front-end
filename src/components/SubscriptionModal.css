@@ -1,0 +1,100 @@
+.modal-backdrop.custom-backdrop {
+  background: linear-gradient(to right, rgba(2, 25, 51, 0.3), rgba(2, 25, 51, 0.904), rgba(2, 25, 51, 0.3));
+  opacity: 1 !important;
+}
+
+.modal-dialog.bg-transparent .modal-content {
+  background: transparent;
+  border: none;
+}
+
+.modal-header {
+  position: relative;
+  background: transparent;
+  padding: 1rem;
+  min-height: 60px; /* Ensure header has enough height for close button */
+}
+
+.modal-header .btn-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 1050;
+  filter: invert(1); /* White close button */
+}
+
+.modal-body {
+  padding-top: 80px; /* Ensure body content starts below header */
+  min-height: calc(100vh - 60px); /* Adjust for header height */
+}
+
+.benefits-list {
+  font-size: 1.1rem;
+  font-weight: bold;
+  list-style-type: none;
+  padding-left: 0;
+  margin-bottom: 1rem;
+}
+
+.benefits-list li {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  position: relative;
+  color: white;
+}
+
+.benefits-list .benefits-icon {
+  font-size: 20px;
+  color: rgba(255, 174, 0, 0.966);
+}
+
+.plan-option {
+  transition: background-color 0.3s ease;
+  border-radius: 50rem;
+  border: none !important;
+}
+
+.plan-option.selected {
+  background-color: #30345386; /* Faded yellow */
+}
+
+.form-check-input.custom-radio {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%; /* Circular toggle */
+  border: 2px solid white;
+  background-color: transparent;
+}
+
+.form-check-input.custom-radio:checked {
+  background-color: rgb(95, 95, 138);
+  border-color: rgb(94, 94, 156);
+}
+
+.form-control.custom-input {
+  background-color: #f0f0f0;
+  color: #000;
+  border: none;
+  border-radius: 0.5rem;
+}
+
+.form-control.custom-input::placeholder {
+  color: #666;
+}
+
+.form-label {
+  color: white;
+}
+
+.alert-danger {
+  color: white;
+  background-color: rgba(255, 0, 0, 0.7);
+  border: none;
+}
+
+.text-warning {
+  color: #ffca2c !important;
+  margin-bottom: 1rem;
+}

@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
-import { Modal, Button, Form, Spinner, Alert } from "react-bootstrap";
+import "./SubscriptionModal.css";
+import { BsMoonStarsFill } from "react-icons/bs";
+import { Modal, Button, Form, Spinner, Alert, Row, Col } from "react-bootstrap";
 
 const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   const [selectedPlan, setSelectedPlan] = useState("yearly");
@@ -40,6 +42,8 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   }, []);
 
   const handlePlanChange = (plan) => setSelectedPlan(plan);
+
+  const handlePaymentMethodChange = (method) => setPaymentMethod(method);
 
   const handleConfirmSubscription = async () => {
     setLoading(true);
@@ -107,6 +111,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       return "KE";
     }
   };
+
   const convertPrice = async (amountInKES) => {
     try {
       const response = await fetch(
@@ -122,132 +127,172 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   };
 
   return (
-    <Modal show={show} onHide={onClose} centered>
-      <Modal.Header closeButton>
-        <Modal.Title>Subscription Plans</Modal.Title>
-      </Modal.Header>
-      <Modal.Body className="text-center">
-        <ul className="list-unstyled text-start mb-3">
-          <li>🟡 Peaceful and restful sleep for your child</li>
-          <li>🔵 More than 3000 illustrations</li>
-          <li>🟢 Cancel anytime</li>
+    <Modal
+      show={show}
+      onHide={onClose}
+      fullscreen={true}
+      dialogClassName="bg-transparent border-0"
+      backdropClassName="custom-backdrop"
+    >
+      <Modal.Header closeButton className="border-0" />
+      <Modal.Body className="d-flex flex-column justify-content-between align-items-center text-white">
+        <ul className="list-unstyled text-center mb-5 benefits-list">
+            <li> <BsMoonStarsFill className="benefits-icon"/> Peaceful and restful sleep for your child</li>
+            <li><BsMoonStarsFill className="benefits-icon"/>More than 3000 illustrations</li>
+            <li><BsMoonStarsFill className="benefits-icon"/>Cancel anytime</li>
         </ul>
 
-        <Form>
-          {/* Plan Selection */}
-          <div
-            className={`mb-2 p-3 border rounded d-flex align-items-center ${
-              selectedPlan === "monthly" ? "bg-light" : ""
-            }`}
-            onClick={() => handlePlanChange("monthly")}
-            style={{ cursor: "pointer" }}
-          >
-            <Form.Check
-              type="radio"
-              id="monthly"
-              name="plan"
-              checked={selectedPlan === "monthly"}
-              onChange={() => handlePlanChange("monthly")}
-              className="me-2"
-            />
-            <span>
-              {currency} {monthlyPrice} per month
-            </span>
-          </div>
+        {/* Word spacer element */}
+        <div style={{ height: "24px" }}></div>
 
-          <div
-            className={`mb-2 p-3 border rounded d-flex align-items-center ${
-              selectedPlan === "yearly" ? "bg-light" : ""
-            }`}
-            onClick={() => handlePlanChange("yearly")}
-            style={{ cursor: "pointer" }}
-          >
-            <Form.Check
-              type="radio"
-              id="yearly"
-              name="plan"
-              checked={selectedPlan === "yearly"}
-              onChange={() => handlePlanChange("yearly")}
-              className="me-2"
-            />
-            <div>
-              <span>
+        <Row className="w-100 justify-content-center">
+          <Col md={5} className="pe-4">
+            <h5 className="mb-3 text-white">Select Plan</h5>
+            <div
+              className={`plan-option mb-2 p-3 rounded d-flex align-items-center ${
+                selectedPlan === "monthly" ? "selected" : ""
+              }`}
+              onClick={() => handlePlanChange("monthly")}
+              style={{ cursor: "pointer" }}
+            >
+              <Form.Check
+                type="radio"
+                id="monthly"
+                name="plan"
+                checked={selectedPlan === "monthly"}
+                onChange={() => handlePlanChange("monthly")}
+                className="me-2 custom-radio"
+              />
+              <span className="text-white">
+                {currency} {monthlyPrice} per month
+              </span>
+            </div>
+
+            <div
+              className={`plan-option mb-2 p-3 rounded d-flex align-items-center ${
+                selectedPlan === "yearly" ? "selected" : ""
+              }`}
+              onClick={() => handlePlanChange("yearly")}
+              style={{ cursor: "pointer" }}
+            >
+              <Form.Check
+                type="radio"
+                id="yearly"
+                name="plan"
+                checked={selectedPlan === "yearly"}
+                onChange={() => handlePlanChange("yearly")}
+                className="me-2 custom-radio"
+              />
+              <span className="text-white">
                 {currency} {yearlyPrice} per year
               </span>
             </div>
-          </div>
 
-          {/* Payment Method Dropdown */}
-          <Form.Group className="mb-3">
-            <Form.Label>Payment Method</Form.Label>
-            <Form.Select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
+            <h5 className="mt-4 mb-3 text-white">Payment Method</h5>
+            <div
+              className={`plan-option mb-2 p-3 rounded d-flex align-items-center ${
+                paymentMethod === "M-PESA" ? "selected" : ""
+              }`}
+              onClick={() => handlePaymentMethodChange("M-PESA")}
+              style={{ cursor: "pointer" }}
             >
-              <option value="M-PESA">M-PESA</option>
-              <option value="CARD-PAYMENT">Card (Visa/Mastercard)</option>
-            </Form.Select>
-          </Form.Group>
-
-          {/* Conditionally Render Fields Based on Payment Method */}
-          {paymentMethod === "CARD-PAYMENT" && (
-            <>
-              <Form.Group className="mb-3">
-                <Form.Label>First Name</Form.Label>
-                <Form.Control
-                  type="text"
-                  placeholder="Enter first name"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  required
-                />
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <Form.Label>Last Name</Form.Label>
-                <Form.Control
-                  type="text"
-                  placeholder="Enter last name"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  required
-                />
-              </Form.Group>
-            </>
-          )}
-
-          {paymentMethod === "M-PESA" && (
-            <Form.Group className="mb-3">
-              <Form.Label>Phone Number (e.g., 254712345678)</Form.Label>
-              <Form.Control
-                type="text"
-                placeholder="Enter phone number"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                required
+              <Form.Check
+                type="radio"
+                id="M-PESA"
+                name="paymentMethod"
+                checked={paymentMethod === "M-PESA"}
+                onChange={() => handlePaymentMethodChange("M-PESA")}
+                className="me-2 custom-radio"
               />
-            </Form.Group>
-          )}
-        </Form>
+              <span className="text-white">M-PESA</span>
+            </div>
 
-        {error && <Alert variant="danger">{error}</Alert>}
+            <div
+              className={`plan-option mb-2 p-3 rounded d-flex align-items-center ${
+                paymentMethod === "CARD-PAYMENT" ? "selected" : ""
+              }`}
+              onClick={() => handlePaymentMethodChange("CARD-PAYMENT")}
+              style={{ cursor: "pointer" }}
+            >
+              <Form.Check
+                type="radio"
+                id="CARD-PAYMENT"
+                name="paymentMethod"
+                checked={paymentMethod === "CARD-PAYMENT"}
+                onChange={() => handlePaymentMethodChange("CARD-PAYMENT")}
+                className="me-2 custom-radio"
+              />
+              <span className="text-white">Card (Visa/Mastercard)</span>
+            </div>
+          </Col>
+
+          <Col md={5} className="ps-4">
+            <h5 className="mb-3 text-white">Payment Details</h5>
+            {paymentMethod === "CARD-PAYMENT" && (
+              <>
+                <Form.Group className="mb-3">
+                  <Form.Label className="text-white">First Name</Form.Label>
+                  <Form.Control
+                    type="text"
+                    placeholder="Enter first name"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    required
+                    className="custom-input"
+                  />
+                </Form.Group>
+                <Form.Group className="mb-3">
+                  <Form.Label className="text-white">Last Name</Form.Label>
+                  <Form.Control
+                    type="text"
+                    placeholder="Enter last name"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    required
+                    className="custom-input"
+                  />
+                </Form.Group>
+              </>
+            )}
+
+            {paymentMethod === "M-PESA" && (
+              <Form.Group className="mb-3">
+                <Form.Label className="text-white">Phone Number (e.g., 254712345678)</Form.Label>
+                <Form.Control
+                  type="text"
+                  placeholder="Enter phone number"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  required
+                  className="custom-input"
+                />
+              </Form.Group>
+            )}
+          </Col>
+        </Row>
+
+        {error && (
+          <Alert variant="danger" className="mt-3 w-50 text-center">
+            {error}
+          </Alert>
+        )}
 
         <Button
           variant="warning"
-          className="mt-3 w-100 fw-bold"
+          className="mt-4 w-50 fw-bold"
           onClick={handleConfirmSubscription}
           disabled={loading}
         >
           {loading ? <Spinner animation="border" size="sm" /> : "Subscribe Now"}
         </Button>
-      </Modal.Body>
-      <Modal.Footer className="d-flex justify-content-between">
+
         <a
           href="https://www.privacypolicies.com/live/396845b8-e470-4bed-8cbb-5432ab867986"
-          className="text-decoration-none"
+          className="text-decoration-underline text-warning mt-5"
         >
           Privacy Policy
         </a>
-      </Modal.Footer>
+      </Modal.Body>
     </Modal>
   );
 };
