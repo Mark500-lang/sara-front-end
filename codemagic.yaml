@@ -37,6 +37,5 @@ workflows:
       - build/ipa/*.ipa
     publishing:
       app_store_connect:
-        apple_id: $APPLE_ID
-        password: $APPLE_APP_SPECIFIC_PASSWORD
+        api_key: codemagic-key
         submit_to_testflight: true
