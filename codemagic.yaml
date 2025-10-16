@@ -72,16 +72,11 @@ workflows:
           
           echo "✅ React build completed successfully"
 
-      # PHASE 4: CAPACITOR SYNC WITH PODFILE CONFIGURATION
+      # PHASE 4: CAPACITOR SYNC
       - name: Sync Capacitor for iOS
         script: |
           set -ex
           echo "=== Syncing Capacitor for iOS ==="
-          
-          # Ensure iOS directory exists
-          mkdir -p ios/App
-          
-          # Sync iOS platform
           npx cap sync ios
           
           echo "=== Configuring Landscape Orientation ==="
@@ -117,46 +112,44 @@ workflows:
           echo "=== Setting up iOS Platform ==="
           cd ios/App
           
-          # Create proper Podfile if it doesn't exist
-          if [ ! -f "Podfile" ]; then
-            echo "=== Generating Podfile ==="
-            cat <<EOT > Podfile
-            platform :ios, '13.0'
-            use_frameworks! :linkage => :dynamic
+          # Create proper Podfile with simplified syntax
+          echo "=== Generating Podfile ==="
+          cat > Podfile << 'EOF'
+          platform :ios, '13.0'
+          use_frameworks! :linkage => :dynamic
+          
+          # Suppress CDN warning
+          install! 'cocoapods', :warn_for_unused_master_specs_repo => false
+          
+          target 'App' do
+            # Capacitor Core
+            pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
+            pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
             
-            # Suppress CDN warning
-            install! 'cocoapods', :warn_for_unused_master_specs_repo => false
+            # Capacitor Plugins
+            pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
+            pod 'CapacitorDevice', :path => '../../node_modules/@capacitor/device'
+            pod 'CapacitorFilesystem', :path => '../../node_modules/@capacitor/filesystem'
+            pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
             
-            target 'App' do
-              # Capacitor Core
-              pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
-              pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
-              
-              # Capacitor Plugins
-              pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
-              pod 'CapacitorDevice', :path => '../../node_modules/@capacitor/device'
-              pod 'CapacitorFilesystem', :path => '../../node_modules/@capacitor/filesystem'
-              pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
-              
-              # Additional plugins from your package.json
-              pod 'capacitor-voice-recorder', :path => '../../node_modules/capacitor-voice-recorder'
-              pod '@aparajita/capacitor-secure-storage', :path => '../../node_modules/@aparajita/capacitor-secure-storage'
-            end
-            
-            post_install do |installer|
-              installer.pods_project.targets.each do |target|
-                target.build_configurations.each do |config|
-                  config.build_settings['BUILD_LIBRARY_FOR_DISTRIBUTION'] = 'YES'
-                  config.build_settings['ENABLE_BITCODE'] = 'NO'
-                  if target.name.start_with?('Capacitor')
-                    config.build_settings['SWIFT_VERSION'] = '5.0'
-                    config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'NO'
-                  end
+            # Additional plugins from your package.json
+            pod 'capacitor-voice-recorder', :path => '../../node_modules/capacitor-voice-recorder'
+            pod '@aparajita/capacitor-secure-storage', :path => '../../node_modules/@aparajita/capacitor-secure-storage'
+          end
+          
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['BUILD_LIBRARY_FOR_DISTRIBUTION'] = 'YES'
+                config.build_settings['ENABLE_BITCODE'] = 'NO'
+                if target.name.start_with?('Capacitor')
+                  config.build_settings['SWIFT_VERSION'] = '5.0'
+                  config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'NO'
                 end
               end
             end
-            EOT
-          fi
+          end
+          EOF
           
           echo "=== Installing CocoaPods ==="
           # Remove master repo to avoid warnings
