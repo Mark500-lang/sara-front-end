@@ -5,38 +5,205 @@ workflows:
       app_store_connect: codemagic-key
     environment:
       vars:
-        APPLE_TEAM_ID: H9A4H444G4
-        BUNDLE_ID: com.littlestories.app
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+        NODE_VERSION: "18.x"
+        COCOAPODS_VERSION: "1.15.2"
+        DEVELOPMENT_TEAM: "H9A4H444G4"
+        BUNDLE_ID: "com.littlestories.app"
+      groups:
+        - ios_signing_credentials # Your group with certs and profiles
       node: 18
       xcode: latest
+    cache:
+      cache_paths:
+        - ~/.npm
+        - node_modules
+        - ios/Pods
+    triggering:
+      events:
+        - push
+      branches:
+        - main
+        - master
+        - develop
     scripts:
-      - name: Install dependencies
+      # PHASE 1: CLEAN AND SETUP
+      - name: Clean Workspace
         script: |
+          echo "=== Cleaning Workspace ==="
+          rm -rf node_modules ios/Pods ios/App/Pods
+          rm -rf ~/Library/Developer/Xcode/DerivedData/*
+          rm -rf ios/Pods ios/Podfile.lock
+          npm cache clean --force
+
+      # PHASE 2: DEPENDENCY INSTALLATION
+      - name: Install Dependencies
+        script: |
+          set -ex
+          echo "=== Installing Node Modules ==="
           npm ci
-      - name: Build React app
-        script: |
+          
+          echo "=== Building React App ==="
           npm run build
-      - name: Sync Capacitor for iOS
-        script: |
+          
+          echo "=== Verifying Capacitor Setup ==="
           npx cap sync ios
-      - name: Build iOS archive
+          npx cap doctor
+
+      # PHASE 3: IOS PROJECT CONFIGURATION
+      - name: Configure iOS Project
         script: |
-          xcodebuild -workspace ios/App/App.xcworkspace \
-          -scheme App \
-          -configuration Release \
-          -archivePath $CM_BUILD_DIR/build/App.xcarchive \
-          archive DEVELOPMENT_TEAM=$APPLE_TEAM_ID \
-          PROVISIONING_PROFILE_SPECIFIER=$PROVISIONING_PROFILE_UUID \
-          CODE_SIGN_STYLE=Manual
+          echo "=== Setting up iOS Platform ==="
+          cd ios/App
+          
+          echo "=== Installing CocoaPods ==="
+          pod repo update
+          pod install --repo-update --clean-install
+          
+          echo "=== Verifying Project Structure ==="
+          if [ -d "Pods/Capacitor" ]; then
+            echo "✅ Capacitor installation verified"
+          else
+            echo "❌ Capacitor installation failed!"
+            exit 1
+          fi
+
+      # PHASE 4: CODE SIGNING SETUP
+      - name: Configure Signing
+        script: |
+          set -ex
+          echo "=== Setting Up Code Signing ==="
+          
+          # Import certificates and profiles from environment variables
+          echo "$CERTIFICATE" | base64 --decode > /tmp/signing.p12
+          echo "$PROVISIONING_PROFILE" | base64 --decode > /tmp/profile.mobileprovision
+          
+          # Set up keychain
+          security create-keychain -p "" build.keychain
+          security import /tmp/signing.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -s build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security set-key-partition-list -S apple-tool:,apple: -k "" build.keychain
+          
+          # Install provisioning profile
+          PROFILE_UUID=$(grep -a -A1 UUID /tmp/profile.mobileprovision | grep -io "[-A-F0-9]\{36\}")
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp /tmp/profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision
+          
+          echo "PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
+
+      # PHASE 5: BUILD CONFIGURATION
+      - name: Configure Build Settings
+        script: |
+          cd ios/App
+          
+          echo "=== Updating Build Number ==="
+          PLIST_PATH="App/Info.plist"
+          CURRENT_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH")
+          NEW_BUILD=$((CURRENT_BUILD + 1))
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_BUILD" "$PLIST_PATH"
+          
+          echo "Updated build number from $CURRENT_BUILD to $NEW_BUILD"
+          
+          # Configure manual signing in project
+          PBXPROJ="App.xcodeproj/project.pbxproj"
+          sed -i '' '/PROVISIONING_PROFILE_SPECIFIER/d' "$PBXPROJ"
+          sed -i '' '/CODE_SIGN_STYLE/d' "$PBXPROJ"
+          sed -i '' '/DEVELOPMENT_TEAM/d' "$PBXPROJ"
+          
+          sed -i '' "/buildSettings = {/a \\
+                    CODE_SIGN_STYLE = Manual; \\
+                    PROVISIONING_PROFILE_SPECIFIER = \\\"$PROFILE_UUID\\\"; \\
+                    DEVELOPMENT_TEAM = $DEVELOPMENT_TEAM; \\
+                    CODE_SIGN_IDENTITY = \\\"Apple Distribution\\\"; \\
+                    " "$PBXPROJ"
+
+      # PHASE 6: BUILD AND ARCHIVE
+      - name: Build Archive
+        script: |
+          set -ex
+          cd ios/App
+          
+          echo "=== Building Archive ==="
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -archivePath build/App.xcarchive \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
+            clean archive
+          
+          # Verify archive was created
+          if [ ! -d "build/App.xcarchive" ]; then
+            echo "❌ Archive creation failed"
+            exit 1
+          fi
+
+      # PHASE 7: EXPORT IPA
       - name: Export IPA
         script: |
+          set -ex
+          cd ios/App
+          
+          echo "=== Creating Export Options ==="
+          cat <<EOF > exportOptions.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>teamID</key>
+              <string>$DEVELOPMENT_TEAM</string>
+              <key>method</key>
+              <string>app-store</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>$BUNDLE_ID</key>
+                  <string>$PROFILE_UUID</string>
+              </dict>
+              <key>uploadBitcode</key>
+              <false/>
+              <key>uploadSymbols</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+          
+          echo "=== Exporting IPA ==="
           xcodebuild -exportArchive \
-          -archivePath $CM_BUILD_DIR/build/App.xcarchive \
-          -exportOptionsPlist ios/App/exportOptions.plist \
-          -exportPath $CM_BUILD_DIR/build/ipa
+            -archivePath build/App.xcarchive \
+            -exportOptionsPlist exportOptions.plist \
+            -exportPath build/ipa \
+            -allowProvisioningUpdates
+
+      # PHASE 8: VALIDATION
+      - name: Validate Build
+        script: |
+          set -ex
+          echo "=== Validating Build Artifacts ==="
+          
+          # Check IPA exists
+          if [ ! -f "ios/App/build/ipa/App.ipa" ]; then
+            echo "❌ IPA file not found"
+            ls -la ios/App/build/ipa/
+            exit 1
+          fi
+          
+          # Verify IPA structure
+          unzip -l ios/App/build/ipa/App.ipa | grep "Payload/App.app" || {
+            echo "❌ Invalid IPA structure"
+            exit 1
+          }
+          
+          echo "✅ Build validation successful"
+
     artifacts:
-      - build/ipa/*.ipa
+      - ios/App/build/ipa/App.ipa
+      - ios/App/exportOptions.plist
+
     publishing:
       app_store_connect:
-        api_key: codemagic-key
+        auth: integration
         submit_to_testflight: true
