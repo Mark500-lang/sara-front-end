@@ -12,7 +12,7 @@ workflows:
         DEVELOPMENT_TEAM: "H9A4H444G4"
         BUNDLE_ID: "com.littlestories.app"
       groups:
-        - ios_signing_credentials # Your group with certs and profiles
+        - Sarastories
       node: 18
       xcode: latest
     cache:
