@@ -23,10 +23,13 @@ workflows:
     triggering:
       events:
         - push
-      branches:
-        - main
-        - master
-        - develop
+      branch_patterns:
+        - pattern: main
+          include: true
+        - pattern: master
+          include: true
+        - pattern: develop
+          include: true
     scripts:
       # PHASE 1: CLEAN AND SETUP
       - name: Clean Workspace
