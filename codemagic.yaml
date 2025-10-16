@@ -7,16 +7,15 @@ workflows:
       vars:
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
-        NODE_VERSION: "20.x"  # Updated to Node 20 for Capacitor compatibility
+        NODE_VERSION: "20.x"
         COCOAPODS_VERSION: "1.15.2"
         DEVELOPMENT_TEAM: "H9A4H444G4"
         BUNDLE_ID: "com.littlestories.app"
-        # Disable ESLint warnings as errors for CI build
         CI: "false"
         DISABLE_ESLINT_PLUGIN: "true"
       groups:
-        - Sarastories
-      node: 20  # Updated to Node 20
+        - Sarastories  # Updated group name
+      node: 20
       xcode: latest
     cache:
       cache_paths:
@@ -56,30 +55,17 @@ workflows:
           echo "=== Updating browserslist ==="
           npx update-browserslist-db@latest
 
-      # PHASE 3: BUILD REACT APP (with ESLint disabled)
+      # PHASE 3: BUILD REACT APP
       - name: Build React App
         script: |
           set -ex
           echo "=== Building React App ==="
-          # Temporarily disable ESLint for the build
+          # Disable ESLint for build
           export DISABLE_ESLINT_PLUGIN=true
           export ESLINT_NO_DEV_ERRORS=false
           
-          # Create a temporary env file to disable ESLint
-          cat <<EOF > .env.production
-          DISABLE_ESLINT_PLUGIN=true
-          ESLINT_NO_DEV_ERRORS=false
-          GENERATE_SOURCEMAP=false
-          EOF
+          npm run build
           
-          # Build with explicit flags to ignore ESLint errors
-          npm run build || {
-            echo "Build failed, trying alternative approach..."
-            # Alternative build approach
-            npx react-scripts build --no-eslint
-          }
-          
-          # Verify build was created
           if [ ! -d "build" ]; then
             echo "❌ React build failed - build directory not found"
             exit 1
@@ -87,13 +73,40 @@ workflows:
           
           echo "✅ React build completed successfully"
 
-      # PHASE 4: CAPACITOR SYNC
+      # PHASE 4: CAPACITOR SYNC (FIXED)
       - name: Sync Capacitor for iOS
         script: |
           set -ex
           echo "=== Syncing Capacitor for iOS ==="
+          # Sync only iOS platform
           npx cap sync ios
-          npx cap doctor
+          
+          # Configure landscape orientation in Info.plist
+          echo "=== Configuring Landscape Orientation ==="
+          cd ios/App/App
+          PLIST_PATH="Info.plist"
+          
+          # Remove any existing orientation settings
+          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" "$PLIST_PATH" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~ipad" "$PLIST_PATH" 2>/dev/null || true
+          
+          # Add landscape orientations for iPhone
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$PLIST_PATH"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationLandscapeLeft" "$PLIST_PATH"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:1 string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
+          
+          # Add landscape orientations for iPad
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad array" "$PLIST_PATH"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:0 string UIInterfaceOrientationLandscapeLeft" "$PLIST_PATH"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:1 string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:2 string UIInterfaceOrientationPortrait" "$PLIST_PATH"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:3 string UIInterfaceOrientationPortraitUpsideDown" "$PLIST_PATH"
+          
+          # Set initial orientation to landscape
+          /usr/libexec/PlistBuddy -c "Delete :UIInterfaceOrientation" "$PLIST_PATH" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIInterfaceOrientation string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
+          
+          echo "✅ Landscape orientation configured"
 
       # PHASE 5: IOS PROJECT CONFIGURATION
       - name: Configure iOS Project
@@ -240,6 +253,13 @@ workflows:
             echo "❌ Invalid IPA structure"
             exit 1
           }
+          
+          # Verify orientation settings in final IPA
+          echo "=== Verifying Orientation Settings ==="
+          TEMP_DIR=$(mktemp -d)
+          unzip -q ios/App/build/ipa/App.ipa -d "$TEMP_DIR"
+          /usr/libexec/PlistBuddy -c "Print :UISupportedInterfaceOrientations" "$TEMP_DIR/Payload/App.app/Info.plist"
+          rm -rf "$TEMP_DIR"
           
           echo "✅ Build validation successful"
 
