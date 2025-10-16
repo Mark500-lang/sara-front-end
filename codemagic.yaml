@@ -105,19 +105,14 @@ workflows:
           
           echo "✅ Landscape orientation configured"
 
-      # PHASE 5: IOS PROJECT CONFIGURATION (FIXED POD PATHS)
+      # PHASE 5: IOS PROJECT CONFIGURATION (SIMPLIFIED)
       - name: Configure iOS Project
         script: |
           set -ex
           echo "=== Setting up iOS Platform ==="
           cd ios/App
           
-          # First, let's check what's actually in the node_modules
-          echo "=== Checking available plugins ==="
-          find ../../node_modules -name "*.podspec" | grep -E "(capacitor|secure)" || true
-          find ../../node_modules -name "ios.json" | grep -E "(capacitor|secure)" || true
-          
-          echo "=== Generating Podfile ==="
+          echo "=== Generating Podfile with correct pod names ==="
           cat > Podfile << 'EOF'
           platform :ios, '13.0'
           use_frameworks! :linkage => :dynamic
@@ -136,11 +131,10 @@ workflows:
             pod 'CapacitorFilesystem', :path => '../../node_modules/@capacitor/filesystem'
             pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
             
-            # Additional plugins - try different path formats
-            pod 'capacitor-voice-recorder', :path => '../../node_modules/capacitor-voice-recorder'
-            
-            # Try the secure storage plugin with corrected path
-            pod 'CapacitorSecureStorage', :path => '../../node_modules/@aparajita/capacitor-secure-storage'
+            # Additional plugins with correct pod names from your podspec files
+            pod 'CapacitorVoiceRecorder', :path => '../../node_modules/capacitor-voice-recorder'
+            pod 'AparajitaCapacitorSecureStorage', :path => '../../node_modules/@aparajita/capacitor-secure-storage'
+            pod 'CapacitorBlobWriter', :path => '../../node_modules/capacitor-blob-writer'
           end
           
           post_install do |installer|
@@ -148,7 +142,7 @@ workflows:
               target.build_configurations.each do |config|
                 config.build_settings['BUILD_LIBRARY_FOR_DISTRIBUTION'] = 'YES'
                 config.build_settings['ENABLE_BITCODE'] = 'NO'
-                if target.name.start_with?('Capacitor')
+                if target.name.start_with?('Capacitor') || target.name.start_with?('Aparajita')
                   config.build_settings['SWIFT_VERSION'] = '5.0'
                   config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'NO'
                 end
@@ -161,36 +155,8 @@ workflows:
           # Remove master repo to avoid warnings
           pod repo remove master 2>/dev/null || true
           
-          # Try pod install with different approaches if it fails
-          if ! pod install --repo-update --clean-install; then
-            echo "=== First attempt failed, trying alternative approach ==="
-            
-            # Try without the problematic plugin first
-            cat > Podfile << 'EOF'
-            platform :ios, '13.0'
-            use_frameworks! :linkage => :dynamic
-            
-            install! 'cocoapods', :warn_for_unused_master_specs_repo => false
-            
-            target 'App' do
-              # Capacitor Core only
-              pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
-              pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
-              
-              # Only core Capacitor plugins
-              pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
-              pod 'CapacitorDevice', :path => '../../node_modules/@capacitor/device'
-              pod 'CapacitorFilesystem', :path => '../../node_modules/@capacitor/filesystem'
-              pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
-              
-              # Skip problematic plugins for now
-              # pod 'capacitor-voice-recorder', :path => '../../node_modules/capacitor-voice-recorder'
-              # pod 'CapacitorSecureStorage', :path => '../../node_modules/@aparajita/capacitor-secure-storage'
-            end
-            EOF
-            
-            pod install --repo-update --clean-install
-          fi
+          # Install pods
+          pod install --repo-update --clean-install
           
           echo "=== Verifying Project Structure ==="
           # Check if Pods were installed successfully
@@ -207,7 +173,102 @@ workflows:
             exit 1
           fi
 
-      # PHASE 6: CODE SIGNING SETUP
+      # PHASE 6: CREATE MISSING XCSCHEME FILE
+      - name: Create Xcode Scheme
+        script: |
+          set -ex
+          echo "=== Creating missing Xcode scheme ==="
+          cd ios/App
+          
+          # Create directory if it doesn't exist
+          mkdir -p App.xcodeproj/xcshareddata/xcschemes
+          
+          # Create the scheme file
+          cat > App.xcodeproj/xcshareddata/xcschemes/App.xcscheme << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <Scheme
+            LastUpgradeVersion = "1500"
+            version = "1.7">
+            <BuildAction
+               parallelizeBuildables = "YES"
+               buildImplicitDependencies = "YES">
+               <BuildActionEntries>
+                  <BuildActionEntry
+                     buildForTesting = "YES"
+                     buildForRunning = "YES"
+                     buildForProfiling = "YES"
+                     buildForArchiving = "YES"
+                     buildForAnalyzing = "YES">
+                     <BuildableReference
+                        BuildableIdentifier = "primary"
+                        BlueprintIdentifier = "1DF1B9C3257A6D4E00F1B1A6"
+                        BuildableName = "App.app"
+                        BlueprintName = "App"
+                        ReferencedContainer = "container:App.xcodeproj">
+                     </BuildableReference>
+                  </BuildActionEntry>
+               </BuildActionEntries>
+            </BuildAction>
+            <TestAction
+               buildConfiguration = "Debug"
+               selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+               selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+               shouldUseLaunchSchemeArgsEnv = "YES"
+               codeCoverageEnabled = "YES">
+               <Testables>
+               </Testables>
+            </TestAction>
+            <LaunchAction
+               buildConfiguration = "Debug"
+               selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+               selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+               launchStyle = "0"
+               useCustomWorkingDirectory = "NO"
+               ignoresPersistentStateOnLaunch = "NO"
+               debugDocumentVersioning = "YES"
+               debugServiceExtension = "internal"
+               allowLocationSimulation = "YES">
+               <BuildableProductRunnable
+                  runnableDebuggingMode = "0">
+                  <BuildableReference
+                     BuildableIdentifier = "primary"
+                     BlueprintIdentifier = "1DF1B9C3257A6D4E00F1B1A6"
+                     BuildableName = "App.app"
+                     BlueprintName = "App"
+                     ReferencedContainer = "container:App.xcodeproj">
+                  </BuildableReference>
+               </BuildableProductRunnable>
+            </LaunchAction>
+            <ProfileAction
+               buildConfiguration = "Release"
+               shouldUseLaunchSchemeArgsEnv = "YES"
+               savedToolIdentifier = ""
+               useCustomWorkingDirectory = "NO"
+               debugDocumentVersioning = "YES">
+               <BuildableProductRunnable
+                  runnableDebuggingMode = "0">
+                  <BuildableReference
+                     BuildableIdentifier = "primary"
+                     BlueprintIdentifier = "1DF1B9C3257A6D4E00F1B1A6"
+                     BuildableName = "App.app"
+                     BlueprintName = "App"
+                     ReferencedContainer = "container:App.xcodeproj">
+                  </BuildableReference>
+               </BuildableProductRunnable>
+            </ProfileAction>
+            <AnalyzeAction
+               buildConfiguration = "Debug">
+            </AnalyzeAction>
+            <ArchiveAction
+               buildConfiguration = "Release"
+               revealArchiveInOrganizer = "YES">
+            </ArchiveAction>
+          </Scheme>
+          EOF
+          
+          echo "✅ Xcode scheme created"
+
+      # PHASE 7: CODE SIGNING SETUP
       - name: Configure Signing
         script: |
           set -ex
@@ -232,7 +293,7 @@ workflows:
           
           echo "PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
 
-      # PHASE 7: BUILD CONFIGURATION
+      # PHASE 8: BUILD CONFIGURATION
       - name: Configure Build Settings
         script: |
           cd ios/App
@@ -264,7 +325,7 @@ workflows:
                     CODE_SIGN_IDENTITY = \\\"Apple Distribution\\\"; \\
                     " "$PBXPROJ"
 
-      # PHASE 8: BUILD AND ARCHIVE
+      # PHASE 9: BUILD AND ARCHIVE
       - name: Build Archive
         script: |
           set -ex
@@ -286,7 +347,7 @@ workflows:
             exit 1
           fi
 
-      # PHASE 9: EXPORT IPA
+      # PHASE 10: EXPORT IPA
       - name: Export IPA
         script: |
           set -ex
@@ -322,7 +383,7 @@ workflows:
             -exportPath build/ipa \
             -allowProvisioningUpdates
 
-      # PHASE 10: VALIDATION
+      # PHASE 11: VALIDATION
       - name: Validate Build
         script: |
           set -ex
