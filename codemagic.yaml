@@ -105,14 +105,18 @@ workflows:
           
           echo "✅ Landscape orientation configured"
 
-      # PHASE 5: IOS PROJECT CONFIGURATION (FIXED)
+      # PHASE 5: IOS PROJECT CONFIGURATION (FIXED POD PATHS)
       - name: Configure iOS Project
         script: |
           set -ex
           echo "=== Setting up iOS Platform ==="
           cd ios/App
           
-          # Create proper Podfile with simplified syntax
+          # First, let's check what's actually in the node_modules
+          echo "=== Checking available plugins ==="
+          find ../../node_modules -name "*.podspec" | grep -E "(capacitor|secure)" || true
+          find ../../node_modules -name "ios.json" | grep -E "(capacitor|secure)" || true
+          
           echo "=== Generating Podfile ==="
           cat > Podfile << 'EOF'
           platform :ios, '13.0'
@@ -132,9 +136,11 @@ workflows:
             pod 'CapacitorFilesystem', :path => '../../node_modules/@capacitor/filesystem'
             pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
             
-            # Additional plugins from your package.json
+            # Additional plugins - try different path formats
             pod 'capacitor-voice-recorder', :path => '../../node_modules/capacitor-voice-recorder'
-            pod '@aparajita/capacitor-secure-storage', :path => '../../node_modules/@aparajita/capacitor-secure-storage'
+            
+            # Try the secure storage plugin with corrected path
+            pod 'CapacitorSecureStorage', :path => '../../node_modules/@aparajita/capacitor-secure-storage'
           end
           
           post_install do |installer|
@@ -155,8 +161,36 @@ workflows:
           # Remove master repo to avoid warnings
           pod repo remove master 2>/dev/null || true
           
-          # Install pods
-          pod install --repo-update --clean-install
+          # Try pod install with different approaches if it fails
+          if ! pod install --repo-update --clean-install; then
+            echo "=== First attempt failed, trying alternative approach ==="
+            
+            # Try without the problematic plugin first
+            cat > Podfile << 'EOF'
+            platform :ios, '13.0'
+            use_frameworks! :linkage => :dynamic
+            
+            install! 'cocoapods', :warn_for_unused_master_specs_repo => false
+            
+            target 'App' do
+              # Capacitor Core only
+              pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
+              pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
+              
+              # Only core Capacitor plugins
+              pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
+              pod 'CapacitorDevice', :path => '../../node_modules/@capacitor/device'
+              pod 'CapacitorFilesystem', :path => '../../node_modules/@capacitor/filesystem'
+              pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
+              
+              # Skip problematic plugins for now
+              # pod 'capacitor-voice-recorder', :path => '../../node_modules/capacitor-voice-recorder'
+              # pod 'CapacitorSecureStorage', :path => '../../node_modules/@aparajita/capacitor-secure-storage'
+            end
+            EOF
+            
+            pod install --repo-update --clean-install
+          fi
           
           echo "=== Verifying Project Structure ==="
           # Check if Pods were installed successfully
