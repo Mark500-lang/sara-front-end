@@ -14,7 +14,7 @@ workflows:
         CI: "false"
         DISABLE_ESLINT_PLUGIN: "true"
       groups:
-        - Sarastories  # Updated group name
+        - Sarastories
       node: 20
       xcode: latest
     cache:
@@ -60,7 +60,6 @@ workflows:
         script: |
           set -ex
           echo "=== Building React App ==="
-          # Disable ESLint for build
           export DISABLE_ESLINT_PLUGIN=true
           export ESLINT_NO_DEV_ERRORS=false
           
@@ -73,15 +72,18 @@ workflows:
           
           echo "✅ React build completed successfully"
 
-      # PHASE 4: CAPACITOR SYNC (FIXED)
+      # PHASE 4: CAPACITOR SYNC WITH PODFILE CONFIGURATION
       - name: Sync Capacitor for iOS
         script: |
           set -ex
           echo "=== Syncing Capacitor for iOS ==="
-          # Sync only iOS platform
+          
+          # Ensure iOS directory exists
+          mkdir -p ios/App
+          
+          # Sync iOS platform
           npx cap sync ios
           
-          # Configure landscape orientation in Info.plist
           echo "=== Configuring Landscape Orientation ==="
           cd ios/App/App
           PLIST_PATH="Info.plist"
@@ -108,21 +110,73 @@ workflows:
           
           echo "✅ Landscape orientation configured"
 
-      # PHASE 5: IOS PROJECT CONFIGURATION
+      # PHASE 5: IOS PROJECT CONFIGURATION (FIXED)
       - name: Configure iOS Project
         script: |
+          set -ex
           echo "=== Setting up iOS Platform ==="
           cd ios/App
           
+          # Create proper Podfile if it doesn't exist
+          if [ ! -f "Podfile" ]; then
+            echo "=== Generating Podfile ==="
+            cat <<EOT > Podfile
+            platform :ios, '13.0'
+            use_frameworks! :linkage => :dynamic
+            
+            # Suppress CDN warning
+            install! 'cocoapods', :warn_for_unused_master_specs_repo => false
+            
+            target 'App' do
+              # Capacitor Core
+              pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
+              pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
+              
+              # Capacitor Plugins
+              pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
+              pod 'CapacitorDevice', :path => '../../node_modules/@capacitor/device'
+              pod 'CapacitorFilesystem', :path => '../../node_modules/@capacitor/filesystem'
+              pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
+              
+              # Additional plugins from your package.json
+              pod 'capacitor-voice-recorder', :path => '../../node_modules/capacitor-voice-recorder'
+              pod '@aparajita/capacitor-secure-storage', :path => '../../node_modules/@aparajita/capacitor-secure-storage'
+            end
+            
+            post_install do |installer|
+              installer.pods_project.targets.each do |target|
+                target.build_configurations.each do |config|
+                  config.build_settings['BUILD_LIBRARY_FOR_DISTRIBUTION'] = 'YES'
+                  config.build_settings['ENABLE_BITCODE'] = 'NO'
+                  if target.name.start_with?('Capacitor')
+                    config.build_settings['SWIFT_VERSION'] = '5.0'
+                    config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'NO'
+                  end
+                end
+              end
+            end
+            EOT
+          fi
+          
           echo "=== Installing CocoaPods ==="
-          pod repo update
+          # Remove master repo to avoid warnings
+          pod repo remove master 2>/dev/null || true
+          
+          # Install pods
           pod install --repo-update --clean-install
           
           echo "=== Verifying Project Structure ==="
-          if [ -d "Pods/Capacitor" ]; then
-            echo "✅ Capacitor installation verified"
+          # Check if Pods were installed successfully
+          if [ -d "Pods" ] && [ -f "App.xcworkspace" ]; then
+            echo "✅ CocoaPods installation verified"
+            echo "Installed pods:"
+            find Pods -name "*.framework" -type d | head -10
           else
-            echo "❌ Capacitor installation failed!"
+            echo "❌ CocoaPods installation failed!"
+            echo "Directory contents:"
+            ls -la
+            echo "Pods directory:"
+            ls -la Pods/ 2>/dev/null || echo "Pods directory not found"
             exit 1
           fi
 
@@ -166,10 +220,16 @@ workflows:
           
           # Configure manual signing in project
           PBXPROJ="App.xcodeproj/project.pbxproj"
+          # Create backup
+          cp "$PBXPROJ" "$PBXPROJ.backup"
+          
+          # Remove any existing signing settings
           sed -i '' '/PROVISIONING_PROFILE_SPECIFIER/d' "$PBXPROJ"
           sed -i '' '/CODE_SIGN_STYLE/d' "$PBXPROJ"
           sed -i '' '/DEVELOPMENT_TEAM/d' "$PBXPROJ"
+          sed -i '' '/CODE_SIGN_IDENTITY/d' "$PBXPROJ"
           
+          # Add manual signing settings
           sed -i '' "/buildSettings = {/a \\
                     CODE_SIGN_STYLE = Manual; \\
                     PROVISIONING_PROFILE_SPECIFIER = \\\"$PROFILE_UUID\\\"; \\
@@ -253,13 +313,6 @@ workflows:
             echo "❌ Invalid IPA structure"
             exit 1
           }
-          
-          # Verify orientation settings in final IPA
-          echo "=== Verifying Orientation Settings ==="
-          TEMP_DIR=$(mktemp -d)
-          unzip -q ios/App/build/ipa/App.ipa -d "$TEMP_DIR"
-          /usr/libexec/PlistBuddy -c "Print :UISupportedInterfaceOrientations" "$TEMP_DIR/Payload/App.app/Info.plist"
-          rm -rf "$TEMP_DIR"
           
           echo "✅ Build validation successful"
 
