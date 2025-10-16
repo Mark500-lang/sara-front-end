@@ -105,16 +105,16 @@ workflows:
           
           echo "✅ Landscape orientation configured"
 
-      # PHASE 5: IOS PROJECT CONFIGURATION (SIMPLIFIED)
+      # PHASE 5: IOS PROJECT CONFIGURATION (FIXED VERIFICATION)
       - name: Configure iOS Project
         script: |
           set -ex
           echo "=== Setting up iOS Platform ==="
           cd ios/App
           
-          echo "=== Generating Podfile with correct pod names ==="
+          echo "=== Generating Podfile with iOS 14.0 platform ==="
           cat > Podfile << 'EOF'
-          platform :ios, '13.0'
+          platform :ios, '14.0'
           use_frameworks! :linkage => :dynamic
           
           # Suppress CDN warning
@@ -131,7 +131,7 @@ workflows:
             pod 'CapacitorFilesystem', :path => '../../node_modules/@capacitor/filesystem'
             pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
             
-            # Additional plugins with correct pod names from your podspec files
+            # Additional plugins with correct pod names
             pod 'CapacitorVoiceRecorder', :path => '../../node_modules/capacitor-voice-recorder'
             pod 'AparajitaCapacitorSecureStorage', :path => '../../node_modules/@aparajita/capacitor-secure-storage'
             pod 'CapacitorBlobWriter', :path => '../../node_modules/capacitor-blob-writer'
@@ -159,18 +159,24 @@ workflows:
           pod install --repo-update --clean-install
           
           echo "=== Verifying Project Structure ==="
-          # Check if Pods were installed successfully
-          if [ -d "Pods" ] && [ -f "App.xcworkspace" ]; then
+          # Check if Pods were installed successfully - FIXED VERIFICATION
+          if [ -d "Pods" ] && [ -d "App.xcworkspace" ]; then
             echo "✅ CocoaPods installation verified"
             echo "Installed pods:"
-            find Pods -name "*.framework" -type d | head -10
+            ls Pods/ | head -10
+            echo "Workspace exists, proceeding with build..."
           else
             echo "❌ CocoaPods installation failed!"
             echo "Directory contents:"
             ls -la
-            echo "Pods directory:"
-            ls -la Pods/ 2>/dev/null || echo "Pods directory not found"
-            exit 1
+            echo "Checking for workspace:"
+            ls -la App.xcworkspace/ 2>/dev/null || echo "Workspace not found as directory"
+            # Check if it's a file instead of directory
+            if [ -f "App.xcworkspace" ]; then
+              echo "Workspace exists as file, continuing..."
+            else
+              exit 1
+            fi
           fi
 
       # PHASE 6: CREATE MISSING XCSCHEME FILE
