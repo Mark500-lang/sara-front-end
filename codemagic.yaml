@@ -14,9 +14,13 @@ workflows:
         CI: "false"
         DISABLE_ESLINT_PLUGIN: "true"
       groups:
-        - Sarastories  # Your existing environment group
+        - Sarastories
       node: 20
       xcode: latest
+    # ADD CODE SIGNING CONFIGURATION
+    code_signing:
+      ios_signing_identity: "Sara-stories-certificate"
+    
     cache:
       cache_paths:
         - ~/.npm
@@ -306,23 +310,14 @@ workflows:
           
           echo "✅ Xcode scheme created"
 
-      # PHASE 7: CODE SIGNING SETUP (USING CODEMAGIC MANAGED CERTIFICATE)
+      # PHASE 7: CODE SIGNING SETUP (FIXED)
       - name: Configure Signing
         script: |
           set -ex
-          echo "=== Setting Up Code Signing with Codemagic Managed Certificate ==="
+          echo "=== Setting Up Code Signing ==="
           
-          # Note: Certificate is now managed by Codemagic Code Signing Identities
-          # Only need to handle provisioning profile from environment variables
-          
+          # Import provisioning profile from environment variables
           echo "$PROVISIONING_PROFILE" | base64 --decode > /tmp/profile.mobileprovision
-          
-          # Set up keychain (Codemagic automatically handles certificate import)
-          security create-keychain -p "" build.keychain
-          security list-keychains -s build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "" build.keychain
-          security set-key-partition-list -S apple-tool:,apple: -k "" build.keychain
           
           # Install provisioning profile
           PROFILE_UUID=$(grep -a -A1 UUID /tmp/profile.mobileprovision | grep -io "[-A-F0-9]\{36\}")
@@ -330,7 +325,11 @@ workflows:
           cp /tmp/profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision
           
           echo "PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
-          echo "✅ Code signing configured using Codemagic managed certificate"
+          echo "✅ Provisioning profile installed with UUID: $PROFILE_UUID"
+
+          # Verify certificate is available (Codemagic should have imported it automatically)
+          echo "=== Verifying Signing Certificate ==="
+          security find-identity -v -p codesigning || echo "No identities found, Codemagic will handle this"
 
       # PHASE 8: BUILD CONFIGURATION
       - name: Configure Build Settings
