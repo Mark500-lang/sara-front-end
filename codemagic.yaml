@@ -106,7 +106,7 @@ workflows:
           
           echo "✅ Landscape orientation configured"
 
-      # PHASE 5: IOS PROJECT CONFIGURATION (SIMPLIFIED)
+      # PHASE 5: IOS PROJECT CONFIGURATION
       - name: Configure iOS Project
         script: |
           set -ex
@@ -212,7 +212,7 @@ workflows:
           
           echo "✅ Xcode scheme created"
 
-      # PHASE 7: CODE SIGNING SETUP (FROM SUCCESSFUL SCRIPT)
+      # PHASE 7: CODE SIGNING SETUP
       - name: Configure Signing
         script: |
           set -ex
@@ -239,7 +239,7 @@ workflows:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision
           
-          # Create pod signing override file in project root
+          # Create pod signing override file
           echo "=== Configuring Pod Signing ==="
           cat > disable-pod-signing.xcconfig << EOF
           CODE_SIGNING_ALLOWED = NO
@@ -249,12 +249,11 @@ workflows:
           EOF
           
           # Update Pods xcconfig files with absolute path
-          PODS_ROOT_ABS=$(pwd)/Pods
           find "Pods/Target Support Files" -name "*.*cconfig" | while read file; do
             echo "#include \"$(pwd)/disable-pod-signing.xcconfig\"" >> "$file"
           done
           
-          # Fully convert to manual signing
+          # Convert to manual signing in project file
           echo "=== Updating Project Settings ==="
           PBXPROJ="App.xcodeproj/project.pbxproj"
           cp "$PBXPROJ" "$PBXPROJ.bak"
@@ -302,7 +301,7 @@ workflows:
           
           echo "✅ Build settings configured"
 
-      # PHASE 9: BUILD UNSIGNED ARCHIVE (FROM SUCCESSFUL SCRIPT)
+      # PHASE 9: BUILD UNSIGNED ARCHIVE
       - name: Build Unsigned Archive
         script: |
           set -ex
@@ -340,7 +339,7 @@ workflows:
           
           echo "✅ Unsigned archive created successfully"
 
-      # PHASE 10: MANUAL SIGNING (FROM SUCCESSFUL SCRIPT)
+      # PHASE 10: MANUAL SIGNING
       - name: Manual Signing
         script: |
           set -ex
@@ -390,37 +389,31 @@ workflows:
           codesign -vvv --deep --strict "$APP_PATH"
           echo "✅ Build successfully signed and validated"
 
-      # PHASE 11: EXPORT IPA (SIMPLIFIED - NO PROVISIONING PROFILES DICT)
-      - name: Export IPA
+      # PHASE 11: CREATE IPA MANUALLY (INSTEAD OF XCODEBUILD EXPORT)
+      - name: Create IPA Manually
         script: |
           set -ex
           cd ios/App
           
-          echo "=== Creating Export Options ==="
-          cat > exportOptions.plist << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>teamID</key>
-              <string>$DEVELOPMENT_TEAM</string>
-              <key>method</key>
-              <string>app-store</string>
-              <key>uploadBitcode</key>
-              <false/>
-              <key>compileBitcode</key>
-              <false/>
-          </dict>
-          </plist>
-          EOF
+          echo "=== Creating IPA Manually ==="
           
-          echo "=== Exporting IPA ==="
-          xcodebuild -exportArchive \
-            -archivePath build/App.xcarchive \
-            -exportOptionsPlist exportOptions.plist \
-            -exportPath build/ipa
+          # Create IPA directory
+          mkdir -p build/ipa/Payload
           
-          echo "✅ IPA export completed"
+          # Copy the signed app to Payload directory
+          cp -R build/App.xcarchive/Products/Applications/App.app build/ipa/Payload/
+          
+          # Create the IPA file
+          cd build/ipa
+          zip -qr App.ipa Payload
+          
+          # Verify the IPA was created
+          if [ ! -f "App.ipa" ]; then
+            echo "❌ IPA creation failed"
+            exit 1
+          fi
+          
+          echo "✅ IPA created manually"
 
       # PHASE 12: VALIDATION
       - name: Validate Build
@@ -443,7 +436,7 @@ workflows:
             exit 1
           }
           
-          # Verify signing
+          # Verify signing in the final IPA
           TEMP_DIR=$(mktemp -d)
           unzip -q ios/App/build/ipa/App.ipa -d "$TEMP_DIR"
           codesign -dv --verbose=4 "$TEMP_DIR/Payload/App.app" 2>&1 | grep -E 'Authority=Apple Distribution|TeamIdentifier=' || {
@@ -457,7 +450,6 @@ workflows:
 
     artifacts:
       - ios/App/build/ipa/App.ipa
-      - ios/App/exportOptions.plist
 
     publishing:
       app_store_connect:
