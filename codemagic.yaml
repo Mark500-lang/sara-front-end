@@ -143,6 +143,13 @@ workflows:
               target.build_configurations.each do |config|
                 config.build_settings['BUILD_LIBRARY_FOR_DISTRIBUTION'] = 'YES'
                 config.build_settings['ENABLE_BITCODE'] = 'NO'
+                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+                
+                # Fix for GCDWebServer deployment target warning
+                if target.name == 'GCDWebServer'
+                  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '12.0'
+                end
+                
                 if target.name.start_with?('Capacitor') || target.name.start_with?('Aparajita')
                   config.build_settings['SWIFT_VERSION'] = '5.0'
                   config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'NO'
@@ -200,98 +207,118 @@ workflows:
           EOF
           echo "✅ Xcode scheme created"
 
-      # PHASE 7: CODE SIGNING SETUP (WITH MANUAL CERTIFICATE)
+      # PHASE 7: CODE SIGNING SETUP (FIXED)
       - name: Configure Signing
         script: |
           set -ex
           echo "=== Setting Up Code Signing ==="
           
-          # Import certificate and provisioning profile from environment variables
-          echo "$CERTIFICATE" | base64 --decode > /tmp/signing.p12
-          echo "$PROVISIONING_PROFILE" | base64 --decode > /tmp/profile.mobileprovision
-          
-          # Set up keychain
+          # Create keychain and import certificate
           security create-keychain -p "" build.keychain
-          security import /tmp/signing.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security list-keychains -s build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "" build.keychain
-          security set-key-partition-list -S apple-tool:,apple: -k "" build.keychain
+          
+          # Import certificate from environment variable
+          echo "$CERTIFICATE" | base64 --decode > /tmp/certificate.p12
+          security import /tmp/certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          
+          # Configure keychain settings
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
           
           # Install provisioning profile
-          PROFILE_UUID=$(grep -a -A1 UUID /tmp/profile.mobileprovision | grep -io "[-A-F0-9]\{36\}")
+          echo "$PROVISIONING_PROFILE" | base64 --decode > /tmp/profile.mobileprovision
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' /dev/stdin <<< $(security cms -D -i /tmp/profile.mobileprovision))
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp /tmp/profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision
           
           echo "PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
-          echo "✅ Code signing configured successfully"
+          echo "PROFILE_NAME=SaraStories_AppStore_2025" >> $CM_ENV
+          echo "✅ Code signing configured successfully - Profile UUID: $PROFILE_UUID"
 
-      # PHASE 8: BUILD CONFIGURATION
+      # PHASE 8: BUILD CONFIGURATION (FIXED)
       - name: Configure Build Settings
         script: |
+          set -ex
           cd ios/App
           
           echo "=== Updating Build Number ==="
           PLIST_PATH="App/Info.plist"
-          CURRENT_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH")
+          CURRENT_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH" 2>/dev/null || echo "1")
           NEW_BUILD=$((CURRENT_BUILD + 1))
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_BUILD" "$PLIST_PATH"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$PLIST_PATH"
           
           echo "Updated build number from $CURRENT_BUILD to $NEW_BUILD"
+          echo "Bundle ID set to: $BUNDLE_ID"
           
-          # Configure manual signing in project
+          # Configure Xcode project settings
           PBXPROJ="App.xcodeproj/project.pbxproj"
-          cp "$PBXPROJ" "$PBXPROJ.backup"
           
-          # Remove any existing signing settings
-          sed -i '' '/PROVISIONING_PROFILE_SPECIFIER/d' "$PBXPROJ"
-          sed -i '' '/CODE_SIGN_STYLE/d' "$PBXPROJ"
-          sed -i '' '/DEVELOPMENT_TEAM/d' "$PBXPROJ"
-          sed -i '' '/CODE_SIGN_IDENTITY/d' "$PBXPROJ"
+          # Use sed to update project settings (more reliable than multiple sed commands)
+          python3 << EOF
+          import re
+          import os
           
-          # Add manual signing settings
-          sed -i '' "/buildSettings = {/a \\
-                    CODE_SIGN_STYLE = Manual; \\
-                    PROVISIONING_PROFILE_SPECIFIER = \\\"$PROFILE_UUID\\\"; \\
-                    DEVELOPMENT_TEAM = $DEVELOPMENT_TEAM; \\
-                    CODE_SIGN_IDENTITY = \\\"Apple Distribution\\\"; \\
-                    " "$PBXPROJ"
+          profile_uuid = os.environ.get('PROFILE_UUID', '')
+          development_team = os.environ.get('DEVELOPMENT_TEAM', '')
+          bundle_id = os.environ.get('BUNDLE_ID', '')
+          
+          with open('$PBXPROJ', 'r') as f:
+              content = f.read()
+          
+          # Update build settings for Release configuration
+          content = re.sub(
+              r'buildSettings = \{[^}]*CODE_SIGN_STYLE[^}]*\}',
+              f'buildSettings = {{\\n\\t\\t\\t\\tCODE_SIGN_STYLE = Manual;\\n\\t\\t\\t\\tDEVELOPMENT_TEAM = {development_team};\\n\\t\\t\\t\\tPROVISIONING_PROFILE_SPECIFIER = {profile_uuid};\\n\\t\\t\\t\\tPRODUCT_BUNDLE_IDENTIFIER = {bundle_id};\\n\\t\\t\\t\\tCODE_SIGN_IDENTITY = "Apple Distribution";',
+              content
+          )
+          
+          with open('$PBXPROJ', 'w') as f:
+              f.write(content)
+          EOF
+          
+          echo "✅ Build settings configured"
 
-      # PHASE 9: BUILD AND ARCHIVE
+      # PHASE 9: BUILD AND ARCHIVE (FIXED)
       - name: Build Archive
         script: |
           set -ex
           cd ios/App
           
           echo "=== Building Archive ==="
-          xcodebuild -workspace App.xcworkspace \
+          xcodebuild archive \
+            -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
             -archivePath build/App.xcarchive \
+            -allowProvisioningUpdates \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
-            clean archive
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+            CODE_SIGN_IDENTITY="Apple Distribution"
           
           if [ ! -d "build/App.xcarchive" ]; then
             echo "❌ Archive creation failed"
             exit 1
           fi
+          echo "✅ Archive created successfully"
 
-      # PHASE 10: EXPORT IPA
+      # PHASE 10: EXPORT IPA (FIXED)
       - name: Export IPA
         script: |
           set -ex
           cd ios/App
           
           echo "=== Creating Export Options ==="
-          cat <<EOF > exportOptions.plist
+          cat > exportOptions.plist << EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
-              <key>teamID</key>
-              <string>$DEVELOPMENT_TEAM</string>
+              <key>compileBitcode</key>
+              <false/>
               <key>method</key>
               <string>app-store</string>
               <key>provisioningProfiles</key>
@@ -299,6 +326,14 @@ workflows:
                   <key>$BUNDLE_ID</key>
                   <string>$PROFILE_UUID</string>
               </dict>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>stripSwiftSymbols</key>
+              <true/>
+              <key>teamID</key>
+              <string>$DEVELOPMENT_TEAM</string>
+              <key>thinning</key>
+              <string>&lt;none&gt;</string>
               <key>uploadBitcode</key>
               <false/>
               <key>uploadSymbols</key>
@@ -313,6 +348,8 @@ workflows:
             -exportOptionsPlist exportOptions.plist \
             -exportPath build/ipa \
             -allowProvisioningUpdates
+          
+          echo "✅ IPA exported successfully"
 
       # PHASE 11: VALIDATION
       - name: Validate Build
@@ -322,20 +359,24 @@ workflows:
           
           if [ ! -f "ios/App/build/ipa/App.ipa" ]; then
             echo "❌ IPA file not found"
-            ls -la ios/App/build/ipa/
+            ls -la ios/App/build/ipa/ || true
             exit 1
           fi
           
-          unzip -l ios/App/build/ipa/App.ipa | grep "Payload/App.app" || {
+          # Check IPA contents
+          unzip -l "ios/App/build/ipa/App.ipa" | grep "Payload/App.app" || {
             echo "❌ Invalid IPA structure"
+            unzip -l "ios/App/build/ipa/App.ipa"
             exit 1
           }
           
           echo "✅ Build validation successful"
+          echo "📱 IPA file size: $(du -h ios/App/build/ipa/App.ipa | cut -f1)"
 
     artifacts:
       - ios/App/build/ipa/App.ipa
       - ios/App/exportOptions.plist
+      - ios/App/build/App.xcarchive
 
     publishing:
       app_store_connect:
