@@ -311,6 +311,207 @@ workflows:
           
           echo "✅ Build settings configured"
 
+      # PHASE 9: ADD PRIVACY DESCRIPTIONS
+      - name: Add Privacy Descriptions
+        script: |
+          set -ex
+          cd ios/App/App
+          
+          echo "=== Adding Required Privacy Descriptions ==="
+          PLIST_PATH="Info.plist"
+          
+          # Add microphone usage description for voice recorder
+          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'This app needs microphone access to record audio for voice stories and narration.'" "$PLIST_PATH" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'This app needs microphone access to record audio for voice stories and narration.'" "$PLIST_PATH"
+          
+          # Verify the descriptions were added
+          echo "=== Verifying Privacy Descriptions ==="
+          /usr/libexec/PlistBuddy -c "Print :NSMicrophoneUsageDescription" "$PLIST_PATH"
+          
+          echo "✅ Privacy descriptions added"
+
+            # PHASE 10: GENERATE IOS APP ICONS
+            
+      - name: Generate iOS App Icons
+        script: |
+          set -ex
+          cd ios/App/App
+          
+          echo "=== Generating iOS App Icons ==="
+          
+          # Check if we have the Android icon file
+          if [ -f "../../../android/app/src/main/res/mipmap-hdpi/ic_launcher.png" ]; then
+            ICON_SOURCE="../../../android/app/src/main/res/mipmap-hdpi/ic_launcher.png"
+          elif [ -f "../../../android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" ]; then
+            ICON_SOURCE="../../../android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png"
+          else
+            echo "❌ Android icon file not found. Please ensure ic_launcher.png exists in android app resources."
+            exit 1
+          fi
+          
+          echo "Using source icon: $ICON_SOURCE"
+          
+          # Create the AppIcon.appiconset directory
+          mkdir -p "Assets.xcassets/AppIcon.appiconset"
+          
+          # Required iOS icon sizes (width x height)
+          declare -A ICON_SIZES=(
+            ["icon-20.png"]=20
+            ["icon-20@2x.png"]=40
+            ["icon-20@3x.png"]=60
+            ["icon-29.png"]=29
+            ["icon-29@2x.png"]=58
+            ["icon-29@3x.png"]=87
+            ["icon-40.png"]=40
+            ["icon-40@2x.png"]=80
+            ["icon-40@3x.png"]=120
+            ["icon-60@2x.png"]=120
+            ["icon-60@3x.png"]=180
+            ["icon-76.png"]=76
+            ["icon-76@2x.png"]=152
+            ["icon-83.5@2x.png"]=167
+            ["icon-1024.png"]=1024
+          )
+          
+          # Generate all icon sizes
+          for ICON_FILE in "${!ICON_SIZES[@]}"; do
+            SIZE="${ICON_SIZES[$ICON_FILE]}"
+            echo "Generating $ICON_FILE (${SIZE}x${SIZE})"
+            
+            # Use sips to resize the icon (macOS built-in tool)
+            sips -z $SIZE $SIZE "$ICON_SOURCE" --out "Assets.xcassets/AppIcon.appiconset/$ICON_FILE"
+          done
+          
+          # Create Contents.json for AppIcon.appiconset
+          cat > "Assets.xcassets/AppIcon.appiconset/Contents.json" << 'EOF'
+          {
+            "images" : [
+              {
+                "size" : "20x20",
+                "idiom" : "iphone",
+                "filename" : "icon-20@2x.png",
+                "scale" : "2x"
+              },
+              {
+                "size" : "20x20",
+                "idiom" : "iphone",
+                "filename" : "icon-20@3x.png",
+                "scale" : "3x"
+              },
+              {
+                "size" : "29x29",
+                "idiom" : "iphone",
+                "filename" : "icon-29.png",
+                "scale" : "1x"
+              },
+              {
+                "size" : "29x29",
+                "idiom" : "iphone",
+                "filename" : "icon-29@2x.png",
+                "scale" : "2x"
+              },
+              {
+                "size" : "29x29",
+                "idiom" : "iphone",
+                "filename" : "icon-29@3x.png",
+                "scale" : "3x"
+              },
+              {
+                "size" : "40x40",
+                "idiom" : "iphone",
+                "filename" : "icon-40@2x.png",
+                "scale" : "2x"
+              },
+              {
+                "size" : "40x40",
+                "idiom" : "iphone",
+                "filename" : "icon-40@3x.png",
+                "scale" : "3x"
+              },
+              {
+                "size" : "60x60",
+                "idiom" : "iphone",
+                "filename" : "icon-60@2x.png",
+                "scale" : "2x"
+              },
+              {
+                "size" : "60x60",
+                "idiom" : "iphone",
+                "filename" : "icon-60@3x.png",
+                "scale" : "3x"
+              },
+              {
+                "size" : "20x20",
+                "idiom" : "ipad",
+                "filename" : "icon-20.png",
+                "scale" : "1x"
+              },
+              {
+                "size" : "20x20",
+                "idiom" : "ipad",
+                "filename" : "icon-20@2x.png",
+                "scale" : "2x"
+              },
+              {
+                "size" : "29x29",
+                "idiom" : "ipad",
+                "filename" : "icon-29.png",
+                "scale" : "1x"
+              },
+              {
+                "size" : "29x29",
+                "idiom" : "ipad",
+                "filename" : "icon-29@2x.png",
+                "scale" : "2x"
+              },
+              {
+                "size" : "40x40",
+                "idiom" : "ipad",
+                "filename" : "icon-40.png",
+                "scale" : "1x"
+              },
+              {
+                "size" : "40x40",
+                "idiom" : "ipad",
+                "filename" : "icon-40@2x.png",
+                "scale" : "2x"
+              },
+              {
+                "size" : "76x76",
+                "idiom" : "ipad",
+                "filename" : "icon-76.png",
+                "scale" : "1x"
+              },
+              {
+                "size" : "76x76",
+                "idiom" : "ipad",
+                "filename" : "icon-76@2x.png",
+                "scale" : "2x"
+              },
+              {
+                "size" : "83.5x83.5",
+                "idiom" : "ipad",
+                "filename" : "icon-83.5@2x.png",
+                "scale" : "2x"
+              },
+              {
+                "size" : "1024x1024",
+                "idiom" : "ios-marketing",
+                "filename" : "icon-1024.png",
+                "scale" : "1x"
+              }
+            ],
+            "info" : {
+              "version" : 1,
+              "author" : "xcode"
+            }
+          }
+          EOF
+          
+          echo "✅ iOS App Icons generated successfully"
+          echo "=== Generated Icons ==="
+          ls -la "Assets.xcassets/AppIcon.appiconset/"
+
       # PHASE 9: BUILD UNSIGNED ARCHIVE
       - name: Build Unsigned Archive
         script: |
