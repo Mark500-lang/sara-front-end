@@ -17,9 +17,9 @@ workflows:
         - Sarastories
       node: 20
       xcode: latest
-    # ADD CODE SIGNING CONFIGURATION
-    code_signing:
-      ios_signing_identity: "Sara-stories-certificate"
+
+      code_signing:
+        ios_signing_identity: "Sara-stories-certificate"
     
     cache:
       cache_paths:
