@@ -17,11 +17,6 @@ workflows:
         - Sarastories
       node: 20
       xcode: latest
-    # CODE SIGNING CONFIGURATION - CORRECT LOCATION AND STRUCTURE
-    code_signing:
-      # This tells Codemagic to automatically handle code signing
-      # It will use the certificate from your Code Signing Identities
-    
     cache:
       cache_paths:
         - ~/.npm
@@ -37,37 +32,6 @@ workflows:
           include: true
         - pattern: develop
           include: true
-
-    # =============================================
-    # ENVIRONMENT VARIABLES DOCUMENTATION
-    # =============================================
-    # 
-    # CURRENT VARIABLES IN YOUR CODEMAGIC SETUP:
-    #
-    # GROUP: Sarastories
-    # ├── APPLE_TEAM_ID: H9A4H444G4
-    # ├── BUNDLE_ID: com.littlestories.app
-    # ├── APPLE_ID: [your Apple ID email]
-    # ├── APPLE_APP_SPECIFIC_PASSWORD: [from appleid.apple.com → Security → App-specific passwords]
-    # ├── CERTIFICATE_PASSWORD: [password for your P12 certificate]
-    # ├── PROVISIONING_PROFILE_UUID: [UUID of your provisioning profile]
-    # ├── CERTIFICATE: [Base64 encoded ios_distribution.p12]
-    # └── PROVISIONING_PROFILE: [Base64 encoded SaraStoriesAppStore.mobileprovision]
-    #
-    # WORKFLOW-LEVEL VARIABLES:
-    # ├── XCODE_WORKSPACE: ios/App/App.xcworkspace
-    # ├── XCODE_SCHEME: App
-    # ├── NODE_VERSION: 20.x
-    # ├── COCOAPODS_VERSION: 1.15.2
-    # ├── DEVELOPMENT_TEAM: H9A4H444G4
-    # ├── BUNDLE_ID: com.littlestories.app
-    # ├── CI: false
-    # └── DISABLE_ESLINT_PLUGIN: true
-    #
-    # CODEMAGIC CODE SIGNING IDENTITIES (UI):
-    # └── iOS Distribution Certificate (managed in Codemagic UI)
-    #
-    # =============================================
 
     scripts:
       # PHASE 1: CLEAN AND SETUP
@@ -189,31 +153,15 @@ workflows:
           EOF
           
           echo "=== Installing CocoaPods ==="
-          # Remove master repo to avoid warnings
           pod repo remove master 2>/dev/null || true
-          
-          # Install pods
           pod install --repo-update --clean-install
           
           echo "=== Verifying Project Structure ==="
-          # Check if Pods were installed successfully
           if [ -d "Pods" ] && [ -d "App.xcworkspace" ]; then
             echo "✅ CocoaPods installation verified"
-            echo "Installed pods:"
-            ls Pods/ | head -10
-            echo "Workspace exists, proceeding with build..."
           else
             echo "❌ CocoaPods installation failed!"
-            echo "Directory contents:"
-            ls -la
-            echo "Checking for workspace:"
-            ls -la App.xcworkspace/ 2>/dev/null || echo "Workspace not found as directory"
-            # Check if it's a file instead of directory
-            if [ -f "App.xcworkspace" ]; then
-              echo "Workspace exists as file, continuing..."
-            else
-              exit 1
-            fi
+            exit 1
           fi
 
       # PHASE 6: CREATE MISSING XCSCHEME FILE
@@ -222,103 +170,53 @@ workflows:
           set -ex
           echo "=== Creating missing Xcode scheme ==="
           cd ios/App
-          
-          # Create directory if it doesn't exist
           mkdir -p App.xcodeproj/xcshareddata/xcschemes
-          
-          # Create the scheme file
           cat > App.xcodeproj/xcshareddata/xcschemes/App.xcscheme << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
-          <Scheme
-            LastUpgradeVersion = "1500"
-            version = "1.7">
-            <BuildAction
-               parallelizeBuildables = "YES"
-               buildImplicitDependencies = "YES">
-               <BuildActionEntries>
-                  <BuildActionEntry
-                     buildForTesting = "YES"
-                     buildForRunning = "YES"
-                     buildForProfiling = "YES"
-                     buildForArchiving = "YES"
-                     buildForAnalyzing = "YES">
-                     <BuildableReference
-                        BuildableIdentifier = "primary"
-                        BlueprintIdentifier = "1DF1B9C3257A6D4E00F1B1A6"
-                        BuildableName = "App.app"
-                        BlueprintName = "App"
-                        ReferencedContainer = "container:App.xcodeproj">
-                     </BuildableReference>
-                  </BuildActionEntry>
-               </BuildActionEntries>
+          <Scheme LastUpgradeVersion="1500" version="1.7">
+            <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES">
+              <BuildActionEntries>
+                <BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">
+                  <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="1DF1B9C3257A6D4E00F1B1A6" BuildableName="App.app" BlueprintName="App" ReferencedContainer="container:App.xcodeproj"/>
+                </BuildActionEntry>
+              </BuildActionEntries>
             </BuildAction>
-            <TestAction
-               buildConfiguration = "Debug"
-               selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
-               selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-               shouldUseLaunchSchemeArgsEnv = "YES"
-               codeCoverageEnabled = "YES">
-               <Testables>
-               </Testables>
+            <TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="YES" codeCoverageEnabled="YES">
+              <Testables/>
             </TestAction>
-            <LaunchAction
-               buildConfiguration = "Debug"
-               selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
-               selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-               launchStyle = "0"
-               useCustomWorkingDirectory = "NO"
-               ignoresPersistentStateOnLaunch = "NO"
-               debugDocumentVersioning = "YES"
-               debugServiceExtension = "internal"
-               allowLocationSimulation = "YES">
-               <BuildableProductRunnable
-                  runnableDebuggingMode = "0">
-                  <BuildableReference
-                     BuildableIdentifier = "primary"
-                     BlueprintIdentifier = "1DF1B9C3257A6D4E00F1B1A6"
-                     BuildableName = "App.app"
-                     BlueprintName = "App"
-                     ReferencedContainer = "container:App.xcodeproj">
-                  </BuildableReference>
-               </BuildableProductRunnable>
+            <LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" debugServiceExtension="internal" allowLocationSimulation="YES">
+              <BuildableProductRunnable runnableDebuggingMode="0">
+                <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="1DF1B9C3257A6D4E00F1B1A6" BuildableName="App.app" BlueprintName="App" ReferencedContainer="container:App.xcodeproj"/>
+              </BuildableProductRunnable>
             </LaunchAction>
-            <ProfileAction
-               buildConfiguration = "Release"
-               shouldUseLaunchSchemeArgsEnv = "YES"
-               savedToolIdentifier = ""
-               useCustomWorkingDirectory = "NO"
-               debugDocumentVersioning = "YES">
-               <BuildableProductRunnable
-                  runnableDebuggingMode = "0">
-                  <BuildableReference
-                     BuildableIdentifier = "primary"
-                     BlueprintIdentifier = "1DF1B9C3257A6D4E00F1B1A6"
-                     BuildableName = "App.app"
-                     BlueprintName = "App"
-                     ReferencedContainer = "container:App.xcodeproj">
-                  </BuildableReference>
-               </BuildableProductRunnable>
+            <ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES">
+              <BuildableProductRunnable runnableDebuggingMode="0">
+                <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="1DF1B9C3257A6D4E00F1B1A6" BuildableName="App.app" BlueprintName="App" ReferencedContainer="container:App.xcodeproj"/>
+              </BuildableProductRunnable>
             </ProfileAction>
-            <AnalyzeAction
-               buildConfiguration = "Debug">
-            </AnalyzeAction>
-            <ArchiveAction
-               buildConfiguration = "Release"
-               revealArchiveInOrganizer = "YES">
-            </ArchiveAction>
+            <AnalyzeAction buildConfiguration="Debug"/>
+            <ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/>
           </Scheme>
           EOF
-          
           echo "✅ Xcode scheme created"
 
-      # PHASE 7: CODE SIGNING SETUP
+      # PHASE 7: CODE SIGNING SETUP (WITH MANUAL CERTIFICATE)
       - name: Configure Signing
         script: |
           set -ex
           echo "=== Setting Up Code Signing ==="
           
-          # Import provisioning profile from environment variables
+          # Import certificate and provisioning profile from environment variables
+          echo "$CERTIFICATE" | base64 --decode > /tmp/signing.p12
           echo "$PROVISIONING_PROFILE" | base64 --decode > /tmp/profile.mobileprovision
+          
+          # Set up keychain
+          security create-keychain -p "" build.keychain
+          security import /tmp/signing.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -s build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security set-key-partition-list -S apple-tool:,apple: -k "" build.keychain
           
           # Install provisioning profile
           PROFILE_UUID=$(grep -a -A1 UUID /tmp/profile.mobileprovision | grep -io "[-A-F0-9]\{36\}")
@@ -326,11 +224,7 @@ workflows:
           cp /tmp/profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision
           
           echo "PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
-          echo "✅ Provisioning profile installed with UUID: $PROFILE_UUID"
-
-          # Verify certificate is available (Codemagic should have imported it automatically)
-          echo "=== Verifying Signing Certificate ==="
-          security find-identity -v -p codesigning || echo "No identities found, Codemagic will handle this"
+          echo "✅ Code signing configured successfully"
 
       # PHASE 8: BUILD CONFIGURATION
       - name: Configure Build Settings
@@ -347,7 +241,6 @@ workflows:
           
           # Configure manual signing in project
           PBXPROJ="App.xcodeproj/project.pbxproj"
-          # Create backup
           cp "$PBXPROJ" "$PBXPROJ.backup"
           
           # Remove any existing signing settings
@@ -380,7 +273,6 @@ workflows:
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
             clean archive
           
-          # Verify archive was created
           if [ ! -d "build/App.xcarchive" ]; then
             echo "❌ Archive creation failed"
             exit 1
@@ -428,14 +320,12 @@ workflows:
           set -ex
           echo "=== Validating Build Artifacts ==="
           
-          # Check IPA exists
           if [ ! -f "ios/App/build/ipa/App.ipa" ]; then
             echo "❌ IPA file not found"
             ls -la ios/App/build/ipa/
             exit 1
           fi
           
-          # Verify IPA structure
           unzip -l ios/App/build/ipa/App.ipa | grep "Payload/App.app" || {
             echo "❌ Invalid IPA structure"
             exit 1
