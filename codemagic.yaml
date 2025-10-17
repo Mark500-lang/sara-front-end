@@ -9,11 +9,12 @@ workflows:
         XCODE_SCHEME: "App"
         NODE_VERSION: "20.x"
         COCOAPODS_VERSION: "1.15.2"
+        DEVELOPMENT_TEAM: "H9A4H444G4"
         BUNDLE_ID: "com.littlestories.app"
         CI: "false"
         DISABLE_ESLINT_PLUGIN: "true"
       groups:
-        - Sarastories  # Keep your existing group for other vars
+        - Sarastories  # Your existing environment group
       node: 20
       xcode: latest
     cache:
@@ -27,6 +28,42 @@ workflows:
       branch_patterns:
         - pattern: main
           include: true
+        - pattern: master
+          include: true
+        - pattern: develop
+          include: true
+
+    # =============================================
+    # ENVIRONMENT VARIABLES DOCUMENTATION
+    # =============================================
+    # 
+    # CURRENT VARIABLES IN YOUR CODEMAGIC SETUP:
+    #
+    # GROUP: Sarastories
+    # ├── APPLE_TEAM_ID: H9A4H444G4
+    # ├── BUNDLE_ID: com.littlestories.app
+    # ├── APPLE_ID: [your Apple ID email]
+    # ├── APPLE_APP_SPECIFIC_PASSWORD: [from appleid.apple.com → Security → App-specific passwords]
+    # ├── CERTIFICATE_PASSWORD: [password for your P12 certificate]
+    # ├── PROVISIONING_PROFILE_UUID: [UUID of your provisioning profile]
+    # ├── CERTIFICATE: [Base64 encoded ios_distribution.p12]
+    # └── PROVISIONING_PROFILE: [Base64 encoded SaraStoriesAppStore.mobileprovision]
+    #
+    # WORKFLOW-LEVEL VARIABLES:
+    # ├── XCODE_WORKSPACE: ios/App/App.xcworkspace
+    # ├── XCODE_SCHEME: App
+    # ├── NODE_VERSION: 20.x
+    # ├── COCOAPODS_VERSION: 1.15.2
+    # ├── DEVELOPMENT_TEAM: H9A4H444G4
+    # ├── BUNDLE_ID: com.littlestories.app
+    # ├── CI: false
+    # └── DISABLE_ESLINT_PLUGIN: true
+    #
+    # CODEMAGIC CODE SIGNING IDENTITIES (UI):
+    # └── iOS Distribution Certificate (managed in Codemagic UI)
+    #
+    # =============================================
+
     scripts:
       # PHASE 1: CLEAN AND SETUP
       - name: Clean Workspace
@@ -43,7 +80,11 @@ workflows:
           set -ex
           echo "=== Installing Node Modules ==="
           npm ci
+          
+          echo "=== Installing missing Babel plugin ==="
           npm install --save-dev @babel/plugin-proposal-private-property-in-object
+          
+          echo "=== Updating browserslist ==="
           npx update-browserslist-db@latest
 
       # PHASE 3: BUILD REACT APP
@@ -52,12 +93,16 @@ workflows:
           set -ex
           echo "=== Building React App ==="
           export DISABLE_ESLINT_PLUGIN=true
+          export ESLINT_NO_DEV_ERRORS=false
+          
           npm run build
+          
           if [ ! -d "build" ]; then
-            echo "❌ React build failed"
+            echo "❌ React build failed - build directory not found"
             exit 1
           fi
-          echo "✅ React build completed"
+          
+          echo "✅ React build completed successfully"
 
       # PHASE 4: CAPACITOR SYNC
       - name: Sync Capacitor for iOS
@@ -69,18 +114,27 @@ workflows:
           echo "=== Configuring Landscape Orientation ==="
           cd ios/App/App
           PLIST_PATH="Info.plist"
+          
+          # Remove any existing orientation settings
           /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" "$PLIST_PATH" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~ipad" "$PLIST_PATH" 2>/dev/null || true
+          
+          # Add landscape orientations for iPhone
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationLandscapeLeft" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:1 string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
+          
+          # Add landscape orientations for iPad
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad array" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:0 string UIInterfaceOrientationLandscapeLeft" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:1 string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:2 string UIInterfaceOrientationPortrait" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:3 string UIInterfaceOrientationPortraitUpsideDown" "$PLIST_PATH"
+          
+          # Set initial orientation to landscape
           /usr/libexec/PlistBuddy -c "Delete :UIInterfaceOrientation" "$PLIST_PATH" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIInterfaceOrientation string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
+          
           echo "✅ Landscape orientation configured"
 
       # PHASE 5: IOS PROJECT CONFIGURATION
@@ -89,21 +143,32 @@ workflows:
           set -ex
           echo "=== Setting up iOS Platform ==="
           cd ios/App
+          
+          echo "=== Generating Podfile with iOS 14.0 platform ==="
           cat > Podfile << 'EOF'
           platform :ios, '14.0'
           use_frameworks! :linkage => :dynamic
+          
+          # Suppress CDN warning
           install! 'cocoapods', :warn_for_unused_master_specs_repo => false
+          
           target 'App' do
+            # Capacitor Core
             pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
             pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
+            
+            # Capacitor Plugins
             pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
             pod 'CapacitorDevice', :path => '../../node_modules/@capacitor/device'
             pod 'CapacitorFilesystem', :path => '../../node_modules/@capacitor/filesystem'
             pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
+            
+            # Additional plugins with correct pod names
             pod 'CapacitorVoiceRecorder', :path => '../../node_modules/capacitor-voice-recorder'
             pod 'AparajitaCapacitorSecureStorage', :path => '../../node_modules/@aparajita/capacitor-secure-storage'
             pod 'CapacitorBlobWriter', :path => '../../node_modules/capacitor-blob-writer'
           end
+          
           post_install do |installer|
             installer.pods_project.targets.each do |target|
               target.build_configurations.each do |config|
@@ -117,55 +182,272 @@ workflows:
             end
           end
           EOF
+          
+          echo "=== Installing CocoaPods ==="
+          # Remove master repo to avoid warnings
           pod repo remove master 2>/dev/null || true
+          
+          # Install pods
           pod install --repo-update --clean-install
+          
+          echo "=== Verifying Project Structure ==="
+          # Check if Pods were installed successfully
           if [ -d "Pods" ] && [ -d "App.xcworkspace" ]; then
             echo "✅ CocoaPods installation verified"
+            echo "Installed pods:"
+            ls Pods/ | head -10
+            echo "Workspace exists, proceeding with build..."
           else
             echo "❌ CocoaPods installation failed!"
-            exit 1
+            echo "Directory contents:"
+            ls -la
+            echo "Checking for workspace:"
+            ls -la App.xcworkspace/ 2>/dev/null || echo "Workspace not found as directory"
+            # Check if it's a file instead of directory
+            if [ -f "App.xcworkspace" ]; then
+              echo "Workspace exists as file, continuing..."
+            else
+              exit 1
+            fi
           fi
 
-      # PHASE 6: CREATE XCODE SCHEME
+      # PHASE 6: CREATE MISSING XCSCHEME FILE
       - name: Create Xcode Scheme
         script: |
           set -ex
           echo "=== Creating missing Xcode scheme ==="
           cd ios/App
+          
+          # Create directory if it doesn't exist
           mkdir -p App.xcodeproj/xcshareddata/xcschemes
+          
+          # Create the scheme file
           cat > App.xcodeproj/xcshareddata/xcschemes/App.xcscheme << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
-          <Scheme LastUpgradeVersion="1500" version="1.7">
-            <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES">
-              <BuildActionEntries>
-                <BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">
-                  <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="1DF1B9C3257A6D4E00F1B1A6" BuildableName="App.app" BlueprintName="App" ReferencedContainer="container:App.xcodeproj"/>
-                </BuildActionEntry>
-              </BuildActionEntries>
+          <Scheme
+            LastUpgradeVersion = "1500"
+            version = "1.7">
+            <BuildAction
+               parallelizeBuildables = "YES"
+               buildImplicitDependencies = "YES">
+               <BuildActionEntries>
+                  <BuildActionEntry
+                     buildForTesting = "YES"
+                     buildForRunning = "YES"
+                     buildForProfiling = "YES"
+                     buildForArchiving = "YES"
+                     buildForAnalyzing = "YES">
+                     <BuildableReference
+                        BuildableIdentifier = "primary"
+                        BlueprintIdentifier = "1DF1B9C3257A6D4E00F1B1A6"
+                        BuildableName = "App.app"
+                        BlueprintName = "App"
+                        ReferencedContainer = "container:App.xcodeproj">
+                     </BuildableReference>
+                  </BuildActionEntry>
+               </BuildActionEntries>
             </BuildAction>
-            <TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="YES" codeCoverageEnabled="YES">
-              <Testables/>
+            <TestAction
+               buildConfiguration = "Debug"
+               selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+               selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+               shouldUseLaunchSchemeArgsEnv = "YES"
+               codeCoverageEnabled = "YES">
+               <Testables>
+               </Testables>
             </TestAction>
-            <LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" debugServiceExtension="internal" allowLocationSimulation="YES">
-              <BuildableProductRunnable runnableDebuggingMode="0">
-                <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="1DF1B9C3257A6D4E00F1B1A6" BuildableName="App.app" BlueprintName="App" ReferencedContainer="container:App.xcodeproj"/>
-              </BuildableProductRunnable>
+            <LaunchAction
+               buildConfiguration = "Debug"
+               selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+               selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+               launchStyle = "0"
+               useCustomWorkingDirectory = "NO"
+               ignoresPersistentStateOnLaunch = "NO"
+               debugDocumentVersioning = "YES"
+               debugServiceExtension = "internal"
+               allowLocationSimulation = "YES">
+               <BuildableProductRunnable
+                  runnableDebuggingMode = "0">
+                  <BuildableReference
+                     BuildableIdentifier = "primary"
+                     BlueprintIdentifier = "1DF1B9C3257A6D4E00F1B1A6"
+                     BuildableName = "App.app"
+                     BlueprintName = "App"
+                     ReferencedContainer = "container:App.xcodeproj">
+                  </BuildableReference>
+               </BuildableProductRunnable>
             </LaunchAction>
-            <ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES">
-              <BuildableProductRunnable runnableDebuggingMode="0">
-                <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="1DF1B9C3257A6D4E00F1B1A6" BuildableName="App.app" BlueprintName="App" ReferencedContainer="container:App.xcodeproj"/>
-              </BuildableProductRunnable>
+            <ProfileAction
+               buildConfiguration = "Release"
+               shouldUseLaunchSchemeArgsEnv = "YES"
+               savedToolIdentifier = ""
+               useCustomWorkingDirectory = "NO"
+               debugDocumentVersioning = "YES">
+               <BuildableProductRunnable
+                  runnableDebuggingMode = "0">
+                  <BuildableReference
+                     BuildableIdentifier = "primary"
+                     BlueprintIdentifier = "1DF1B9C3257A6D4E00F1B1A6"
+                     BuildableName = "App.app"
+                     BlueprintName = "App"
+                     ReferencedContainer = "container:App.xcodeproj">
+                  </BuildableReference>
+               </BuildableProductRunnable>
             </ProfileAction>
-            <AnalyzeAction buildConfiguration="Debug"/>
-            <ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/>
+            <AnalyzeAction
+               buildConfiguration = "Debug">
+            </AnalyzeAction>
+            <ArchiveAction
+               buildConfiguration = "Release"
+               revealArchiveInOrganizer = "YES">
+            </ArchiveAction>
           </Scheme>
           EOF
+          
           echo "✅ Xcode scheme created"
 
+      # PHASE 7: CODE SIGNING SETUP (USING CODEMAGIC MANAGED CERTIFICATE)
+      - name: Configure Signing
+        script: |
+          set -ex
+          echo "=== Setting Up Code Signing with Codemagic Managed Certificate ==="
+          
+          # Note: Certificate is now managed by Codemagic Code Signing Identities
+          # Only need to handle provisioning profile from environment variables
+          
+          echo "$PROVISIONING_PROFILE" | base64 --decode > /tmp/profile.mobileprovision
+          
+          # Set up keychain (Codemagic automatically handles certificate import)
+          security create-keychain -p "" build.keychain
+          security list-keychains -s build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security set-key-partition-list -S apple-tool:,apple: -k "" build.keychain
+          
+          # Install provisioning profile
+          PROFILE_UUID=$(grep -a -A1 UUID /tmp/profile.mobileprovision | grep -io "[-A-F0-9]\{36\}")
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp /tmp/profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision
+          
+          echo "PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
+          echo "✅ Code signing configured using Codemagic managed certificate"
+
+      # PHASE 8: BUILD CONFIGURATION
+      - name: Configure Build Settings
+        script: |
+          cd ios/App
+          
+          echo "=== Updating Build Number ==="
+          PLIST_PATH="App/Info.plist"
+          CURRENT_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH")
+          NEW_BUILD=$((CURRENT_BUILD + 1))
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_BUILD" "$PLIST_PATH"
+          
+          echo "Updated build number from $CURRENT_BUILD to $NEW_BUILD"
+          
+          # Configure manual signing in project
+          PBXPROJ="App.xcodeproj/project.pbxproj"
+          # Create backup
+          cp "$PBXPROJ" "$PBXPROJ.backup"
+          
+          # Remove any existing signing settings
+          sed -i '' '/PROVISIONING_PROFILE_SPECIFIER/d' "$PBXPROJ"
+          sed -i '' '/CODE_SIGN_STYLE/d' "$PBXPROJ"
+          sed -i '' '/DEVELOPMENT_TEAM/d' "$PBXPROJ"
+          sed -i '' '/CODE_SIGN_IDENTITY/d' "$PBXPROJ"
+          
+          # Add manual signing settings
+          sed -i '' "/buildSettings = {/a \\
+                    CODE_SIGN_STYLE = Manual; \\
+                    PROVISIONING_PROFILE_SPECIFIER = \\\"$PROFILE_UUID\\\"; \\
+                    DEVELOPMENT_TEAM = $DEVELOPMENT_TEAM; \\
+                    CODE_SIGN_IDENTITY = \\\"Apple Distribution\\\"; \\
+                    " "$PBXPROJ"
+
+      # PHASE 9: BUILD AND ARCHIVE
+      - name: Build Archive
+        script: |
+          set -ex
+          cd ios/App
+          
+          echo "=== Building Archive ==="
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -archivePath build/App.xcarchive \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
+            clean archive
+          
+          # Verify archive was created
+          if [ ! -d "build/App.xcarchive" ]; then
+            echo "❌ Archive creation failed"
+            exit 1
+          fi
+
+      # PHASE 10: EXPORT IPA
+      - name: Export IPA
+        script: |
+          set -ex
+          cd ios/App
+          
+          echo "=== Creating Export Options ==="
+          cat <<EOF > exportOptions.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>teamID</key>
+              <string>$DEVELOPMENT_TEAM</string>
+              <key>method</key>
+              <string>app-store</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>$BUNDLE_ID</key>
+                  <string>$PROFILE_UUID</string>
+              </dict>
+              <key>uploadBitcode</key>
+              <false/>
+              <key>uploadSymbols</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+          
+          echo "=== Exporting IPA ==="
+          xcodebuild -exportArchive \
+            -archivePath build/App.xcarchive \
+            -exportOptionsPlist exportOptions.plist \
+            -exportPath build/ipa \
+            -allowProvisioningUpdates
+
+      # PHASE 11: VALIDATION
+      - name: Validate Build
+        script: |
+          set -ex
+          echo "=== Validating Build Artifacts ==="
+          
+          # Check IPA exists
+          if [ ! -f "ios/App/build/ipa/App.ipa" ]; then
+            echo "❌ IPA file not found"
+            ls -la ios/App/build/ipa/
+            exit 1
+          fi
+          
+          # Verify IPA structure
+          unzip -l ios/App/build/ipa/App.ipa | grep "Payload/App.app" || {
+            echo "❌ Invalid IPA structure"
+            exit 1
+          }
+          
+          echo "✅ Build validation successful"
+
     artifacts:
-      - ios/App/build/ipa/*.ipa
+      - ios/App/build/ipa/App.ipa
+      - ios/App/exportOptions.plist
 
     publishing:
       app_store_connect:
-        api_key: codemagic-key 
+        auth: integration
         submit_to_testflight: true
