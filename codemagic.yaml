@@ -171,13 +171,25 @@ workflows:
             exit 1
           fi
 
-      # PHASE 6: CREATE MISSING XCSCHEME FILE
+      # PHASE 6: CREATE XCODE SCHEME (IMPROVED)
       - name: Create Xcode Scheme
         script: |
           set -ex
-          echo "=== Creating missing Xcode scheme ==="
+          echo "=== Creating Xcode scheme ==="
           cd ios/App
+          
+          # First, verify the project is intact
+          if [ ! -f "App.xcodeproj/project.pbxproj" ]; then
+            echo "❌ Project file missing - restoring from Capacitor"
+            cd ..
+            npx cap sync ios
+            cd App
+          fi
+          
+          # Create scheme directory
           mkdir -p App.xcodeproj/xcshareddata/xcschemes
+          
+          # Create scheme file
           cat > App.xcodeproj/xcshareddata/xcschemes/App.xcscheme << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <Scheme LastUpgradeVersion="1500" version="1.7">
@@ -205,9 +217,10 @@ workflows:
             <ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/>
           </Scheme>
           EOF
+          
           echo "✅ Xcode scheme created"
 
-      # PHASE 7: CODE SIGNING SETUP (FIXED)
+      # PHASE 7: CODE SIGNING SETUP
       - name: Configure Signing
         script: |
           set -ex
@@ -236,7 +249,7 @@ workflows:
           echo "PROFILE_NAME=SaraStories_AppStore_2025" >> $CM_ENV
           echo "✅ Code signing configured successfully - Profile UUID: $PROFILE_UUID"
 
-      # PHASE 8: BUILD CONFIGURATION (FIXED)
+      # PHASE 8: BUILD CONFIGURATION (SAFE APPROACH)
       - name: Configure Build Settings
         script: |
           set -ex
@@ -252,41 +265,59 @@ workflows:
           echo "Updated build number from $CURRENT_BUILD to $NEW_BUILD"
           echo "Bundle ID set to: $BUNDLE_ID"
           
-          # Configure Xcode project settings
-          PBXPROJ="App.xcodeproj/project.pbxproj"
+          # Use xcodebuild to configure settings safely instead of manual file editing
+          echo "=== Configuring Xcode project settings ==="
+          xcodebuild -project App.xcodeproj \
+            -configuration Release \
+            -alltargets \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+            CODE_SIGN_IDENTITY="Apple Distribution"
           
-          # Use sed to update project settings (more reliable than multiple sed commands)
-          python3 << EOF
-          import re
-          import os
-          
-          profile_uuid = os.environ.get('PROFILE_UUID', '')
-          development_team = os.environ.get('DEVELOPMENT_TEAM', '')
-          bundle_id = os.environ.get('BUNDLE_ID', '')
-          
-          with open('$PBXPROJ', 'r') as f:
-              content = f.read()
-          
-          # Update build settings for Release configuration
-          content = re.sub(
-              r'buildSettings = \{[^}]*CODE_SIGN_STYLE[^}]*\}',
-              f'buildSettings = {{\\n\\t\\t\\t\\tCODE_SIGN_STYLE = Manual;\\n\\t\\t\\t\\tDEVELOPMENT_TEAM = {development_team};\\n\\t\\t\\t\\tPROVISIONING_PROFILE_SPECIFIER = {profile_uuid};\\n\\t\\t\\t\\tPRODUCT_BUNDLE_IDENTIFIER = {bundle_id};\\n\\t\\t\\t\\tCODE_SIGN_IDENTITY = "Apple Distribution";',
-              content
-          )
-          
-          with open('$PBXPROJ', 'w') as f:
-              f.write(content)
-          EOF
-          
-          echo "✅ Build settings configured"
+          echo "✅ Build settings configured safely"
 
-      # PHASE 9: BUILD AND ARCHIVE (FIXED)
+      # PHASE 9: VERIFY PROJECT INTEGRITY
+      - name: Verify Project Integrity
+        script: |
+          set -ex
+          cd ios/App
+          
+          echo "=== Verifying Project Integrity ==="
+          
+          # Check if project file is valid
+          if ! xcodebuild -project App.xcodeproj -list > /dev/null 2>&1; then
+            echo "❌ Project file is corrupted - restoring from backup"
+            # If corrupted, resync from Capacitor
+            cd ../..
+            npx cap sync ios
+            cd ios/App
+          fi
+          
+          # List available schemes
+          echo "=== Available Schemes ==="
+          xcodebuild -workspace App.xcworkspace -list
+          
+          # Verify scheme exists
+          if xcodebuild -workspace App.xcworkspace -scheme App -showBuildSettings > /dev/null 2>&1; then
+            echo "✅ Scheme 'App' verified"
+          else
+            echo "❌ Scheme 'App' not found - creating it"
+            # Create scheme using xcodebuild
+            xcodebuild -project App.xcodeproj -scheme App -configuration Release
+          fi
+
+      # PHASE 10: BUILD AND ARCHIVE (WITH PROVISIONING PROFILE)
       - name: Build Archive
         script: |
           set -ex
           cd ios/App
           
           echo "=== Building Archive ==="
+          echo "Using Profile UUID: $PROFILE_UUID"
+          echo "Using Development Team: $DEVELOPMENT_TEAM"
+          echo "Using Bundle ID: $BUNDLE_ID"
+          
           xcodebuild archive \
             -workspace App.xcworkspace \
             -scheme App \
@@ -295,6 +326,7 @@ workflows:
             -allowProvisioningUpdates \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            PROVISIONING_PROFILE="$PROFILE_UUID" \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             CODE_SIGN_IDENTITY="Apple Distribution"
@@ -305,7 +337,7 @@ workflows:
           fi
           echo "✅ Archive created successfully"
 
-      # PHASE 10: EXPORT IPA (FIXED)
+      # PHASE 11: EXPORT IPA
       - name: Export IPA
         script: |
           set -ex
@@ -351,7 +383,7 @@ workflows:
           
           echo "✅ IPA exported successfully"
 
-      # PHASE 11: VALIDATION
+      # PHASE 12: VALIDATION
       - name: Validate Build
         script: |
           set -ex
@@ -376,7 +408,6 @@ workflows:
     artifacts:
       - ios/App/build/ipa/App.ipa
       - ios/App/exportOptions.plist
-      - ios/App/build/App.xcarchive
 
     publishing:
       app_store_connect:
