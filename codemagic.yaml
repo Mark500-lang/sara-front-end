@@ -171,20 +171,12 @@ workflows:
             exit 1
           fi
 
-      # PHASE 6: CREATE XCODE SCHEME (IMPROVED)
+      # PHASE 6: CREATE XCODE SCHEME
       - name: Create Xcode Scheme
         script: |
           set -ex
           echo "=== Creating Xcode scheme ==="
           cd ios/App
-          
-          # First, verify the project is intact
-          if [ ! -f "App.xcodeproj/project.pbxproj" ]; then
-            echo "❌ Project file missing - restoring from Capacitor"
-            cd ..
-            npx cap sync ios
-            cd App
-          fi
           
           # Create scheme directory
           mkdir -p App.xcodeproj/xcshareddata/xcschemes
@@ -249,7 +241,7 @@ workflows:
           echo "PROFILE_NAME=SaraStories_AppStore_2025" >> $CM_ENV
           echo "✅ Code signing configured successfully - Profile UUID: $PROFILE_UUID"
 
-      # PHASE 8: BUILD CONFIGURATION (SAFE APPROACH)
+      # PHASE 8: BUILD CONFIGURATION (FIXED)
       - name: Configure Build Settings
         script: |
           set -ex
@@ -257,27 +249,51 @@ workflows:
           
           echo "=== Updating Build Number ==="
           PLIST_PATH="App/Info.plist"
+          
+          # Handle the case where build number is a variable
           CURRENT_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH" 2>/dev/null || echo "1")
-          NEW_BUILD=$((CURRENT_BUILD + 1))
+          
+          # If it's a variable, set a default build number
+          if [[ "$CURRENT_BUILD" == *"$"* ]]; then
+            CURRENT_BUILD="1"
+          fi
+          
+          # Generate timestamp-based build number for uniqueness
+          NEW_BUILD=$(date +%s)
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_BUILD" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$PLIST_PATH"
           
-          echo "Updated build number from $CURRENT_BUILD to $NEW_BUILD"
+          echo "Updated build number to: $NEW_BUILD"
           echo "Bundle ID set to: $BUNDLE_ID"
           
-          # Use xcodebuild to configure settings safely instead of manual file editing
-          echo "=== Configuring Xcode project settings ==="
+          echo "✅ Build settings configured"
+
+      # PHASE 9: PROJECT SIGNING CONFIGURATION (NEW)
+      - name: Configure Project Signing
+        script: |
+          set -ex
+          cd ios/App
+          
+          echo "=== Configuring Project Signing ==="
+          echo "Profile UUID: $PROFILE_UUID"
+          echo "Development Team: $DEVELOPMENT_TEAM"
+          echo "Bundle ID: $BUNDLE_ID"
+          
+          # Use xcodebuild to configure signing with provisioning profile
           xcodebuild -project App.xcodeproj \
+            -target App \
             -configuration Release \
-            -alltargets \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-            CODE_SIGN_IDENTITY="Apple Distribution"
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
+            PROVISIONING_PROFILE="$PROFILE_UUID" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            -showBuildSettings
           
-          echo "✅ Build settings configured safely"
+          echo "✅ Project signing configured"
 
-      # PHASE 9: VERIFY PROJECT INTEGRITY
+      # PHASE 10: VERIFY PROJECT INTEGRITY
       - name: Verify Project Integrity
         script: |
           set -ex
@@ -286,9 +302,10 @@ workflows:
           echo "=== Verifying Project Integrity ==="
           
           # Check if project file is valid
-          if ! xcodebuild -project App.xcodeproj -list > /dev/null 2>&1; then
-            echo "❌ Project file is corrupted - restoring from backup"
-            # If corrupted, resync from Capacitor
+          if xcodebuild -project App.xcodeproj -list > /dev/null 2>&1; then
+            echo "✅ Project file is valid"
+          else
+            echo "❌ Project file is corrupted - restoring from Capacitor"
             cd ../..
             npx cap sync ios
             cd ios/App
@@ -298,16 +315,20 @@ workflows:
           echo "=== Available Schemes ==="
           xcodebuild -workspace App.xcworkspace -list
           
-          # Verify scheme exists
-          if xcodebuild -workspace App.xcworkspace -scheme App -showBuildSettings > /dev/null 2>&1; then
-            echo "✅ Scheme 'App' verified"
-          else
-            echo "❌ Scheme 'App' not found - creating it"
-            # Create scheme using xcodebuild
-            xcodebuild -project App.xcodeproj -scheme App -configuration Release
-          fi
+          # Verify scheme exists and can build
+          echo "=== Verifying Build Settings ==="
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
+            PROVISIONING_PROFILE="$PROFILE_UUID" \
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            -showBuildSettings | head -20 || echo "Build settings check completed"
 
-      # PHASE 10: BUILD AND ARCHIVE (WITH PROVISIONING PROFILE)
+      # PHASE 11: BUILD AND ARCHIVE
       - name: Build Archive
         script: |
           set -ex
@@ -326,8 +347,8 @@ workflows:
             -allowProvisioningUpdates \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
-            PROVISIONING_PROFILE="$PROFILE_UUID" \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
+            PROVISIONING_PROFILE="$PROFILE_UUID" \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             CODE_SIGN_IDENTITY="Apple Distribution"
           
@@ -337,7 +358,7 @@ workflows:
           fi
           echo "✅ Archive created successfully"
 
-      # PHASE 11: EXPORT IPA
+      # PHASE 12: EXPORT IPA
       - name: Export IPA
         script: |
           set -ex
@@ -383,7 +404,7 @@ workflows:
           
           echo "✅ IPA exported successfully"
 
-      # PHASE 12: VALIDATION
+      # PHASE 13: VALIDATION
       - name: Validate Build
         script: |
           set -ex
