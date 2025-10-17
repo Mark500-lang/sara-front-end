@@ -106,7 +106,7 @@ workflows:
           
           echo "✅ Landscape orientation configured"
 
-      # PHASE 5: IOS PROJECT CONFIGURATION (FIXED)
+      # PHASE 5: IOS PROJECT CONFIGURATION
       - name: Configure iOS Project
         script: |
           set -ex
@@ -364,7 +364,7 @@ workflows:
           fi
           echo "✅ Archive created successfully"
 
-      # PHASE 12: EXPORT IPA (SIMPLIFIED)
+      # PHASE 12: EXPORT IPA (FIXED WITH PROPER PROVISIONING)
       - name: Export IPA
         script: |
           set -ex
@@ -379,7 +379,50 @@ workflows:
               <key>compileBitcode</key>
               <false/>
               <key>method</key>
-              <string>app-store</string>
+              <string>app-store-connect</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>$BUNDLE_ID</key>
+                  <string>$PROFILE_UUID</string>
+              </dict>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>stripSwiftSymbols</key>
+              <true/>
+              <key>teamID</key>
+              <string>$DEVELOPMENT_TEAM</string>
+              <key>thinning</key>
+              <string>&lt;none&gt;</string>
+              <key>uploadBitcode</key>
+              <false/>
+              <key>uploadSymbols</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+          
+          echo "=== Exporting IPA ==="
+          # First attempt with provisioning profile
+          xcodebuild -exportArchive \
+            -archivePath build/App.xcarchive \
+            -exportOptionsPlist exportOptions.plist \
+            -exportPath build/ipa \
+            -allowProvisioningUpdates
+            
+          # If that fails due to framework issues, try alternative approach
+          if [ ! -f "build/ipa/App.ipa" ]; then
+            echo "⚠️ First export failed, trying alternative approach..."
+            
+            # Create export options without explicit provisioning profiles
+            cat > exportOptionsAlt.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>compileBitcode</key>
+              <false/>
+              <key>method</key>
+              <string>app-store-connect</string>
               <key>signingStyle</key>
               <string>manual</string>
               <key>stripSwiftSymbols</key>
@@ -393,15 +436,23 @@ workflows:
           </dict>
           </plist>
           EOF
-          
-          echo "=== Exporting IPA ==="
-          xcodebuild -exportArchive \
-            -archivePath build/App.xcarchive \
-            -exportOptionsPlist exportOptions.plist \
-            -exportPath build/ipa \
-            -allowProvisioningUpdates
-          
-          echo "✅ IPA export completed"
+            
+            # Export with automatic provisioning
+            xcodebuild -exportArchive \
+              -archivePath build/App.xcarchive \
+              -exportOptionsPlist exportOptionsAlt.plist \
+              -exportPath build/ipa-alt \
+              -allowProvisioningUpdates
+              
+            # Copy successful IPA
+            if [ -f "build/ipa-alt/App.ipa" ]; then
+              mkdir -p build/ipa
+              cp build/ipa-alt/App.ipa build/ipa/
+              echo "✅ IPA exported using alternative method"
+            fi
+          else
+            echo "✅ IPA exported successfully"
+          fi
 
       # PHASE 13: VALIDATION
       - name: Validate Build
@@ -410,7 +461,7 @@ workflows:
           echo "=== Validating Build Artifacts ==="
           
           if [ ! -f "ios/App/build/ipa/App.ipa" ]; then
-            echo "❌ IPA file not found"
+            echo "❌ IPA file not found after export attempts"
             echo "=== Checking export directories ==="
             find ios/App/build -name "*.ipa" 2>/dev/null || true
             ls -la ios/App/build/ || true
