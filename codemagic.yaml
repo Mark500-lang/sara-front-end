@@ -17,9 +17,10 @@ workflows:
         - Sarastories
       node: 20
       xcode: latest
-
-      code_signing:
-        ios_signing_identity: "Sara-stories-certificate"
+    # CODE SIGNING CONFIGURATION - CORRECT LOCATION AND STRUCTURE
+    code_signing:
+      # This tells Codemagic to automatically handle code signing
+      # It will use the certificate from your Code Signing Identities
     
     cache:
       cache_paths:
@@ -310,7 +311,7 @@ workflows:
           
           echo "✅ Xcode scheme created"
 
-      # PHASE 7: CODE SIGNING SETUP (FIXED)
+      # PHASE 7: CODE SIGNING SETUP
       - name: Configure Signing
         script: |
           set -ex
