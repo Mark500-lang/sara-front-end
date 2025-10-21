@@ -141,7 +141,8 @@
 }
 .book-cover {
   width: 100%;
-  height: auto;
+  height: 100%;
+  position: relative; 
 }
 
 .book-lock {
@@ -361,25 +362,4 @@ body.animation-active .book-grid {
 
 body.animation-active {
   overflow: hidden;
-}
-
-/* Skeleton loader */
-.skeleton-loader {
-  width: 100%;
-  aspect-ratio: 3 / 3;
-  background-color: #e0e0e0;
-  border-radius: 5px;
-  animation: pulse 1.5s infinite ease-in-out;
-}
-
-@keyframes pulse {
-  0% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-  100% {
-    opacity: 1;
-  }
 }

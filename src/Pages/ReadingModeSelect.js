@@ -260,16 +260,8 @@ const ActionIcons = ({
                         disabled={!narratorName.trim()}
                         onClick={handleRecordButtonClick}
                       >
-                        {audioURL ? "Continue Recording" : "Start"}
+                        {"Start"}
                       </button>
-                    )}
-                    {audioURL && (
-                      <div className="audio-item mt-2">
-                        <span>Current: {narratorName || "Untitled"}</span>
-                        <button className="play-button" onClick={onPlayCurrent}>Play</button>
-                        <button className="upload-button" onClick={() => onUploadAudio(currentBlob)}>Upload</button>
-                        <button className="delete-button" onClick={onDeleteAudio}>Delete</button>
-                      </div>
                     )}
                   </motion.div>
                   <motion.div className="my-voice-over" variants={itemVariants}>
@@ -294,7 +286,7 @@ const ActionIcons = ({
                             }}
                             style={{ cursor: 'pointer', textDecoration: 'underline' }}
                           >
-                            Draft {narrator} ({page_count}/{totalPages} pages)
+                            Draft: <span className="boldened-text">{narrator}</span> ({page_count}/{totalPages} pages)
                           </span>
                         </motion.div>
                       ))

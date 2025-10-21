@@ -46,9 +46,11 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
   const [narratorName, setNarratorName] = useState(localStorage.getItem("narratorName") || "Me");
   const [showContinueModal, setShowContinueModal] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [isPageAssetsLoaded, setIsPageAssetsLoaded] = useState(false);
   const uploadQueue = useRef([]);
   const pendingFetches = useRef(new Set());
   const isInitialRecordPage = useRef(true);
+  const preloadedPages = useRef(new Set());
 
   const [readingMode, setReadingMode] = useState(() => {
     return sessionStorage.getItem(`readingMode_${bookId}`) || "read";
@@ -154,7 +156,9 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
 
   const fetchAudioForPage = async (pageNumber, narrator) => {
     const key = `${narrator}_${pageNumber}`;
-    if (pendingFetches.current.has(key) || myAudios[narrator]?.[pageNumber]) return myAudios[narrator]?.[pageNumber] || null;
+    if (pendingFetches.current.has(key) || myAudios[narrator]?.[pageNumber]) {
+      return myAudios[narrator]?.[pageNumber] || null;
+    }
 
     pendingFetches.current.add(key);
     try {
@@ -199,12 +203,43 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     return null;
   };
 
-useEffect(() => {
+  useEffect(() => {
+    if (!bookPages.length) return;
+
+    const checkPageAssetsLoaded = () => {
+      const page = bookPages[currentPageId - 1];
+      if (!page) return false;
+
+      const isImageLoaded = preloadedImages[currentPageId];
+      const isTextLoaded = !!page.words;
+      let isAudioLoaded = true;
+
+      if (readingMode === "listen") {
+        if (selectedNarration === "professional") {
+          isAudioLoaded = !!professionalAudios[currentPageId];
+        } else if (selectedNarration) {
+          isAudioLoaded = !!myAudios[selectedNarration]?.[currentPageId];
+        } else {
+          isAudioLoaded = false;
+        }
+      }
+
+      return isImageLoaded && isTextLoaded && isAudioLoaded;
+    };
+
+    setIsPageAssetsLoaded(checkPageAssetsLoaded());
+  }, [currentPageId, bookPages, preloadedImages, professionalAudios, myAudios, readingMode, selectedNarration]);
+
+  useEffect(() => {
     if (!bookPages.length) return;
 
     const preloadRange = async (start, end) => {
       for (let i = start; i <= end && i <= bookPages.length; i++) {
+        if (preloadedPages.current.has(i)) continue;
+
+        preloadedPages.current.add(i);
         const page = bookPages[i - 1];
+
         if (page?.image && !preloadedImages[i]) {
           const img = new Image();
           img.src = `${imageBaseUrl}${page.image}`;
@@ -212,6 +247,7 @@ useEffect(() => {
             setPreloadedImages(prev => ({ ...prev, [i]: img.src }));
             console.log(`Preloaded image for page ${i}`);
           };
+          img.onerror = () => console.error(`Failed to preload image for page ${i}`);
         }
 
         if (!professionalAudios[i]) {
@@ -224,6 +260,8 @@ useEffect(() => {
                 'https://kithia.com/website_b5d91c8e/storage/',
                 'https://kithia.com/website_b5d91c8e/book-backend/public/storage/'
               );
+              const audio = new Audio(fullAudioUrl);
+              audio.preload = "auto";
               setProfessionalAudios(prev => ({
                 ...prev,
                 [i]: { ...data, url: fullAudioUrl }
@@ -235,7 +273,6 @@ useEffect(() => {
           }
         }
 
-        // Preload personal audios for selected narration
         if (selectedNarration && selectedNarration !== "professional" && !myAudios[selectedNarration]?.[i]) {
           await fetchAudioForPage(i, selectedNarration);
         }
@@ -243,7 +280,7 @@ useEffect(() => {
     };
 
     preloadRange(currentPageId, currentPageId + 4);
-  }, [currentPageId, selectedNarration, bookPages, preloadedImages, professionalAudios, bookId]);
+  }, [currentPageId, selectedNarration, bookPages, bookId]);
 
   useEffect(() => {
     if (!bookPages.length) return;
@@ -272,6 +309,7 @@ useEffect(() => {
     };
 
     const playAudioForCurrentPage = async () => {
+      if (preloadedPages.current.has(currentPageId)) return;
       setIsAudioLoading(true);
       let currentPageAudio;
       if (selectedNarration === "professional") {
@@ -311,7 +349,7 @@ useEffect(() => {
 
       if (globalAudio && globalAudio.src === currentPageAudio.url && globalAudioPlaying) {
         setIsAudioLoading(false);
-        return; // Avoid re-playing if same audio is already playing
+        return;
       }
 
       if (globalAudio) {
@@ -323,15 +361,23 @@ useEffect(() => {
         globalAudio = new Audio(currentPageAudio.url);
         globalAudio.volume = narrationVolume;
         globalAudio.addEventListener('ended', handleAudioEnd);
-        await globalAudio.play();
-        globalAudioPlaying = true;
-        setAudioPlayingUI(true);
-        setCurrentAudio(currentPageAudio);
+        globalAudio.addEventListener('canplaythrough', () => {
+          setIsAudioLoading(false);
+          globalAudio.play().then(() => {
+            globalAudioPlaying = true;
+            setAudioPlayingUI(true);
+            setCurrentAudio(currentPageAudio);
+          }).catch(error => {
+            console.error("Audio playback failed:", error);
+            globalAudioPlaying = false;
+            setAudioPlayingUI(false);
+            setIsAudioLoading(false);
+          });
+        });
       } catch (error) {
-        console.error("Audio playback failed:", error);
+        console.error("Audio setup failed:", error);
         globalAudioPlaying = false;
         setAudioPlayingUI(false);
-      } finally {
         setIsAudioLoading(false);
       }
     };
@@ -341,6 +387,7 @@ useEffect(() => {
     return () => {
       if (globalAudio) {
         globalAudio.removeEventListener('ended', handleAudioEnd);
+        globalAudio.removeEventListener('canplaythrough', () => {});
       }
     };
   }, [currentPageId, readingMode, selectedNarration, bookPages.length, bookId]);
@@ -566,28 +613,50 @@ useEffect(() => {
 
     const isNext = newPageId > currentPageId;
 
-    if (isNext && readingMode === "record") {
-      if (!isRecording && !currentBlob && !myAudios[narratorName]?.[currentPageId]) {
-        alert("Please record this page first.");
+    if (isNext && (readingMode === "read" || readingMode === "listen")) {
+      const page = bookPages[newPageId - 1];
+      if (!page) return;
+
+      const isImageLoaded = preloadedImages[newPageId];
+      const isTextLoaded = !!page.words;
+      let isAudioLoaded = true;
+
+      if (readingMode === "listen") {
+        if (selectedNarration === "professional") {
+          isAudioLoaded = !!professionalAudios[newPageId];
+        } else if (selectedNarration) {
+          isAudioLoaded = !!myAudios[selectedNarration]?.[newPageId];
+        } else {
+          isAudioLoaded = false;
+        }
+      }
+
+      if (!isImageLoaded || !isTextLoaded || !isAudioLoaded) {
+        console.log(`Cannot navigate to page ${newPageId}: Image=${isImageLoaded}, Text=${isTextLoaded}, Audio=${isAudioLoaded}`);
         return;
       }
     }
 
-    let blob = null;
-    if (isRecording) {
-      blob = await stopRecording();
-    }
-
-    if (blob || currentBlob) {
+    if (isNext && readingMode === "record") {
+      let blob = null;
+      if (isRecording) {
+        blob = await stopRecording();
+      }
       const uploadBlob = blob || currentBlob;
-      uploadQueue.current.push({ blob: uploadBlob, page: currentPageId });
-      deleteAudio();
+      if (!uploadBlob && !myAudios[narratorName]?.[currentPageId]) {
+        alert("Please record this page first.");
+        return;
+      }
+      if (uploadBlob) {
+        uploadQueue.current.push({ blob: uploadBlob, page: currentPageId });
+        deleteAudio();
+      }
     }
 
     setIsTransitioning(true);
     setCurrentPageId(newPageId);
 
-    if (isNext && readingMode === "record" && !isInitialRecordPage.current) {
+    if (isNext && readingMode === "record") {
       setTimeout(() => {
         startRecording();
       }, 100);
@@ -659,11 +728,11 @@ useEffect(() => {
 
   const handleConfirmHomeNavigation = async () => {
     if (isRecording) {
-      const blob = await stopRecording();
-      if (blob) {
-        uploadQueue.current.push({ blob, page: currentPageId });
-      }
+      // stop and discard the recording
+      await stopRecording();
+      deleteAudio();
     } else if (currentBlob && readingMode === "record") {
+      // enqueue any previously stopped recording
       uploadQueue.current.push({ blob: currentBlob, page: currentPageId });
     }
     setShowModal(false);
@@ -679,11 +748,11 @@ useEffect(() => {
       globalAudio = null;
     }
     if (isRecording) {
-      const blob = await stopRecording();
-      if (blob) {
-        uploadQueue.current.push({ blob, page: currentPageId });
-      }
+      // stop and discard the recording when showing overlay again
+      await stopRecording();
+      deleteAudio();
     } else if (currentBlob && readingMode === "record") {
+      // enqueue any previously stopped recording
       uploadQueue.current.push({ blob: currentBlob, page: currentPageId });
     }
     setReadingMode(null);
@@ -785,7 +854,7 @@ useEffect(() => {
             className="book-page-background"
             style={{
               backgroundImage: `url("${preloadedImages[currentPage.page_number] || 
-                (currentPage.image ? `${imageBaseUrl}${currentPage.image}` : "")}")`
+                (previousPage.image ? `${imageBaseUrl}${currentPage.image}` : "")}")`
             }}
             initial={{ opacity: 1 }}
             animate={{ opacity: 1 }}
@@ -812,9 +881,6 @@ useEffect(() => {
             />
             <div className="page-number">
               {currentPageId}/{bookPages.length}
-              {/* {isAudioLoading && readingMode === "listen" && (
-                <span className="audio-loading"> (Loading audio...)</span>
-              )} */}
             </div>
           </div>
           <div className="middle-icon-container">
@@ -946,6 +1012,7 @@ useEffect(() => {
                 e.stopPropagation();
                 goToPage(currentPageId + 1);
               }}
+              disabled={readingMode !== "record" && !isPageAssetsLoaded}
             />
           </div>
         </motion.div>

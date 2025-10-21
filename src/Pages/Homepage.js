@@ -11,6 +11,7 @@ import emailIcon from "../assets/Email Icon.png";
 import musicIcon from "../assets/Music Icon.png";
 import StopMusicIcon from "../assets/Stop music icon.png";
 import settingsIcon from "../assets/Settings Icon.png";
+import loadingBG from "../assets/loading-background.png";
 import { IoIosLock } from "react-icons/io";
 
 // Animation Variants
@@ -33,16 +34,20 @@ const gridVariants = {
 };
 
 const HomePage = ({ toggleMusic, isMusicPlaying }) => {
-  const imageBaseUrl = "https://kithia.com/website_b5d91c8e/book-backend/public/";
   const navigate = useNavigate();
   const location = useLocation();
   const [books, setBooks] = useState(() => {
     const cached = localStorage.getItem('books');
     return cached ? JSON.parse(cached) : [];
   });
-  const [loading, setLoading] = useState(!localStorage.getItem('appLoaded'));
+  const [preloadedFirstImages, setPreloadedFirstImages] = useState(() => {
+    const cached = localStorage.getItem('firstPages');
+    return cached ? JSON.parse(cached) : {};
+  });
+  const [loading, setLoading] = useState(true);
   const [loadingSubscription, setLoadingSubscription] = useState(true);
   const [loadingBooks, setLoadingBooks] = useState(true);
+  const [loadingPreloads, setLoadingPreloads] = useState(true);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState(null);
 
@@ -64,11 +69,7 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
   const [scaleFactor, setScaleFactor] = useState(1);
   const [targetX, setTargetX] = useState(0);
   const [targetY, setTargetY] = useState(0);
-  const [isAnimating, setIsAnimating] = useState(false);
-
-  // Image loading states
-  const [loadedCovers, setLoadedCovers] = useState({});
-  const [firstPages, setFirstPages] = useState({});
+  const [isSelecting, setIsSelecting] = useState(false);
 
   // Subscription modal state
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
@@ -89,6 +90,7 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
     return () => window.removeEventListener('resize', updateViewportCenter);
   }, []);
 
+  // Combined effect for subscription and books
   useEffect(() => {
     const checkSubscriptionStatus = async () => {
       try {
@@ -112,102 +114,120 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
     };
 
     checkSubscriptionStatus();
+
+    if (localStorage.getItem('books')) {
+      setLoadingBooks(false);
+    } else {
+      const fetchBooks = async () => {
+        try {
+          const response = await fetch("https://kithia.com/website_b5d91c8e/api/books", {
+            method: "GET",
+            headers: {
+              "ngrok-skip-browser-warning": "69420",
+              "Content-Type": "application/json",
+            },
+          });
+          if (!response.ok) throw new Error("Failed to fetch books");
+          const data = await response.json();
+          setBooks(data);
+          localStorage.setItem('books', JSON.stringify(data));
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoadingBooks(false);
+        }
+      };
+
+      fetchBooks();
+    }
   }, []);
 
-  // Fetch books from the API
+  // Preload covers and first page images
   useEffect(() => {
-    const fetchBooks = async () => {
-      try {
-        const response = await fetch("https://kithia.com/website_b5d91c8e/api/books", {
-          method: "GET",
-          headers: {
-            "ngrok-skip-browser-warning": "69420",
-            "Content-Type": "application/json",
-          },
-        });
-        if (!response.ok) throw new Error("Failed to fetch books");
-        const data = await response.json();
-        setBooks(data);
-        localStorage.setItem('books', JSON.stringify(data));
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoadingBooks(false);
-      }
+    const preloadImage = (url) => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = url;
+      });
     };
 
-    fetchBooks();
-  }, []);
+    const preloadResources = async () => {
+      if (loadingBooks || books.length === 0) return;
 
-  // Preload first page images after books are fetched
-  useEffect(() => {
-    const preloadFirstPages = async () => {
-      if (books.length === 0) return;
+      try {
+        // Preload all cover images concurrently
+        await Promise.all(
+          books.map((book) =>
+            preloadImage(`https://kithia.com/website_b5d91c8e/book-backend/public/${book.cover_image}`)
+          )
+        );
 
-      const imageBaseUrl = "https://kithia.com/website_b5d91c8e/book-backend/public/";
-      const firstPagesMap = {};
-      const preloadPromises = books.map(async (book) => {
-        try {
-          const response = await fetch(
-            `https://kithia.com/website_b5d91c8e/api/books/${book.id}/pages`
-          );
-          if (response.ok) {
+        // Preload existing first page images concurrently
+        await Promise.all(
+          Object.values(preloadedFirstImages).map(preloadImage)
+        );
+
+        // Fetch and preload missing first page images sequentially
+        const missingBooks = books.filter((book) => !preloadedFirstImages[book.id]);
+        let newFirstImages = {};
+
+        for (const book of missingBooks) {
+          try {
+            const response = await fetch(`https://kithia.com/website_b5d91c8e/api/books/${book.id}/pages`);
+            if (!response.ok) throw new Error(`Failed to fetch pages for book ${book.id}`);
             const pages = await response.json();
             if (pages.length > 0) {
-              const imageUrl = `${imageBaseUrl}${pages[0].image}`;
-              firstPagesMap[book.id] = imageUrl;
-
-              // Preload the image
-              const img = new Image();
-              img.src = imageUrl;
+              const imageUrl = `https://kithia.com/website_b5d91c8e/book-backend/public/${pages[0].image}`;
+              await preloadImage(imageUrl);
+              newFirstImages[book.id] = imageUrl;
             }
+          } catch (err) {
+            console.error(`Error preloading first page for book ${book.id}:`, err);
           }
-        } catch (error) {
-          console.error(`Error preloading first page for book ${book.id}:`, error);
         }
-      });
 
-      await Promise.all(preloadPromises);
-      setFirstPages(firstPagesMap);
+        if (Object.keys(newFirstImages).length > 0) {
+          const updatedFirstImages = { ...preloadedFirstImages, ...newFirstImages };
+          setPreloadedFirstImages(updatedFirstImages);
+          localStorage.setItem('firstPages', JSON.stringify(updatedFirstImages));
+        }
+      } catch (err) {
+        console.error("Error in preloadResources:", err);
+      } finally {
+        setLoadingPreloads(false);
+      }
     };
 
-    preloadFirstPages();
-  }, [books]);
+    preloadResources();
+  }, [loadingBooks, books]);
 
-  // Preload cover images after books are fetched
+  // Handle loading progress
   useEffect(() => {
-    if (books.length === 0) return;
-
-    books.forEach((book) => {
-      if (!loadedCovers[book.id]) {
-        const img = new Image();
-        img.src = `${imageBaseUrl}${book.cover_image}`;
-        img.onload = () => {
-          setLoadedCovers((prev) => ({ ...prev, [book.id]: true }));
-        };
-      }
-    });
-  }, [books, loadedCovers]);
-
-  // Handle loading progress - assume first load check via localStorage for initial loading screen only
-  useEffect(() => {
-    const isFirstLoad = !localStorage.getItem('appLoaded');
     let timer;
-    if ((loadingSubscription || loadingBooks) && isFirstLoad) {
+    if (loadingSubscription || loadingBooks || loadingPreloads) {
       timer = setInterval(() => {
         setProgress((prev) => Math.min(prev + Math.random() * 10, 90));
       }, 200);
-    } else if (isFirstLoad) {
+    } else {
       setProgress(100);
       setTimeout(() => {
         setLoading(false);
-        localStorage.setItem('appLoaded', 'true');
+        if (!localStorage.getItem('appLoaded')) {
+          localStorage.setItem('appLoaded', 'true');
+        }
       }, 500);
-    } else {
-      setLoading(false);
     }
     return () => clearInterval(timer);
-  }, [loadingSubscription, loadingBooks]);
+  }, [loadingSubscription, loadingBooks, loadingPreloads]);
+
+  // Set first page image from preloaded when book selected
+  useEffect(() => {
+    if (selectedBook && preloadedFirstImages[selectedBook.id]) {
+      setFirstPageImage(preloadedFirstImages[selectedBook.id]);
+    }
+  }, [selectedBook, preloadedFirstImages]);
 
   // Calculate scale factor and target positions
   useEffect(() => {
@@ -241,46 +261,31 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
     }
   }, [selectedBook, animationStage]);
 
-  // Set animation-active class during animation
-  useEffect(() => {
-    if (selectedBook) {
-      document.body.classList.add('animation-active');
-      setIsAnimating(true);
-    } else {
-      document.body.classList.remove('animation-active');
-      setIsAnimating(false);
-    }
-
-    return () => {
-      document.body.classList.remove('animation-active');
-    };
-  }, [selectedBook]);
-
   const handleBookClick = (book, event) => {
-    if (isAnimating) return; // Prevent clicks during animation
+    if (isSelecting) return;
+    setIsSelecting(true);
 
     if (book.id !== 1 && !isSubscribed) {
       handleSubscriptionModalOpen();
-      return;
+      setIsSelecting(false);
+    } else {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+      
+      setBookInitialPosition({
+        top: rect.top + scrollTop + rect.height / 2,
+        left: rect.left + scrollLeft + rect.width / 2,
+        width: rect.width,
+        height: rect.height
+      });
+      
+      setSelectedBook(book);
+      setClearedBooks(true);
+      setIsBookOpen(false);
+      setIsExpanding(false);
+      setAnimationStage('initial');
     }
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-    
-    setBookInitialPosition({
-      top: rect.top + scrollTop + rect.height / 2,
-      left: rect.left + scrollLeft + rect.width / 2,
-      width: rect.width,
-      height: rect.height
-    });
-    
-    setSelectedBook(book);
-    setFirstPageImage(firstPages[book.id] || '');
-    setClearedBooks(true);
-    setIsBookOpen(false);
-    setIsExpanding(false);
-    setAnimationStage('initial');
   };
 
   const handleAnimationComplete = () => {
@@ -334,41 +339,59 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
     setShowSubscriptionModal(false);
   };
 
-  const handleCoverLoad = (bookId) => {
-    setLoadedCovers((prev) => ({ ...prev, [bookId]: true }));
-  };
-
   if (loading) {
     return (
       <motion.div 
-        variants={bookVariants}
-        transition={{ duration: 0.6 }}
+      variants={bookVariants}
+      transition={{ duration: 0.6 }}
+      style={{
+        height: "100vh",
+        width: "100vw",
+        display: "flex",
+        flexDirection: "row",
+        color: "white",
+        overflow: "hidden",
+        backgroundImage: `linear-gradient(to right, rgba(0, 0, 0, 0.2) 20%, rgba(0, 0, 0, 1) 100%), url("${loadingBG}")`,
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "left center, left center",
+        backgroundSize: "auto 100%, cover",
+        alignItems: "stretch",
+      }}
+      >
+      <div
         style={{
-          height: "100vh",
-          width: "100vw",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          alignItems: "center",
-          color: "white"
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: "20px",
+        background: "transparent",
+        color: "white",
         }}
       >
-        <h2>Loading your bedtime stories...</h2>
-        <div style={{
+        <h2 style={{ margin: 0 }}>Loading your bedtime stories...</h2>
+        <div
+        style={{
           width: "80%",
+          maxWidth: 600,
           height: "8px",
-          background: "rgba(255,255,255,0.2)",
+          background: "rgba(255,255,255,0.08)",
           borderRadius: "4px",
           marginTop: "20px",
-          overflow: "hidden"
-        }}>
-          <div style={{
-            height: "100%",
-            width: `${progress}%`,
-            background: "#00ffcc",
-            transition: "width 0.3s ease"
-          }} />
+          overflow: "hidden",
+        }}
+        >
+        <div
+          style={{
+          height: "100%",
+          width: `${progress}%`,
+          background: "#00ffcc",
+          transition: "width 0.3s ease",
+          }}
+        />
         </div>
+      </div>
       </motion.div>
     );
   }
@@ -376,7 +399,9 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
   if (error) {
     return <div>{error}</div>;
   }
-  
+
+  const imageBaseUrl = "https://kithia.com/website_b5d91c8e/book-backend/public/";
+
   return (
     <Container fluid className="home-page">   
       {/* Book Opening Animation - Integrated directly */}
@@ -524,35 +549,29 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
         variants={gridVariants}
         animate={selectedBook ? "exit" : "animate"}
         exit="exit"
+        style={{ pointerEvents: selectedBook ? 'none' : 'auto' }}
       >
         {books.map((book) => (
           <motion.div
             key={book.id}
             className="book-item"
-            onClick={loadedCovers[book.id] ? (e) => handleBookClick(book, e) : undefined}
+            onClick={(e) => handleBookClick(book, e)}
             variants={bookVariants}
             transition={{ duration: 0.6 }}
             animate={selectedBook ? { opacity: 0, scale: 0 } : { opacity: 1, scale: 1 }}
-            style={{ cursor: loadedCovers[book.id] ? 'pointer' : 'default' }}
           >
             <div className="book-container">
               <img
                 src={`${imageBaseUrl}${book.cover_image}`}
                 alt={book.title}
                 className="book-cover"
-                onLoad={() => handleCoverLoad(book.id)}
-                style={{ display: loadedCovers[book.id] ? 'block' : 'none' }}
               />
-              {!loadedCovers[book.id] && <div className="skeleton-loader" />}
-              {loadedCovers[book.id] && (
-                <>
-                  <div className="book-title-overlay">
-                    <h4 className="book-title">{book.title}</h4>
-                  </div>
-                  {book.id !== 1 && !isSubscribed && (
-                    <IoIosLock className="book-lock"/>
-                  )}
-                </>
+              <div className="book-title-overlay">
+                <h4 className="book-title">{book.title}</h4>
+              </div>
+
+              {book.id !== 1 && !isSubscribed && (
+                <IoIosLock className="book-lock"/>
               )}
             </div>
           </motion.div>

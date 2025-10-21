@@ -171,12 +171,21 @@
   align-items: center;
   gap: 15px;
   margin: 0;
+  margin-bottom: 7px;
   padding: 5px 10px;
   color: #0d3345;
   font-weight: 900;
-  background-color: #f8f8f8;
+  background-color: #f1f1f1;
   border-radius: 10px;
   width: 100%;
+}
+.draft-name{
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.boldened-text {
+  font-weight: 900;
 }
 
 .play-button {

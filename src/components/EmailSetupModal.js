@@ -133,6 +133,7 @@ const EmailSetupModal = ({ show, onClose }) => {
                             color: white;
                         }
                         .modal-body {
+                            top: -40px;
                             text-align: center;
                             flex: 1;
                         }
@@ -155,6 +156,7 @@ const EmailSetupModal = ({ show, onClose }) => {
                             grid-template-columns: repeat(3, 1fr);
                             gap: 8px;
                             margin-bottom: 15px;
+                            justify-items: center;
                         }
                         .calculator-button {
                             width: 35px;
