@@ -346,61 +346,61 @@ workflows:
           
           echo "✅ Privacy descriptions added"
 
-      # PHASE 10: APP ENCRYPTION DOCUMENTATION
-      - name: Generate App Encryption Documentation
-        script: |
-          set -ex
-          echo "=== App Encryption Documentation ==="
-          cat > app_encryption_info.txt << 'EOF'
-          APP ENCRYPTION DOCUMENTATION
-          ============================
+      # # PHASE 10: APP ENCRYPTION DOCUMENTATION
+      # - name: Generate App Encryption Documentation
+      #   script: |
+      #     set -ex
+      #     echo "=== App Encryption Documentation ==="
+      #     cat > app_encryption_info.txt << 'EOF'
+      #     APP ENCRYPTION DOCUMENTATION
+      #     ============================
           
-          App Name: Little Stories
-          Bundle ID: com.littlestories.app
+      #     App Name: Little Stories
+      #     Bundle ID: com.littlestories.app
           
-          ENCRYPTION USAGE:
-          -----------------
-          This app uses standard Apple iOS encryption and does NOT implement:
-          - Proprietary encryption algorithms
-          - Custom encryption implementations
-          - Non-standard encryption methods
+      #     ENCRYPTION USAGE:
+      #     -----------------
+      #     This app uses standard Apple iOS encryption and does NOT implement:
+      #     - Proprietary encryption algorithms
+      #     - Custom encryption implementations
+      #     - Non-standard encryption methods
           
-          ENCRYPTION SOURCES:
-          -------------------
-          1. Apple iOS Built-in Encryption:
-             - iOS Keychain Services for secure data storage
-             - iOS CryptoKit framework for standard cryptographic operations
-             - iOS Secure Enclave for hardware-based key management
+      #     ENCRYPTION SOURCES:
+      #     -------------------
+      #     1. Apple iOS Built-in Encryption:
+      #        - iOS Keychain Services for secure data storage
+      #        - iOS CryptoKit framework for standard cryptographic operations
+      #        - iOS Secure Enclave for hardware-based key management
           
-          2. Capacitor Plugin Encryption:
-             - @aparajita/capacitor-secure-storage: Uses iOS Keychain with AES encryption
-             - Capacitor Filesystem: Uses iOS sandboxed file system with standard protection
+      #     2. Capacitor Plugin Encryption:
+      #        - @aparajita/capacitor-secure-storage: Uses iOS Keychain with AES encryption
+      #        - Capacitor Filesystem: Uses iOS sandboxed file system with standard protection
           
-          3. Network Encryption:
-             - Standard TLS 1.2/1.3 for all HTTP/HTTPS communications
-             - iOS URLSession with default security protocols
+      #     3. Network Encryption:
+      #        - Standard TLS 1.2/1.3 for all HTTP/HTTPS communications
+      #        - iOS URLSession with default security protocols
           
-          SPECIFIC IMPLEMENTATIONS:
-          -------------------------
-          - Secure Storage: AES encryption via iOS Keychain
-          - File Protection: iOS Data Protection API (NSFileProtectionComplete)
-          - Network Security: TLS 1.2+ with certificate pinning (if configured)
-          - Key Management: iOS Keychain with secure key storage
+      #     SPECIFIC IMPLEMENTATIONS:
+      #     -------------------------
+      #     - Secure Storage: AES encryption via iOS Keychain
+      #     - File Protection: iOS Data Protection API (NSFileProtectionComplete)
+      #     - Network Security: TLS 1.2+ with certificate pinning (if configured)
+      #     - Key Management: iOS Keychain with secure key storage
           
-          EXPORT COMPLIANCE:
-          ------------------
-          - Uses only Apple's standard encryption available in iOS
-          - No proprietary encryption algorithms implemented
-          - Compliant with App Store encryption export regulations
+      #     EXPORT COMPLIANCE:
+      #     ------------------
+      #     - Uses only Apple's standard encryption available in iOS
+      #     - No proprietary encryption algorithms implemented
+      #     - Compliant with App Store encryption export regulations
           
-          For App Store Connect question "What type of encryption algorithms does your app implement?" 
-          select: "None of the algorithms mentioned above"
+      #     For App Store Connect question "What type of encryption algorithms does your app implement?" 
+      #     select: "None of the algorithms mentioned above"
           
-          This indicates the app uses only Apple's standard iOS encryption.
-          EOF
+      #     This indicates the app uses only Apple's standard iOS encryption.
+      #     EOF
           
-          echo "✅ App encryption documentation generated"
-          cat app_encryption_info.txt
+      #     echo "✅ App encryption documentation generated"
+      #     cat app_encryption_info.txt
 
       # PHASE 11: BUILD UNSIGNED ARCHIVE
       - name: Build Unsigned Archive
