@@ -275,6 +275,7 @@ workflows:
           echo "✅ Signing configuration complete"
 
       # PHASE 8: BUILD CONFIGURATION (FIXED VERSION)
+            # PHASE 8: BUILD CONFIGURATION (UPDATED VERSIONING)
       - name: Configure Build Settings
         script: |
           set -ex
@@ -287,9 +288,19 @@ workflows:
           CURRENT_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST_PATH" 2>/dev/null || echo "1.0")
           CURRENT_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH" 2>/dev/null || echo "1")
           
-          # Since you have Build 3 Version 1.0 approved, increment to 1.0.1
-          # This creates a new version that's higher than the approved 1.0
-          NEW_VERSION="1.0.1"
+          # Increment to 1.0.2 since 1.0.1 is already approved
+          # Parse version components
+          MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2) 
+          PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+          
+          # If patch version exists, increment it, otherwise set to 1
+          if [ -n "$PATCH" ] && [ "$PATCH" != "" ]; then
+            NEW_PATCH=$((PATCH + 1))
+            NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+          else
+            NEW_VERSION="$MAJOR.$MINOR.1"
+          fi
           
           # Generate timestamp-based build number for uniqueness
           NEW_BUILD=$(date +%s)
@@ -311,7 +322,7 @@ workflows:
           
           echo "✅ Build settings configured"
 
-      # PHASE 9: ADD PRIVACY DESCRIPTIONS
+      # PHASE 9: ADD PRIVACY DESCRIPTIONS (UPDATED WITH STORAGE)
       - name: Add Privacy Descriptions
         script: |
           set -ex
@@ -335,7 +346,63 @@ workflows:
           
           echo "✅ Privacy descriptions added"
 
-      # PHASE 9: BUILD UNSIGNED ARCHIVE
+      # PHASE 10: APP ENCRYPTION DOCUMENTATION
+      - name: Generate App Encryption Documentation
+        script: |
+          set -ex
+          echo "=== App Encryption Documentation ==="
+          cat > app_encryption_info.txt << 'EOF'
+          APP ENCRYPTION DOCUMENTATION
+          ============================
+          
+          App Name: Little Stories
+          Bundle ID: com.littlestories.app
+          
+          ENCRYPTION USAGE:
+          -----------------
+          This app uses standard Apple iOS encryption and does NOT implement:
+          - Proprietary encryption algorithms
+          - Custom encryption implementations
+          - Non-standard encryption methods
+          
+          ENCRYPTION SOURCES:
+          -------------------
+          1. Apple iOS Built-in Encryption:
+             - iOS Keychain Services for secure data storage
+             - iOS CryptoKit framework for standard cryptographic operations
+             - iOS Secure Enclave for hardware-based key management
+          
+          2. Capacitor Plugin Encryption:
+             - @aparajita/capacitor-secure-storage: Uses iOS Keychain with AES encryption
+             - Capacitor Filesystem: Uses iOS sandboxed file system with standard protection
+          
+          3. Network Encryption:
+             - Standard TLS 1.2/1.3 for all HTTP/HTTPS communications
+             - iOS URLSession with default security protocols
+          
+          SPECIFIC IMPLEMENTATIONS:
+          -------------------------
+          - Secure Storage: AES encryption via iOS Keychain
+          - File Protection: iOS Data Protection API (NSFileProtectionComplete)
+          - Network Security: TLS 1.2+ with certificate pinning (if configured)
+          - Key Management: iOS Keychain with secure key storage
+          
+          EXPORT COMPLIANCE:
+          ------------------
+          - Uses only Apple's standard encryption available in iOS
+          - No proprietary encryption algorithms implemented
+          - Compliant with App Store encryption export regulations
+          
+          For App Store Connect question "What type of encryption algorithms does your app implement?" 
+          select: "None of the algorithms mentioned above"
+          
+          This indicates the app uses only Apple's standard iOS encryption.
+          EOF
+          
+          echo "✅ App encryption documentation generated"
+          cat app_encryption_info.txt
+
+      # PHASE 11: BUILD UNSIGNED ARCHIVE
       - name: Build Unsigned Archive
         script: |
           set -ex
@@ -373,7 +440,7 @@ workflows:
           
           echo "✅ Unsigned archive created successfully"
 
-      # PHASE 10: MANUAL SIGNING
+      # PHASE 12: MANUAL SIGNING
       - name: Manual Signing
         script: |
           set -ex
@@ -423,7 +490,7 @@ workflows:
           codesign -vvv --deep --strict "$APP_PATH"
           echo "✅ Build successfully signed and validated"
 
-      # PHASE 11: CREATE IPA MANUALLY (INSTEAD OF XCODEBUILD EXPORT)
+      # PHASE 13: CREATE IPA MANUALLY
       - name: Create IPA Manually
         script: |
           set -ex
@@ -449,7 +516,7 @@ workflows:
           
           echo "✅ IPA created manually"
 
-      # PHASE 12: VALIDATION
+      # PHASE 14: VALIDATION
       - name: Validate Build
         script: |
           set -ex
@@ -484,6 +551,7 @@ workflows:
 
     artifacts:
       - ios/App/build/ipa/App.ipa
+      - app_encryption_info.txt
 
     publishing:
       app_store_connect:
