@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useNavigate } from "react-router-dom";
 import { VoiceRecorder } from "capacitor-voice-recorder";
+import { Capacitor } from '@capacitor/core';
 import "./BookPage.css";
 import ActionIcons from "./ReadingModeSelect";
 import homeIcon from "../assets/Home icon.png";
@@ -12,9 +13,7 @@ import libraryIcon from "../assets/screen-3/Library Icon.png";
 import { FaPause, FaPlay } from "react-icons/fa";
 import { MdCancel } from "react-icons/md";
 import { tokenManager } from "../utils/tokenManager";
-
-let globalAudio = null;
-let globalAudioPlaying = false;
+import EndingModal from "../components/EndingModal";
 
 const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
   const { bookId } = useParams();
@@ -31,11 +30,14 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
   const [myAudios, setMyAudios] = useState({});
   const [currentAudio, setCurrentAudio] = useState(null);
   const [audioPlayingUI, setAudioPlayingUI] = useState(false);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false); // New state for preview audio
   const [narrationVolume] = useState(1);
   const [isAudioLoading, setIsAudioLoading] = useState(false);
   const [selectedNarration, setSelectedNarration] = useState(null);
   const isAutoPlaying = useRef(false);
-  const previewAudio = useRef(null);
+  const globalAudioRef = useRef(null);
+  const globalAudioPlayingRef = useRef(false);
+  const previewAudioRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isBookCompleted, setIsBookCompleted] = useState(false);
   const [completeNarrators, setCompleteNarrators] = useState([]);
@@ -51,6 +53,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
   const pendingFetches = useRef(new Set());
   const isInitialRecordPage = useRef(true);
   const preloadedPages = useRef(new Set());
+  const [showEndingModal, setShowEndingModal] = useState(false);
 
   const [readingMode, setReadingMode] = useState(() => {
     return sessionStorage.getItem(`readingMode_${bookId}`) || "read";
@@ -154,6 +157,19 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     fetchNarrators();
   }, [bookPages, bookId]);
 
+  const fetchAudioWithRetry = async (url, retries = 3) => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const res = await fetch(url);
+        if (res.ok) return await res.json();
+        console.warn(`Fetch attempt ${i + 1} failed for ${url}`);
+      } catch (err) {
+        console.error(`Fetch error for ${url}:`, err);
+      }
+    }
+    return null;
+  };
+
   const fetchAudioForPage = async (pageNumber, narrator) => {
     const key = `${narrator}_${pageNumber}`;
     if (pendingFetches.current.has(key) || myAudios[narrator]?.[pageNumber]) {
@@ -252,16 +268,12 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
 
         if (!professionalAudios[i]) {
           try {
-            const res = await fetch(`https://kithia.com/website_b5d91c8e/api/audio/universal/${bookId}/${i}`);
-            if (!res.ok) continue;
-            const data = await res.json();
+            const data = await fetchAudioWithRetry(`https://kithia.com/website_b5d91c8e/api/audio/universal/${bookId}/${i}`);
             if (data && data.audio_url) {
               const fullAudioUrl = data.audio_url.replace(
                 'https://kithia.com/website_b5d91c8e/storage/',
                 'https://kithia.com/website_b5d91c8e/book-backend/public/storage/'
               );
-              const audio = new Audio(fullAudioUrl);
-              audio.preload = "auto";
               setProfessionalAudios(prev => ({
                 ...prev,
                 [i]: { ...data, url: fullAudioUrl }
@@ -294,42 +306,44 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
   }, [bookPages, currentPageId]);
 
   useEffect(() => {
-    if (readingMode !== "listen") return;
+    if (readingMode !== "listen" || !selectedNarration) {
+      if (readingMode === "listen" && !selectedNarration) {
+        setReadingMode("read");
+        alert("Please select a narration to listen.");
+      }
+      return;
+    }
 
     const handleAudioEnd = () => {
-      globalAudioPlaying = false;
+      globalAudioPlayingRef.current = false;
       setAudioPlayingUI(false);
       if (currentPageId < bookPages.length) {
         const nextPageNum = currentPageId + 1;
         isAutoPlaying.current = true;
         goToPage(nextPageNum);
       } else {
-        setIsBookCompleted(true);
+        setShowEndingModal(true);
       }
     };
 
     const playAudioForCurrentPage = async () => {
-      if (preloadedPages.current.has(currentPageId)) return;
       setIsAudioLoading(true);
       let currentPageAudio;
       if (selectedNarration === "professional") {
         currentPageAudio = professionalAudios[currentPageId];
         if (!currentPageAudio) {
           try {
-            const res = await fetch(`https://kithia.com/website_b5d91c8e/api/audio/universal/${bookId}/${currentPageId}`);
-            if (res.ok) {
-              const data = await res.json();
-              const fullAudioUrl = data.audio_url ? data.audio_url.replace(
+            const data = await fetchAudioWithRetry(`https://kithia.com/website_b5d91c8e/api/audio/universal/${bookId}/${currentPageId}`);
+            if (data && data.audio_url) {
+              const fullAudioUrl = data.audio_url.replace(
                 'https://kithia.com/website_b5d91c8e/storage/',
                 'https://kithia.com/website_b5d91c8e/book-backend/public/storage/'
-              ) : null;
-              if (fullAudioUrl) {
-                currentPageAudio = { ...data, url: fullAudioUrl };
-                setProfessionalAudios(prev => ({
-                  ...prev,
-                  [currentPageId]: currentPageAudio
-                }));
-              }
+              );
+              currentPageAudio = { ...data, url: fullAudioUrl };
+              setProfessionalAudios(prev => ({
+                ...prev,
+                [currentPageId]: currentPageAudio
+              }));
             }
           } catch (err) {
             console.error("Error fetching professional audio:", err);
@@ -344,56 +358,97 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
 
       if (!currentPageAudio) {
         setIsAudioLoading(false);
+        setReadingMode("read");
+        alert("No audio available for this page. Switching to read mode.");
         return;
       }
 
-      if (globalAudio && globalAudio.src === currentPageAudio.url && globalAudioPlaying) {
+      if (globalAudioRef.current && globalAudioRef.current.src === currentPageAudio.url && globalAudioPlayingRef.current) {
         setIsAudioLoading(false);
         return;
       }
 
-      if (globalAudio) {
-        globalAudio.pause();
-        globalAudio.removeEventListener('ended', handleAudioEnd);
+      if (globalAudioRef.current) {
+        globalAudioRef.current.pause();
+        globalAudioRef.current.removeEventListener('ended', handleAudioEnd);
+        globalAudioRef.current.removeEventListener('canplaythrough', () => {});
+        globalAudioRef.current = null;
       }
 
       try {
-        globalAudio = new Audio(currentPageAudio.url);
-        globalAudio.volume = narrationVolume;
-        globalAudio.addEventListener('ended', handleAudioEnd);
-        globalAudio.addEventListener('canplaythrough', () => {
-          setIsAudioLoading(false);
-          globalAudio.play().then(() => {
-            globalAudioPlaying = true;
-            setAudioPlayingUI(true);
-            setCurrentAudio(currentPageAudio);
-          }).catch(error => {
-            console.error("Audio playback failed:", error);
-            globalAudioPlaying = false;
-            setAudioPlayingUI(false);
+        const isNative = Capacitor.isNative;
+        if (isNative) {
+          // Hypothetical CapacitorAudio plugin for native playback
+          // await CapacitorAudio.play({ url: currentPageAudio.url, volume: narrationVolume });
+          // For demonstration, using Audio API with mobile considerations
+          globalAudioRef.current = new Audio(currentPageAudio.url);
+          globalAudioRef.current.volume = narrationVolume;
+          globalAudioRef.current.addEventListener('ended', handleAudioEnd);
+          globalAudioRef.current.addEventListener('canplaythrough', () => {
             setIsAudioLoading(false);
+            globalAudioRef.current.play().then(() => {
+              globalAudioPlayingRef.current = true;
+              setAudioPlayingUI(true);
+              setCurrentAudio(currentPageAudio);
+            }).catch(error => {
+              console.error("Audio playback failed:", error);
+              globalAudioPlayingRef.current = false;
+              setAudioPlayingUI(false);
+              setIsAudioLoading(false);
+              alert("Failed to play audio. Please try again.");
+            });
           });
-        });
+          globalAudioRef.current.addEventListener('error', (e) => {
+            console.error("Audio error:", e);
+            alert("An error occurred while playing the audio.");
+          });
+        } else {
+          globalAudioRef.current = new Audio(currentPageAudio.url);
+          globalAudioRef.current.volume = narrationVolume;
+          globalAudioRef.current.addEventListener('ended', handleAudioEnd);
+          globalAudioRef.current.addEventListener('canplaythrough', () => {
+            setIsAudioLoading(false);
+            globalAudioRef.current.play().then(() => {
+              globalAudioPlayingRef.current = true;
+              setAudioPlayingUI(true);
+              setCurrentAudio(currentPageAudio);
+            }).catch(error => {
+              console.error("Audio playback failed:", error);
+              globalAudioPlayingRef.current = false;
+              setAudioPlayingUI(false);
+              setIsAudioLoading(false);
+              alert("Failed to play audio. Please try again.");
+            });
+          });
+          globalAudioRef.current.addEventListener('error', (e) => {
+            console.error("Audio error:", e);
+            alert("An error occurred while playing the audio.");
+          });
+        }
       } catch (error) {
         console.error("Audio setup failed:", error);
-        globalAudioPlaying = false;
+        globalAudioPlayingRef.current = false;
         setAudioPlayingUI(false);
         setIsAudioLoading(false);
+        alert("Failed to set up audio. Please try again.");
       }
     };
 
     playAudioForCurrentPage();
 
     return () => {
-      if (globalAudio) {
-        globalAudio.removeEventListener('ended', handleAudioEnd);
-        globalAudio.removeEventListener('canplaythrough', () => {});
+      if (globalAudioRef.current) {
+        globalAudioRef.current.pause();
+        globalAudioRef.current.removeEventListener('ended', handleAudioEnd);
+        globalAudioRef.current.removeEventListener('canplaythrough', () => {});
+        globalAudioRef.current.removeEventListener('error', () => {});
+        globalAudioRef.current = null;
       }
     };
   }, [currentPageId, readingMode, selectedNarration, bookPages.length, bookId]);
 
   useEffect(() => {
-    if (globalAudioPlaying && readingMode === "listen") {
+    if (globalAudioPlayingRef.current && readingMode === "listen") {
       let currentPageAudio;
       if (selectedNarration === "professional") {
         currentPageAudio = professionalAudios[currentPageId];
@@ -404,14 +459,15 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
         setCurrentAudio(currentPageAudio);
       } else if (!currentPageAudio) {
         setReadingMode("read");
-        if (globalAudio) {
-          globalAudio.pause();
-          globalAudioPlaying = false;
+        if (globalAudioRef.current) {
+          globalAudioRef.current.pause();
+          globalAudioPlayingRef.current = false;
           setAudioPlayingUI(false);
         }
+        alert("No audio available for this page. Switching to read mode.");
       }
     }
-  }, [currentPageId, globalAudioPlaying, readingMode, selectedNarration, professionalAudios, myAudios, currentAudio]);
+  }, [currentPageId, readingMode, selectedNarration, professionalAudios, myAudios, currentAudio]);
 
   const requestMicrophonePermission = async () => {
     const permission = await VoiceRecorder.requestAudioRecordingPermission();
@@ -455,7 +511,14 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
   };
 
   const deleteAudio = () => {
-    if (audioURL) URL.revokeObjectURL(audioURL);
+    if (audioURL) {
+      URL.revokeObjectURL(audioURL);
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current = null;
+        setIsPreviewPlaying(false);
+      }
+    }
     setAudioURL("");
     setCurrentBlob(null);
   };
@@ -555,17 +618,52 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     }
   }, [uploadQueue.current.length]);
 
-  const playCurrent = () => {
-    if (previewAudio.current && !previewAudio.current.paused) {
-      previewAudio.current.pause();
+  const playCurrent = async () => {
+    if (!audioURL) return;
+
+    if (previewAudioRef.current && !previewAudioRef.current.paused) {
+      previewAudioRef.current.pause();
+      setIsPreviewPlaying(false);
       return;
     }
-    previewAudio.current = new Audio(audioURL);
-    previewAudio.current.play();
+
+    try {
+      const isNative = Capacitor.isNative;
+      if (isNative) {
+        // Hypothetical CapacitorAudio plugin for native playback
+        // await CapacitorAudio.play({ url: audioURL });
+        // For demonstration, using Audio API
+        previewAudioRef.current = new Audio(audioURL);
+        previewAudioRef.current.play().then(() => {
+          setIsPreviewPlaying(true);
+        }).catch(error => {
+          console.error("Preview audio playback failed:", error);
+          setIsPreviewPlaying(false);
+          alert("Failed to play preview audio. Please try again.");
+        });
+      } else {
+        previewAudioRef.current = new Audio(audioURL);
+        previewAudioRef.current.play().then(() => {
+          setIsPreviewPlaying(true);
+        }).catch(error => {
+          console.error("Preview audio playback failed:", error);
+          setIsPreviewPlaying(false);
+          alert("Failed to play preview audio. Please try again.");
+        });
+      }
+    } catch (error) {
+      console.error("Preview audio setup failed:", error);
+      setIsPreviewPlaying(false);
+      alert("Failed to set up preview audio. Please try again.");
+    }
   };
 
   const handleShowContinueModal = () => {
     setShowContinueModal(true);
+  };
+
+  const handleEndingModalClose = () => {
+    setShowEndingModal(false);
   };
 
   const handleContinue = () => {
@@ -607,7 +705,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
           deleteAudio();
         }
       }
-      setIsBookCompleted(true);
+      setShowEndingModal(true);
       return;
     }
 
@@ -673,9 +771,9 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
   };
 
   const handlePlayNarration = async (narrator, type) => {
-    if (globalAudio) {
-      globalAudio.pause();
-      globalAudioPlaying = false;
+    if (globalAudioRef.current) {
+      globalAudioRef.current.pause();
+      globalAudioPlayingRef.current = false;
     }
     setSelectedNarration(type === "professional" ? "professional" : narrator);
     setReadingMode("listen");
@@ -687,40 +785,43 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
   };
 
   const toggleNarrationPause = () => {
-    if (!globalAudio) return;
-    if (globalAudioPlaying) {
-      globalAudio.pause();
-      globalAudioPlaying = false;
+    if (!globalAudioRef.current) return;
+    if (globalAudioPlayingRef.current) {
+      globalAudioRef.current.pause();
+      globalAudioPlayingRef.current = false;
       setAudioPlayingUI(false);
     } else {
-      globalAudio.play()
+      globalAudioRef.current.play()
         .then(() => {
-          globalAudioPlaying = true;
+          globalAudioPlayingRef.current = true;
           setAudioPlayingUI(true);
         })
-        .catch(error => console.error("Audio play failed:", error));
+        .catch(error => {
+          console.error("Audio play failed:", error);
+          alert("Failed to play audio. Please try again.");
+        });
     }
   };
 
   useEffect(() => {
     return () => {
-      if (globalAudio) {
-        globalAudio.pause();
-        globalAudio = null;
-        globalAudioPlaying = false;
+      if (globalAudioRef.current) {
+        globalAudioRef.current.pause();
+        globalAudioRef.current.removeEventListener('ended', () => {});
+        globalAudioRef.current.removeEventListener('canplaythrough', () => {});
+        globalAudioRef.current.removeEventListener('error', () => {});
+        globalAudioRef.current = null;
       }
-      if (previewAudio.current) {
-        previewAudio.current.pause();
-        previewAudio.current = null;
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current = null;
+        setIsPreviewPlaying(false);
+      }
+      if (audioURL) {
+        URL.revokeObjectURL(audioURL);
       }
     };
-  }, [bookId]);
-
-  useEffect(() => {
-    if (audioURL) {
-      return () => URL.revokeObjectURL(audioURL);
-    }
-  }, [audioURL]);
+  }, [bookId, audioURL]);
 
   const handleHomeClick = () => {
     setShowModal(true);
@@ -728,11 +829,9 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
 
   const handleConfirmHomeNavigation = async () => {
     if (isRecording) {
-      // stop and discard the recording
       await stopRecording();
       deleteAudio();
     } else if (currentBlob && readingMode === "record") {
-      // enqueue any previously stopped recording
       uploadQueue.current.push({ blob: currentBlob, page: currentPageId });
     }
     setShowModal(false);
@@ -742,17 +841,15 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
   };
 
   const showOverlayAgain = async () => {
-    if (globalAudio) {
-      globalAudio.pause();
-      globalAudioPlaying = false;
-      globalAudio = null;
+    if (globalAudioRef.current) {
+      globalAudioRef.current.pause();
+      globalAudioPlayingRef.current = false;
+      globalAudioRef.current = null;
     }
     if (isRecording) {
-      // stop and discard the recording when showing overlay again
       await stopRecording();
       deleteAudio();
     } else if (currentBlob && readingMode === "record") {
-      // enqueue any previously stopped recording
       uploadQueue.current.push({ blob: currentBlob, page: currentPageId });
     }
     setReadingMode(null);
@@ -760,7 +857,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     setShowOverlay(true);
     setShowModal(false);
     setCurrentPageId(1);
-    setIsBookCompleted(false);
+    handleEndingModalClose();
     isInitialRecordPage.current = true;
   };
 
@@ -802,32 +899,6 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     return () => document.body.classList.remove('modal-open');
   }, [showModal, showContinueModal]);
 
-  if (isLoading) {
-    return <div>Loading book...</div>;
-  }
-
-  if (isBookCompleted) {
-    return (
-      <div className="book-completed-container">
-        <h1>The End</h1>
-        <motion.button
-          onClick={showOverlayAgain}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          Go to the beginning
-        </motion.button>
-        <motion.button
-          onClick={handleConfirmHomeNavigation}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          Go to the library
-        </motion.button>
-      </div>
-    );
-  }
-
   return (
     <div 
       className="book-page-container" 
@@ -835,26 +906,30 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
       style={{ cursor: 'pointer' }}
     >
       <div className="book-page-background-container">
-        {previousPage && (
+        {!isLoading && previousPage && (
           <motion.div
             key={`background-prev-${previousPage.page_number}`}
             className="book-page-background"
             style={{
-              backgroundImage: `url("${preloadedImages[previousPage.page_number] || 
-                (previousPage.image ? `${imageBaseUrl}${previousPage.image}` : "")}")`
+              backgroundImage: `url(${
+                preloadedImages[previousPage.page_number] || 
+                (previousPage.image ? `${imageBaseUrl}${previousPage.image}` : "")
+              })`
             }}
             initial={{ opacity: 1 }}
             animate={{ opacity: 0 }}
             transition={{ duration: 1.2, ease: "easeInOut" }}
           />
         )}
-        {currentPage && (
+        {!isLoading && currentPage && (
           <motion.div
             key={`background-current-${currentPage.page_number}`}
             className="book-page-background"
             style={{
-              backgroundImage: `url("${preloadedImages[currentPage.page_number] || 
-                (previousPage.image ? `${imageBaseUrl}${currentPage.image}` : "")}")`
+              backgroundImage: `url(${
+                preloadedImages[currentPage.page_number] || 
+                (currentPage.image ? `${imageBaseUrl}${currentPage.image}` : "")
+              })`
             }}
             initial={{ opacity: 1 }}
             animate={{ opacity: 1 }}
@@ -862,7 +937,12 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
           />
         )}
       </div>
-
+      <EndingModal
+        show={showEndingModal}
+        onClose={handleEndingModalClose}
+        showOverlayAgain={showOverlayAgain}
+        handleConfirmHomeNavigation={handleConfirmHomeNavigation}
+      />
       {!showOverlay && (
         <motion.div
           className="header-icons"
@@ -954,7 +1034,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
                   onClick={playCurrent}
                   disabled={isRecording || !audioURL}
                 >
-                  {previewAudio.current && !previewAudio.current.paused ? <FaPause /> : <FaPlay />}
+                  {isPreviewPlaying ? <FaPause /> : <FaPlay />}
                 </button>
               </div>
             )}

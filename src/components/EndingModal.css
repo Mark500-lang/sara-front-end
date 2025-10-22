@@ -1,0 +1,44 @@
+.ending-modal__cover {
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    gap: 20px;
+}
+
+/* Title styling - big white text */
+.ending-modal__title {
+    color: #e29b00;
+    font-size: 2rem;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 2rem;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    z-index: 1;
+}
+
+/* Custom cancel button styling */
+.ending-cancel-btn {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    color: white;
+    font-size: 2rem;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+    z-index: 10;
+}
+
+.custom-btn-cancel:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+

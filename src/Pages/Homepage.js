@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Container } from "react-bootstrap";
 import { motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
+import { Preferences } from '@capacitor/preferences';
+import { ClipLoader } from "react-spinners";
 import "./Homepage.css";
 import SubscriptionModal from "../components/SubscriptionModal";
 import EmailSetupModal from "../components/EmailSetupModal.js";
@@ -23,33 +25,28 @@ const headerVariants = {
 
 const bookVariants = {
   initial: { opacity: 0, y: 100 },
-  animate: { opacity: 1, y: 0 },
+  animate: { opacity: 1, y: 0, transition: { duration: 1 } },
   exit: { opacity: 0, y: 100 },
 };
 
 const gridVariants = {
   initial: { opacity: 0 },
-  animate: { opacity: 1, transition: { staggerChildren: 0.2 } },
+  animate: { opacity: 1, transition: { staggerChildren: 0.2, delay: 1 } },
   exit: { opacity: 0, transition: { duration: 0.3 } },
 };
 
 const HomePage = ({ toggleMusic, isMusicPlaying }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [books, setBooks] = useState(() => {
-    const cached = localStorage.getItem('books');
-    return cached ? JSON.parse(cached) : [];
-  });
-  const [preloadedFirstImages, setPreloadedFirstImages] = useState(() => {
-    const cached = localStorage.getItem('firstPages');
-    return cached ? JSON.parse(cached) : {};
-  });
+  const [books, setBooks] = useState([]);
+  const [preloadedFirstImages, setPreloadedFirstImages] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadingSubscription, setLoadingSubscription] = useState(true);
   const [loadingBooks, setLoadingBooks] = useState(true);
   const [loadingPreloads, setLoadingPreloads] = useState(true);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState(null);
+  const [imageLoadedStatus, setImageLoadedStatus] = useState({});
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -73,7 +70,9 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
 
   // Subscription modal state
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
-  const [isSubscribed, setIsSubscribed] = useState(() => localStorage.getItem('isSubscribed') === 'true');
+  const [isSubscribed, setIsSubscribed] = useState(false);
+
+  const imageBaseUrl = "https://kithia.com/website_b5d91c8e/book-backend/public/";
 
   // Calculate viewport center
   useEffect(() => {
@@ -83,73 +82,123 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
         y: window.innerHeight / 2
       });
     };
-    
+
     updateViewportCenter();
     window.addEventListener('resize', updateViewportCenter);
-    
+
     return () => window.removeEventListener('resize', updateViewportCenter);
   }, []);
 
-  // Combined effect for subscription and books
+  // Load book data and subscription status
   useEffect(() => {
     const checkSubscriptionStatus = async () => {
       try {
+        const authToken = await Preferences.get({ key: 'auth_token' });
+        if (!authToken.value) {
+          setIsSubscribed(false);
+          await Preferences.set({ key: 'isSubscribed', value: 'false' });
+          setLoadingSubscription(false);
+          return;
+        }
         const response = await fetch("https://kithia.com/website_b5d91c8e/api/user/subscription-status", {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+            Authorization: `Bearer ${authToken.value}`,
+            "ngrok-skip-browser-warning": "69420",
           },
+          timeout: 10000,
         });
-        if (!response.ok) throw new Error("Failed to fetch subscription status");
+        if (!response.ok) throw new Error(`Failed to fetch subscription status: ${response.status}`);
         const data = await response.json();
+        if (!data || typeof data.subscription_status !== 'string') {
+          throw new Error("Invalid subscription status response");
+        }
         const subscribed = data.subscription_status === "active";
         setIsSubscribed(subscribed);
-        localStorage.setItem('isSubscribed', subscribed);
+        await Preferences.set({ key: 'isSubscribed', value: subscribed.toString() });
       } catch (error) {
-        console.error("Error checking subscription status:", error);
+        console.error("Error checking subscription status:", error.message);
+        setIsSubscribed(false);
+        await Preferences.set({ key: 'isSubscribed', value: 'false' });
       } finally {
         setLoadingSubscription(false);
       }
     };
 
-    checkSubscriptionStatus();
+    const fetchBooks = async () => {
+      const fromRegistration = location.state?.fromRegistration;
+      const cachedBooks = await Preferences.get({ key: 'books' });
+      const cachedFirstImages = await Preferences.get({ key: 'firstPages' });
+      const appLoaded = await Preferences.get({ key: 'appLoaded' });
 
-    if (localStorage.getItem('books')) {
-      setLoadingBooks(false);
-    } else {
-      const fetchBooks = async () => {
+      // Check cache synchronously to skip loading screen
+      if (!fromRegistration && cachedBooks.value && appLoaded.value === 'true') {
         try {
-          const response = await fetch("https://kithia.com/website_b5d91c8e/api/books", {
-            method: "GET",
-            headers: {
-              "ngrok-skip-browser-warning": "69420",
-              "Content-Type": "application/json",
-            },
-          });
-          if (!response.ok) throw new Error("Failed to fetch books");
-          const data = await response.json();
-          setBooks(data);
-          localStorage.setItem('books', JSON.stringify(data));
-        } catch (err) {
-          setError(err.message);
-        } finally {
+          const parsedBooks = JSON.parse(cachedBooks.value);
+          console.log("Loaded cached books:", parsedBooks);
+          setBooks(parsedBooks);
+          setPreloadedFirstImages(cachedFirstImages.value ? JSON.parse(cachedFirstImages.value) : {});
           setLoadingBooks(false);
+          setLoadingPreloads(false);
+          setLoading(false); // Skip loading screen
+          return;
+        } catch (error) {
+          console.error("Error parsing cached books:", error.message);
         }
-      };
+      }
 
-      fetchBooks();
-    }
-  }, []);
+      // Fetch books if no cache or from registration
+      try {
+        const response = await fetch("https://kithia.com/website_b5d91c8e/api/books", {
+          method: "GET",
+          headers: {
+            "ngrok-skip-browser-warning": "69420",
+            "Content-Type": "application/json",
+          },
+          timeout: 10000,
+        });
+        if (!response.ok) throw new Error(`Failed to fetch books: ${response.status}`);
+        const data = await response.json();
+        if (!Array.isArray(data)) throw new Error("Invalid books response: not an array");
+        console.log("Fetched books from API:", data);
+        setBooks(data);
+        await Preferences.set({ key: 'books', value: JSON.stringify(data) });
+        await Preferences.set({ key: 'appLoaded', value: 'true' });
+      } catch (err) {
+        console.error("Error fetching books:", err.message);
+        setError(err.message);
+        setBooks([]);
+      } finally {
+        setLoadingBooks(false);
+      }
+    };
 
-  // Preload covers and first page images
+    checkSubscriptionStatus();
+    fetchBooks();
+  }, [location.state]);
+
+  // Preload cover and first page images
   useEffect(() => {
-    const preloadImage = (url) => {
+    const preloadImage = (url, id) => {
       return new Promise((resolve, reject) => {
+        if (!url || url.includes('undefined')) {
+          console.warn(`Invalid image URL for ID ${id}: ${url}`);
+          setImageLoadedStatus(prev => ({ ...prev, [id]: false }));
+          resolve();
+          return;
+        }
         const img = new Image();
-        img.onload = resolve;
-        img.onerror = reject;
         img.src = url;
+        img.onload = () => {
+          setImageLoadedStatus(prev => ({ ...prev, [id]: true }));
+          resolve();
+        };
+        img.onerror = () => {
+          console.error(`Failed to preload image: ${url}`);
+          setImageLoadedStatus(prev => ({ ...prev, [id]: false }));
+          resolve();
+        };
       });
     };
 
@@ -159,70 +208,107 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
       try {
         // Preload all cover images concurrently
         await Promise.all(
-          books.map((book) =>
-            preloadImage(`https://kithia.com/website_b5d91c8e/book-backend/public/${book.cover_image}`)
-          )
+          books.map(async (book) => {
+            if (!book.cover_image) {
+              console.warn(`No cover_image for book ID ${book.id}:`, book);
+              setImageLoadedStatus(prev => ({ ...prev, [book.id]: false }));
+              return;
+            }
+            const url = `${imageBaseUrl}${book.cover_image}`;
+            await preloadImage(url, book.id);
+          })
         );
 
         // Preload existing first page images concurrently
         await Promise.all(
-          Object.values(preloadedFirstImages).map(preloadImage)
+          Object.values(preloadedFirstImages).map(async (url) => {
+            await preloadImage(url, `first_${Object.keys(preloadedFirstImages).find(key => preloadedFirstImages[key] === url)}`);
+          })
         );
 
         // Fetch and preload missing first page images sequentially
+        let newFirstImages = { ...preloadedFirstImages };
         const missingBooks = books.filter((book) => !preloadedFirstImages[book.id]);
-        let newFirstImages = {};
 
         for (const book of missingBooks) {
           try {
-            const response = await fetch(`https://kithia.com/website_b5d91c8e/api/books/${book.id}/pages`);
-            if (!response.ok) throw new Error(`Failed to fetch pages for book ${book.id}`);
+            const response = await fetch(`https://kithia.com/website_b5d91c8e/api/books/${book.id}/pages`, {
+              headers: { "ngrok-skip-browser-warning": "69420" },
+              timeout: 5000,
+            });
+            if (!response.ok) {
+              console.warn(`Failed to fetch pages for book ${book.id}: ${response.status}`);
+              continue;
+            }
             const pages = await response.json();
-            if (pages.length > 0) {
-              const imageUrl = `https://kithia.com/website_b5d91c8e/book-backend/public/${pages[0].image}`;
-              await preloadImage(imageUrl);
+            console.log(`Pages for book ${book.id}:`, pages);
+            if (pages.length > 0 && pages[0].image) {
+              const imageUrl = `${imageBaseUrl}${pages[0].image}`;
+              await preloadImage(imageUrl, `first_${book.id}`);
               newFirstImages[book.id] = imageUrl;
+            } else {
+              console.warn(`No first page image for book ID ${book.id}: Empty response or missing image`);
             }
           } catch (err) {
-            console.error(`Error preloading first page for book ${book.id}:`, err);
+            console.error(`Error preloading first page for book ${book.id}:`, err.message);
           }
         }
 
-        if (Object.keys(newFirstImages).length > 0) {
-          const updatedFirstImages = { ...preloadedFirstImages, ...newFirstImages };
-          setPreloadedFirstImages(updatedFirstImages);
-          localStorage.setItem('firstPages', JSON.stringify(updatedFirstImages));
+        if (Object.keys(newFirstImages).length > Object.keys(preloadedFirstImages).length) {
+          setPreloadedFirstImages(newFirstImages);
+          await Preferences.set({ key: 'firstPages', value: JSON.stringify(newFirstImages) });
         }
       } catch (err) {
-        console.error("Error in preloadResources:", err);
+        console.error("Error in preloadResources:", err.message);
       } finally {
         setLoadingPreloads(false);
       }
     };
 
     preloadResources();
-  }, [loadingBooks, books]);
+  }, [loadingBooks, books, preloadedFirstImages]);
 
   // Handle loading progress
   useEffect(() => {
-    let timer;
-    if (loadingSubscription || loadingBooks || loadingPreloads) {
-      timer = setInterval(() => {
-        setProgress((prev) => Math.min(prev + Math.random() * 10, 90));
-      }, 200);
-    } else {
-      setProgress(100);
-      setTimeout(() => {
-        setLoading(false);
-        if (!localStorage.getItem('appLoaded')) {
-          localStorage.setItem('appLoaded', 'true');
-        }
-      }, 500);
-    }
-    return () => clearInterval(timer);
-  }, [loadingSubscription, loadingBooks, loadingPreloads]);
+    const fromRegistration = location.state?.fromRegistration;
 
-  // Set first page image from preloaded when book selected
+    const checkAppLoaded = async () => {
+      const { value: appLoaded } = await Preferences.get({ key: 'appLoaded' });
+      const { value: cachedBooksValue } = await Preferences.get({ key: 'books' });
+
+      console.log('CheckAppLoaded:', { appLoaded, cachedBooks: !!cachedBooksValue, loadingSubscription, loadingBooks, loadingPreloads });
+
+      if (!fromRegistration && appLoaded === 'true' && cachedBooksValue && books.length > 0) {
+        // Skip loading screen if cache exists and books are loaded
+        setLoading(false);
+      } else if (loadingSubscription || loadingBooks || loadingPreloads) {
+        // Animate progress bar while loading
+        const totalDuration = 3000; // 3 seconds for smooth animation
+        const increment = 100 / (totalDuration / 200); // Increment every 200ms
+        let currentProgress = 0;
+
+        const timer = setInterval(() => {
+          currentProgress = Math.min(currentProgress + increment, 90); // Cap at 90% until loading completes
+          setProgress(currentProgress);
+        }, 200);
+
+        return () => clearInterval(timer);
+      } else {
+        // Complete progress animation to 100% before showing homepage
+        setProgress(100);
+        const timer = setTimeout(() => {
+          setLoading(false);
+          Preferences.set({ key: 'appLoaded', value: 'true' });
+        }, 1000); // Wait for final 100% animation (1s)
+
+        return () => clearTimeout(timer);
+      }
+    };
+
+    checkAppLoaded();
+  }, [loadingSubscription, loadingBooks, loadingPreloads, books, location.state]);
+
+  // Set first page image when book selected
   useEffect(() => {
     if (selectedBook && preloadedFirstImages[selectedBook.id]) {
       setFirstPageImage(preloadedFirstImages[selectedBook.id]);
@@ -268,18 +354,21 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
     if (book.id !== 1 && !isSubscribed) {
       handleSubscriptionModalOpen();
       setIsSelecting(false);
+    } else if (!book.cover_image) {
+      console.warn(`No cover_image for book ID ${book.id}, skipping animation`);
+      setIsSelecting(false);
     } else {
       const rect = event.currentTarget.getBoundingClientRect();
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
       const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-      
+
       setBookInitialPosition({
         top: rect.top + scrollTop + rect.height / 2,
         left: rect.left + scrollLeft + rect.width / 2,
         width: rect.width,
         height: rect.height
       });
-      
+
       setSelectedBook(book);
       setClearedBooks(true);
       setIsBookOpen(false);
@@ -293,14 +382,15 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
       setAnimationStage('expanding');
       setIsExpanding(true);
     } else if (animationStage === 'expanding') {
-      navigate(`/book/${selectedBook.id}/1`, { 
-        state: { 
+      navigate(`/book/${selectedBook.id}/1`, {
+        state: {
           fromAnimation: true,
           firstPageImage,
           book: selectedBook,
           position: bookInitialPosition
-        } 
+        }
       });
+      setIsSelecting(false);
     }
   };
 
@@ -336,62 +426,63 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
 
   const handlePaymentSuccess = () => {
     setIsSubscribed(true);
+    Preferences.set({ key: 'isSubscribed', value: 'true' });
     setShowSubscriptionModal(false);
   };
 
   if (loading) {
     return (
-      <motion.div 
-      variants={bookVariants}
-      transition={{ duration: 0.6 }}
-      style={{
-        height: "100vh",
-        width: "100vw",
-        display: "flex",
-        flexDirection: "row",
-        color: "white",
-        overflow: "hidden",
-        backgroundImage: `linear-gradient(to right, rgba(0, 0, 0, 0.2) 20%, rgba(0, 0, 0, 1) 100%), url("${loadingBG}")`,
-        backgroundRepeat: "no-repeat",
-        backgroundPosition: "left center, left center",
-        backgroundSize: "auto 100%, cover",
-        alignItems: "stretch",
-      }}
-      >
-      <div
+      <motion.div
+        variants={bookVariants}
+        transition={{ duration: 0.6 }}
         style={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
-        padding: "20px",
-        background: "transparent",
-        color: "white",
-        }}
-      >
-        <h2 style={{ margin: 0 }}>Loading your bedtime stories...</h2>
-        <div
-        style={{
-          width: "80%",
-          maxWidth: 600,
-          height: "8px",
-          background: "rgba(255,255,255,0.08)",
-          borderRadius: "4px",
-          marginTop: "20px",
+          height: "100vh",
+          width: "100vw",
+          display: "flex",
+          flexDirection: "row",
+          color: "white",
           overflow: "hidden",
+          backgroundImage: `linear-gradient(to right, rgba(0, 0, 0, 0.2) 20%, rgba(0, 0, 0, 1) 100%), url("${loadingBG}")`,
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "left center, left center",
+          backgroundSize: "auto 100%, cover",
+          alignItems: "stretch",
         }}
-        >
+      >
         <div
           style={{
-          height: "100%",
-          width: `${progress}%`,
-          background: "#00ffcc",
-          transition: "width 0.3s ease",
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: "20px",
+            background: "transparent",
+            color: "white",
           }}
-        />
+        >
+          <h2 style={{ margin: 0 }}>Loading your bedtime stories...</h2>
+          <div
+            style={{
+              width: "80%",
+              maxWidth: 600,
+              height: "8px",
+              background: "rgba(255,255,255,0.08)",
+              borderRadius: "4px",
+              marginTop: "20px",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${progress}%`,
+                background: "#00ffcc",
+                transition: "width 1s ease", // Match animation duration
+              }}
+            />
+          </div>
         </div>
-      </div>
       </motion.div>
     );
   }
@@ -400,12 +491,9 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
     return <div>{error}</div>;
   }
 
-  const imageBaseUrl = "https://kithia.com/website_b5d91c8e/book-backend/public/";
-
   return (
-    <Container fluid className="home-page">   
-      {/* Book Opening Animation - Integrated directly */}
-      <div 
+    <Container fluid className="home-page">
+      <div
         className="book-opening-animation-container"
         style={{
           position: 'fixed',
@@ -422,7 +510,7 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
           '--viewport-center-y': `${viewPortCenter.y}px`
         }}
       >
-        {selectedBook && bookInitialPosition && (
+        {selectedBook && bookInitialPosition && selectedBook.cover_image && (
           <motion.div
             className="book-wrapper"
             initial={{
@@ -432,7 +520,7 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
               height: bookInitialPosition.height,
             }}
             animate={
-              animationStage === 'opening' 
+              animationStage === 'opening'
                 ? {
                     x: viewPortCenter.x - bookInitialPosition.width / 2,
                     y: viewPortCenter.y - bookInitialPosition.height / 2,
@@ -446,9 +534,7 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
                 : {}
             }
             transition={{
-              duration: 
-                animationStage === 'opening' ? 1.8 
-                : 1,
+              duration: animationStage === 'opening' ? 1.8 : 1,
               ease: 'easeInOut',
             }}
             style={{
@@ -457,10 +543,9 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
             onAnimationComplete={handleAnimationComplete}
           >
             <div className={`book-animated ${isBookOpen ? 'book-open' : ''}`}>
-              {/* Book Cover */}
               <div className="book-cover-all">
                 <img
-                  src={`${imageBaseUrl}${selectedBook.cover_image}`}
+                  src={imageLoadedStatus[selectedBook.id] ? `${imageBaseUrl}${selectedBook.cover_image}` : ''}
                   alt="Book Cover"
                   className="cover-image"
                 />
@@ -468,46 +553,37 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
                   <div className="cover-back-inside"></div>
                 </div>
               </div>
-
-              {/* Blank pages */}
               <div className="page-animated blank-page-1"></div>
               <div className="page-animated blank-page-2"></div>
               <div className="page-animated blank-page-3"></div>
               <div className="page-animated blank-page-4"></div>
-
-              {/* First page spread */}
               <div className="first-page-left">
                 <div className="page-left-front">
                   <div className="page-texture"></div>
                 </div>
                 <div className="page-left-back">
                   {firstPageImage && (
-                    <div 
+                    <div
                       className="page-image-left"
                       style={{ backgroundImage: `url("${firstPageImage}")` }}
                     />
                   )}
                 </div>
               </div>
-
-              {/* First page - right side */}
               <div className="first-page-right">
                 {firstPageImage && (
-                  <div 
+                  <div
                     className="page-image-right"
                     style={{ backgroundImage: `url("${firstPageImage}")` }}
                   />
                 )}
               </div>
-
-              {/* Back cover */}
               <div className="book-back-cover"></div>
             </div>
           </motion.div>
         )}
       </div>
 
-      {/* Sticky Header */}
       <motion.div
         className="sticky-header"
         variants={headerVariants}
@@ -519,7 +595,6 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
           <img className="home-nav-icon" src={settingsIcon} onClick={goToProfilePage} alt="Settings Icon"/>
           <img className="home-nav-icon" src={emailIcon} onClick={handleModalShow} alt="Email Icon"/>
         </div>
-
         {!isSubscribed ? (
           <button className="unlock-btn" onClick={handleSubscriptionModalOpen}>
             Unlock all books
@@ -527,22 +602,14 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
         ) : (
           <button className="unlock-btn">Little Stories For Children</button>
         )}
-
-        <SubscriptionModal
-          show={showSubscriptionModal}
-          onClose={handleSubscriptionModalClose}
-          onPaymentSuccess={handlePaymentSuccess}
-        />
-
-        <img 
-          className="home-nav-icon" 
-          onClick={toggleMusic} 
+        <img
+          className="home-nav-icon"
+          onClick={toggleMusic}
           src={isMusicPlaying ? StopMusicIcon : musicIcon}
           alt="Music Icon"
         />
       </motion.div>
 
-      {/* Book Grid */}
       <motion.div
         className="book-grid"
         initial="initial"
@@ -551,39 +618,50 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
         exit="exit"
         style={{ pointerEvents: selectedBook ? 'none' : 'auto' }}
       >
-        {books.map((book) => (
-          <motion.div
-            key={book.id}
-            className="book-item"
-            onClick={(e) => handleBookClick(book, e)}
-            variants={bookVariants}
-            transition={{ duration: 0.6 }}
-            animate={selectedBook ? { opacity: 0, scale: 0 } : { opacity: 1, scale: 1 }}
-          >
-            <div className="book-container">
-              <img
-                src={`${imageBaseUrl}${book.cover_image}`}
-                alt={book.title}
-                className="book-cover"
-              />
-              <div className="book-title-overlay">
-                <h4 className="book-title">{book.title}</h4>
+        {books
+          .filter(book => book.cover_image)
+          .map((book) => (
+            <motion.div
+              key={book.id}
+              className="book-item"
+              onClick={(e) => handleBookClick(book, e)}
+              variants={bookVariants}
+              transition={{ duration: 1 }}
+            >
+              <div className="book-container">
+                {imageLoadedStatus[book.id] ? (
+                  <img
+                    src={`${imageBaseUrl}${book.cover_image}`}
+                    alt={book.title}
+                    className="book-cover"
+                  />
+                ) : (
+                  <div className="book-cover-loading">
+                    <ClipLoader color="#00ffcc" size={30} />
+                  </div>
+                )}
+                <div className="book-title-overlay">
+                  <h4 className="book-title">{book.title}</h4>
+                </div>
+                {book.id !== 1 && !isSubscribed && (
+                  <IoIosLock className="book-lock"/>
+                )}
               </div>
-
-              {book.id !== 1 && !isSubscribed && (
-                <IoIosLock className="book-lock"/>
-              )}
-            </div>
-          </motion.div>
-        ))}
+            </motion.div>
+          ))}
       </motion.div>
 
+      <SubscriptionModal
+        show={showSubscriptionModal}
+        onClose={handleSubscriptionModalClose}
+        onPaymentSuccess={handlePaymentSuccess}
+      />
       <EmailSetupModal
         show={showModal}
         onClose={handleModalClose}
         randomDigits={randomDigits}
         setRandomDigits={setRandomDigits}
-        inputDigits={inputDigits} 
+        inputDigits={inputDigits}
       />
     </Container>
   );

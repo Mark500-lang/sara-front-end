@@ -311,7 +311,7 @@ workflows:
           
           echo "✅ Build settings configured"
 
-      # PHASE 9: ADD PRIVACY DESCRIPTIONS
+      # PHASE 9: ADD PRIVACY DESCRIPTIONS (UPDATED WITH STORAGE)
       - name: Add Privacy Descriptions
         script: |
           set -ex
@@ -324,15 +324,74 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'This app needs microphone access to record audio for voice stories and narration.'" "$PLIST_PATH" 2>/dev/null || \
           /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'This app needs microphone access to record audio for voice stories and narration.'" "$PLIST_PATH"
           
+          # Add storage usage description for local data preloading
+          /usr/libexec/PlistBuddy -c "Add :NSDocumentsFolderUsageDescription string 'This app needs storage access to preload and cache stories and audio files for offline use.'" "$PLIST_PATH" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :NSDocumentsFolderUsageDescription 'This app needs storage access to preload and cache stories and audio files for offline use.'" "$PLIST_PATH"
+          
           # Verify the descriptions were added
           echo "=== Verifying Privacy Descriptions ==="
           /usr/libexec/PlistBuddy -c "Print :NSMicrophoneUsageDescription" "$PLIST_PATH"
+          /usr/libexec/PlistBuddy -c "Print :NSDocumentsFolderUsageDescription" "$PLIST_PATH"
           
           echo "✅ Privacy descriptions added"
 
-            # PHASE 10: GENERATE IOS APP ICONS
+      # PHASE 10: APP ENCRYPTION DOCUMENTATION
+      - name: Generate App Encryption Documentation
+        script: |
+          set -ex
+          echo "=== App Encryption Documentation ==="
+          cat > app_encryption_info.txt << 'EOF'
+          APP ENCRYPTION DOCUMENTATION
+          ============================
+          
+          App Name: Little Stories
+          Bundle ID: com.littlestories.app
+          
+          ENCRYPTION USAGE:
+          -----------------
+          This app uses standard Apple iOS encryption and does NOT implement:
+          - Proprietary encryption algorithms
+          - Custom encryption implementations
+          - Non-standard encryption methods
+          
+          ENCRYPTION SOURCES:
+          -------------------
+          1. Apple iOS Built-in Encryption:
+             - iOS Keychain Services for secure data storage
+             - iOS CryptoKit framework for standard cryptographic operations
+             - iOS Secure Enclave for hardware-based key management
+          
+          2. Capacitor Plugin Encryption:
+             - @aparajita/capacitor-secure-storage: Uses iOS Keychain with AES encryption
+             - Capacitor Filesystem: Uses iOS sandboxed file system with standard protection
+          
+          3. Network Encryption:
+             - Standard TLS 1.2/1.3 for all HTTP/HTTPS communications
+             - iOS URLSession with default security protocols
+          
+          SPECIFIC IMPLEMENTATIONS:
+          -------------------------
+          - Secure Storage: AES encryption via iOS Keychain
+          - File Protection: iOS Data Protection API (NSFileProtectionComplete)
+          - Network Security: TLS 1.2+ with certificate pinning (if configured)
+          - Key Management: iOS Keychain with secure key storage
+          
+          EXPORT COMPLIANCE:
+          ------------------
+          - Uses only Apple's standard encryption available in iOS
+          - No proprietary encryption algorithms implemented
+          - Compliant with App Store encryption export regulations
+          
+          For App Store Connect question "What type of encryption algorithms does your app implement?" 
+          select: "None of the algorithms mentioned above"
+          
+          This indicates the app uses only Apple's standard iOS encryption.
+          EOF
+          
+          echo "✅ App encryption documentation generated"
+          cat app_encryption_info.txt
 
-      # PHASE 9: BUILD UNSIGNED ARCHIVE
+      # PHASE 11: BUILD UNSIGNED ARCHIVE
       - name: Build Unsigned Archive
         script: |
           set -ex
@@ -370,7 +429,7 @@ workflows:
           
           echo "✅ Unsigned archive created successfully"
 
-      # PHASE 10: MANUAL SIGNING
+      # PHASE 12: MANUAL SIGNING
       - name: Manual Signing
         script: |
           set -ex
@@ -420,7 +479,7 @@ workflows:
           codesign -vvv --deep --strict "$APP_PATH"
           echo "✅ Build successfully signed and validated"
 
-      # PHASE 11: CREATE IPA MANUALLY (INSTEAD OF XCODEBUILD EXPORT)
+      # PHASE 13: CREATE IPA MANUALLY
       - name: Create IPA Manually
         script: |
           set -ex
@@ -446,7 +505,7 @@ workflows:
           
           echo "✅ IPA created manually"
 
-      # PHASE 12: VALIDATION
+      # PHASE 14: VALIDATION
       - name: Validate Build
         script: |
           set -ex
@@ -481,6 +540,7 @@ workflows:
 
     artifacts:
       - ios/App/build/ipa/App.ipa
+      - app_encryption_info.txt
 
     publishing:
       app_store_connect:
