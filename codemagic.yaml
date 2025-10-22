@@ -274,54 +274,92 @@ workflows:
           echo "PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
           echo "✅ Signing configuration complete"
 
-      # PHASE 8: BUILD CONFIGURATION (FIXED VERSION)
-            # PHASE 8: BUILD CONFIGURATION (UPDATED VERSIONING)
+      # PHASE 8: BUILD CONFIGURATION (DEFINITIVE FIX)
       - name: Configure Build Settings
         script: |
           set -ex
-          cd ios/App
+          cd ios/App/App
           
           echo "=== Updating Version Numbers ==="
-          PLIST_PATH="App/Info.plist"
+          PLIST_PATH="Info.plist"
           
           # Get current version and build number
           CURRENT_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST_PATH" 2>/dev/null || echo "1.0")
           CURRENT_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH" 2>/dev/null || echo "1")
           
-          # Increment to 1.0.2 since 1.0.1 is already approved
-          # Parse version components
+          echo "Current version: $CURRENT_VERSION"
+          echo "Current build: $CURRENT_BUILD"
+          
+          # Parse version components safely
           MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
-          MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2) 
+          MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
           PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
           
-          # If patch version exists, increment it, otherwise set to 1
-          if [ -n "$PATCH" ] && [ "$PATCH" != "" ]; then
-            NEW_PATCH=$((PATCH + 1))
-            NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
-          else
-            NEW_VERSION="$MAJOR.$MINOR.1"
+          # Handle cases where PATCH might be empty
+          if [ -z "$PATCH" ] || [ "$PATCH" = "$CURRENT_VERSION" ]; then
+            PATCH="0"
           fi
+          
+          # Increment patch version (1.0.1 → 1.0.2)
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
           
           # Generate timestamp-based build number for uniqueness
           NEW_BUILD=$(date +%s)
+          
+          echo "New version: $NEW_VERSION"
+          echo "New build: $NEW_BUILD"
           
           # Update both version and build number
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $NEW_VERSION" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_BUILD" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$PLIST_PATH"
           
-          echo "Updated version from $CURRENT_VERSION to $NEW_VERSION"
-          echo "Updated build number to: $NEW_BUILD"
-          echo "Bundle ID set to: $BUNDLE_ID"
-          
-          # Verify the changes
+          # Verify the changes were applied correctly
           echo "=== Verifying Plist Changes ==="
+          FINAL_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST_PATH")
+          FINAL_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH")
+          FINAL_BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST_PATH")
+          
+          echo "Final CFBundleShortVersionString: $FINAL_VERSION"
+          echo "Final CFBundleVersion: $FINAL_BUILD"
+          echo "Final CFBundleIdentifier: $FINAL_BUNDLE_ID"
+          
+          # Critical validation - ensure CFBundleShortVersionString is set
+          if [ -z "$FINAL_VERSION" ] || [[ "$FINAL_VERSION" == *"$"* ]]; then
+            echo "❌ CRITICAL: CFBundleShortVersionString is not properly set!"
+            echo "Setting fallback version: 1.0.2"
+            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.2" "$PLIST_PATH"
+            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_BUILD" "$PLIST_PATH"
+          fi
+          
+          # Final verification
+          echo "=== Final Verification ==="
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST_PATH"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH"
+          
+          echo "✅ Build settings configured definitively"
+
+      # PHASE 8.5: VERIFY PLIST CONTENTS
+      - name: Verify Plist Contents
+        script: |
+          set -ex
+          cd ios/App/App
+          
+          echo "=== Final Plist Verification ==="
+          PLIST_PATH="Info.plist"
+          
+          echo "=== Complete Plist Dump ==="
+          /usr/libexec/PlistBuddy -c "Print" "$PLIST_PATH"
+          
+          echo "=== Critical Keys ==="
           echo "CFBundleShortVersionString: $(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST_PATH")"
           echo "CFBundleVersion: $(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH")"
           echo "CFBundleIdentifier: $(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST_PATH")"
+          echo "CFBundleName: $(/usr/libexec/PlistBuddy -c "Print :CFBundleName" "$PLIST_PATH")"
           
-          echo "✅ Build settings configured"
-
+          # Verify the file is valid
+          plutil -lint "$PLIST_PATH" && echo "✅ Plist is valid" || echo "❌ Plist is invalid"
       # PHASE 9: ADD PRIVACY DESCRIPTIONS (UPDATED WITH STORAGE)
       - name: Add Privacy Descriptions
         script: |
