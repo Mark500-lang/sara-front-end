@@ -488,15 +488,6 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
             {error && (
               <Alert variant="danger" className="mt-3 w-100 text-center">
                 {error}
-                <div className="mt-2">
-                  <Button 
-                    variant="outline-info" 
-                    size="sm" 
-                    onClick={debugEnvironment}
-                  >
-                    Debug Info
-                  </Button>
-                </div>
               </Alert>
             )}
 
