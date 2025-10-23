@@ -1,4 +1,3 @@
-```yaml
 workflows:
   ios-release:
     name: iOS Release Build
@@ -572,4 +571,3 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
-```
