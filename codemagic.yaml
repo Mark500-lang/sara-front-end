@@ -170,35 +170,27 @@ workflows:
           fi
 
       # PHASE 6: CREATE ENTITLEMENTS FILE
-      - name: Create Entitlements File
+      - name: Remove Custom Entitlements
         script: |
           set -ex
-          echo "=== Creating Entitlements File ==="
+          echo "=== Removing custom entitlements file ==="
           cd ios/App/App
-
-          cat > App.entitlements << 'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>application-identifier</key>
-              <string>$DEVELOPMENT_TEAM.$BUNDLE_ID</string>
-              <key>get-task-allow</key>
-              <false/>
-              <key>keychain-access-groups</key>
-              <array>
-                  <string>$DEVELOPMENT_TEAM.*</string>
-              </array>
-              <key>com.apple.developer.in-app-payments</key>
-              <array>
-                  <string>com.sarastories.app.monthly</string>
-                  <string>com.sarastories.app.yearly</string>
-              </array>
-          </dict>
-          </plist>
-          EOF
-
-          echo "✅ Entitlements file created with In-App Purchase capability"
+          
+          # Remove any custom entitlements file - let Xcode handle it
+          if [ -f "App.entitlements" ]; then
+            rm -f App.entitlements
+            echo "✅ Removed custom entitlements file"
+          else
+            echo "✅ No custom entitlements file found"
+          fi
+          
+          # Also remove references from project file
+          PBXPROJ="App.xcodeproj/project.pbxproj"
+          if [ -f "$PBXPROJ" ]; then
+            # Remove CODE_SIGN_ENTITLEMENTS line if it exists
+            sed -i '' '/CODE_SIGN_ENTITLEMENTS/d' "$PBXPROJ"
+            echo "✅ Removed entitlements reference from project file"
+          fi
 
       # PHASE 7: CREATE XCODE SCHEME
       - name: Create Xcode Scheme
@@ -241,7 +233,7 @@ workflows:
           
           echo "✅ Xcode scheme created"
 
-      # PHASE 8: CODE SIGNING SETUP
+      # PHASE 8: CODE SIGNING SETUP - UPDATED
       - name: Configure Signing
         script: |
           set -ex
@@ -287,14 +279,14 @@ workflows:
           sed -i '' '/PROVISIONING_PROFILE_SPECIFIER/d' "$PBXPROJ"
           sed -i '' '/CODE_SIGN_STYLE/d' "$PBXPROJ"
           sed -i '' '/DEVELOPMENT_TEAM/d' "$PBXPROJ"
+          sed -i '' '/CODE_SIGN_ENTITLEMENTS/d' "$PBXPROJ"  # REMOVE THIS LINE
           
-          # Add manual signing settings
+          # Add manual signing settings WITHOUT entitlements
           sed -i '' "/buildSettings = {/a \\
               CODE_SIGN_STYLE = Manual; \\
               PROVISIONING_PROFILE_SPECIFIER = \"$PROFILE_UUID\"; \\
               DEVELOPMENT_TEAM = $DEVELOPMENT_TEAM; \\
               CODE_SIGN_IDENTITY = \"Apple Distribution\"; \\
-              CODE_SIGN_ENTITLEMENTS = \"App/App.entitlements\"; \\
               " "$PBXPROJ"
           
           echo "PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
