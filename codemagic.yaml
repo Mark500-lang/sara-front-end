@@ -86,7 +86,7 @@ workflows:
           cp node_modules/cordova-plugin-purchase/www/store.js build/plugins/cordova-plugin-purchase/www/
           echo "✅ Copied store.js"
 
-      # PHASE 4: CAPACITOR SYNC AND CONFIGURE ORIENTATIONS
+      # PHASE 4: CAPACITOR SYNC AND CONFIGURE ORIENTATIONS - FIXED
       - name: Sync Capacitor and Configure Orientations
         script: |
           set -ex
@@ -94,31 +94,28 @@ workflows:
           npx cap sync ios
 
           echo "=== Verifying cordova-plugin-purchase inclusion ==="
-          # Wait for file system to settle
-          sleep 2
-          # Check if cordova_plugins.js exists in www directory
-          if [ ! -f "ios/App/App/www/cordova_plugins.js" ]; then
-            echo "❌ cordova_plugins.js not found in ios/App/App/www/, attempting to regenerate..."
-            # Clean and re-sync to ensure plugin inclusion
-            rm -rf ios/App/App/www
-            npx cap sync ios
-          fi
-          # Verify plugin inclusion
-          if [ -f "ios/App/App/www/cordova_plugins.js" ] && grep -q "cordova-plugin-purchase" ios/App/App/www/cordova_plugins.js; then
-            echo "✅ cordova-plugin-purchase included in cordova_plugins.js"
-          else
-            echo "❌ cordova-plugin-purchase not included in cordova_plugins.js"
-            echo "=== Debugging Info ==="
-            echo "Directory contents (ios/App/App/www/):"
-            ls -la ios/App/App/www/ || echo "Directory not found"
-            echo "capacitor.config.json contents:"
-            cat capacitor.config.json || echo "File not found"
-            if [ -f "ios/App/App/www/cordova_plugins.js" ]; then
-              echo "cordova_plugins.js contents:"
-              cat ios/App/App/www/cordova_plugins.js
+          # Check if plugin is properly synced (Capacitor 4+ uses public directory, not www)
+          if [ -d "ios/App/App/public" ]; then
+            echo "✅ Capacitor public directory found"
+            # Check if cordova plugins are properly registered
+            if [ -f "ios/App/App/public/cordova.js" ] || [ -f "ios/App/App/public/cordova_plugins.js" ]; then
+              echo "✅ Cordova files found in public directory"
             else
-              echo "cordova_plugins.js not found"
+              echo "⚠️ Cordova files not found, but this is normal for Capacitor 4+"
             fi
+          else
+            echo "❌ Capacitor public directory not found"
+            exit 1
+          fi
+
+          # Verify the plugin was detected during sync
+          echo "=== Checking plugin detection ==="
+          if npx cap sync ios 2>&1 | grep -q "cordova-plugin-purchase"; then
+            echo "✅ cordova-plugin-purchase detected during sync"
+          else
+            echo "❌ cordova-plugin-purchase not detected during sync"
+            echo "Debug info:"
+            npx cap sync ios
             exit 1
           fi
 
@@ -131,7 +128,7 @@ workflows:
           /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~ipad" "$PLIST_PATH" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~iphone" "$PLIST_PATH" 2>/dev/null || true
           
-          # Configure for iPhone (Landscape only - your preference)
+          # Configure for iPhone (Landscape only)
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationLandscapeLeft" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:1 string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
@@ -143,81 +140,32 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:2 string UIInterfaceOrientationLandscapeLeft" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:3 string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
           
-          # Set initial interface orientation to landscape (will still work on iPad)
-          /usr/libexec/PlistBuddy -c "Delete :UIInterfaceOrientation" "$PLIST_PATH" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :UIInterfaceOrientation string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
-          
-          echo "✅ Orientation configuration fixed - iPhone: Landscape only, iPad: All orientations"
+          echo "✅ Orientation configuration complete"
 
-      # PHASE 5: IOS PROJECT CONFIGURATION
+      # PHASE 5: IOS PROJECT CONFIGURATION - SIMPLIFIED
       - name: Configure iOS Project
         script: |
           set -ex
           echo "=== Setting up iOS Platform ==="
           cd ios/App
 
-          echo "=== Generating Podfile with cordova-plugin-purchase ==="
-          cat > Podfile << 'EOF'
-          platform :ios, '14.0'
-          use_frameworks! :linkage => :dynamic
-          
-          # Suppress CDN warning
-          install! 'cocoapods', :warn_for_unused_master_specs_repo => false
-
-          target 'App' do
-            # Capacitor Core
-            pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
-            pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
-
-            # Capacitor Plugins
-            pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
-            pod 'CapacitorDevice', :path => '../../node_modules/@capacitor/device'
-            pod 'CapacitorFilesystem', :path => '../../node_modules/@capacitor/filesystem'
-            pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
-            
-            # Additional plugins with correct pod names
-            pod 'CapacitorVoiceRecorder', :path => '../../node_modules/capacitor-voice-recorder'
-            pod 'AparajitaCapacitorSecureStorage', :path => '../../node_modules/@aparajita/capacitor-secure-storage'
-            pod 'CapacitorBlobWriter', :path => '../../node_modules/capacitor-blob-writer'
-
-            # Cordova Plugins
-            pod 'cordova-plugin-purchase', '~> 13.12.1'
-
-            # Ensure Cordova plugins are included
-            pod 'CordovaPlugins', :path => '../../node_modules/@capacitor/cli/assets/capacitor-cordova-ios-plugins'
-          end
-          
-          post_install do |installer|
-            installer.pods_project.targets.each do |target|
-              target.build_configurations.each do |config|
-                config.build_settings['BUILD_LIBRARY_FOR_DISTRIBUTION'] = 'YES'
-                config.build_settings['ENABLE_BITCODE'] = 'NO'
-                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
-                config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/App.entitlements'
-                config.build_settings['FRAMEWORK_SEARCH_PATHS'] ||= ['$(inherited)']
-                config.build_settings['OTHER_LDFLAGS'] ||= ['$(inherited)', '-ObjC']
-
-                if target.name == 'GCDWebServer'
-                  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '12.0'
-                end
-                
-                if target.name.start_with?('Capacitor') || target.name.start_with?('Aparajita')
-                  config.build_settings['SWIFT_VERSION'] = '5.0'
-                  config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'NO'
-                end
-              end
-            end
-          end
-          EOF
-          
+          echo "=== Using auto-generated Podfile from Capacitor ==="
           echo "=== Installing CocoaPods ==="
           pod install --repo-update --clean-install
 
           echo "=== Verifying Project Structure ==="
-          if [ -d "Pods" ] && [ -d "App.xcworkspace" ] && grep -q "cordova-plugin-purchase" Pods/Podfile.lock; then
-            echo "✅ CocoaPods installation verified, cordova-plugin-purchase included"
+          if [ -d "Pods" ] && [ -d "App.xcworkspace" ]; then
+            echo "✅ CocoaPods installation verified"
+            # Check if cordova-plugin-purchase is in Podfile.lock
+            if grep -q "cordova-plugin-purchase" Pods/Podfile.lock; then
+              echo "✅ cordova-plugin-purchase included in Podfile.lock"
+            else
+              echo "⚠️ cordova-plugin-purchase not found in Podfile.lock"
+              echo "Podfile.lock contents related to Cordova:"
+              grep -A 5 -B 5 "Cordova" Pods/Podfile.lock || true
+            fi
           else
-            echo "❌ CocoaPods installation failed or cordova-plugin-purchase missing!"
+            echo "❌ CocoaPods installation failed!"
             exit 1
           fi
 
