@@ -16,8 +16,6 @@ def capacitor_pods
   pod 'CapacitorVoiceRecorder', :path => '../../node_modules/capacitor-voice-recorder'
   
   pod 'CordovaPlugins', :path => '../../node_modules/@capacitor/cli/assets/capacitor-cordova-ios-plugins'
-  
-  pod 'cordova-plugin-purchase', :path => '../../node_modules/cordova-plugin-purchase'
 end
 
 target 'App' do

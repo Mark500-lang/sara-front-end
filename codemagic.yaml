@@ -43,7 +43,7 @@ workflows:
           rm -rf ios/Pods ios/Podfile.lock
           npm cache clean --force
 
-      # PHASE 2: DEPENDENCY INSTALLATION - UPDATED
+      # PHASE 2: DEPENDENCY INSTALLATION - FIXED
       - name: Install Dependencies
         script: |
           set -ex
@@ -52,6 +52,9 @@ workflows:
           
           echo "=== Installing cordova-plugin-purchase for IAP ==="
           npm install --save cordova-plugin-purchase@13.12.1
+          
+          echo "=== Installing Capacitor IAP Bridge Dependencies ==="
+          npm install --save @ionic-native/in-app-purchase-2@5.36.0
           
           echo "=== Installing missing Babel plugin ==="
           npm install --save-dev @babel/plugin-proposal-private-property-in-object
@@ -118,28 +121,37 @@ workflows:
           
           echo "✅ Orientation configuration fixed - iPhone: Landscape only, iPad: All orientations"
 
-      # PHASE 4.5: VERIFY IAP PLUGIN INTEGRATION
-      - name: Verify IAP Plugin Integration
+      # PHASE 4.5: ENHANCED IAP PLUGIN INTEGRATION
+      - name: Enhanced IAP Plugin Integration
         script: |
           set -ex
-          echo "=== Verifying IAP Plugin Integration ==="
+          echo "=== Enhanced IAP Plugin Integration ==="
           
-          echo "=== Checking Capacitor sync output ==="
-          npx cap sync ios 2>&1 | grep -q "cordova-plugin-purchase" && echo "✅ cordova-plugin-purchase detected during sync" || echo "⚠️ cordova-plugin-purchase not detected during sync"
+          echo "=== Adding cordova-plugin-purchase to Capacitor ==="
+          npx cap add ios
+          npx cap sync ios
           
-          echo "=== Checking iOS project for plugin ==="
+          echo "=== Verifying plugin in iOS project ==="
           if [ -f "ios/App/App/config.xml" ]; then
             if grep -q "cordova-plugin-purchase" ios/App/App/config.xml; then
               echo "✅ cordova-plugin-purchase found in config.xml"
             else
-              echo "❌ cordova-plugin-purchase not found in config.xml"
+              echo "⚠️ cordova-plugin-purchase not found in config.xml, manually adding..."
+              # Manually ensure the plugin is included
+              npx cap update ios
             fi
-          else
-            echo "⚠️ config.xml not found (normal for Capacitor 4+)"
           fi
           
-          echo "=== Final IAP plugin status ==="
-          echo "If cordova-plugin-purchase was detected during 'npx cap sync ios', it should work."
+          echo "=== Checking for StoreKit framework ==="
+          cd ios/App
+          if grep -q "StoreKit" "App.xcodeproj/project.pbxproj"; then
+            echo "✅ StoreKit framework found in Xcode project"
+          else
+            echo "⚠️ StoreKit framework not found, this might cause issues"
+          fi
+          
+          echo "=== Final plugin verification ==="
+          npx cap run ios --list | grep -i purchase && echo "✅ IAP plugin detected" || echo "⚠️ IAP plugin not detected in Capacitor"
           
       # PHASE 5: IOS PROJECT CONFIGURATION - UPDATED
       - name: Configure iOS Project

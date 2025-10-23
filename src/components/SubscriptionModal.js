@@ -12,35 +12,111 @@ const MAX_RETRIES = 3;
 const INIT_TIMEOUT = 10000; // 10 seconds
 const NETWORK_TIMEOUT = 15000; // 15 seconds
 
-// Wait for Cordova to be ready
+// FIXED: Enhanced Cordova purchase plugin initialization
 const waitForCordova = () => {
   return new Promise((resolve, reject) => {
+    // First, check if we're in a browser environment
     if (typeof window === 'undefined') {
-      reject(new Error('Window object not available'));
+      reject(new Error('Window object not available - not in browser environment'));
       return;
     }
 
+    // Check if we're in a Capacitor/Cordova environment
+    if (!window.cordova && !window.Capacitor) {
+      reject(new Error('Cordova/Capacitor not available - not running in native app'));
+      return;
+    }
+
+    // If store is already available, use it immediately
     if (window.store && typeof window.store.register === 'function') {
+      console.log('✅ Store plugin already available');
       resolve(window.store);
       return;
     }
 
-    const timeout = setTimeout(() => {
-      reject(new Error('Cordova deviceready timeout'));
-    }, 5000);
+    let devicereadyReceived = false;
+    let timeoutId;
 
-    document.addEventListener(
-      'deviceready',
-      () => {
-        clearTimeout(timeout);
+    const cleanup = () => {
+      document.removeEventListener('deviceready', onDeviceReady);
+      document.removeEventListener('purchasesReady', onPurchasesReady);
+      clearTimeout(timeoutId);
+    };
+
+    const onDeviceReady = () => {
+      console.log('📱 deviceready event received');
+      devicereadyReceived = true;
+      checkStoreAvailability();
+    };
+
+    const onPurchasesReady = () => {
+      console.log('🛒 purchasesReady event received');
+      if (window.store && typeof window.store.register === 'function') {
+        cleanup();
+        console.log('✅ Store plugin initialized via purchasesReady event');
+        resolve(window.store);
+      }
+    };
+
+    const checkStoreAvailability = () => {
+      console.log('🔍 Checking store availability...');
+      
+      // Check if store is now available
+      if (window.store && typeof window.store.register === 'function') {
+        cleanup();
+        console.log('✅ Store plugin available after deviceready');
+        resolve(window.store);
+        return;
+      }
+
+      // If store isn't available immediately after deviceready, wait a bit more
+      console.log('⏳ Store not immediately available, waiting...');
+      const checkInterval = setInterval(() => {
         if (window.store && typeof window.store.register === 'function') {
+          clearInterval(checkInterval);
+          cleanup();
+          console.log('✅ Store plugin available after waiting');
           resolve(window.store);
-        } else {
-          reject(new Error('Cordova Purchase plugin not available'));
         }
-      },
-      { once: true }
-    );
+      }, 500);
+
+      // Give up after 5 seconds
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        if (!window.store) {
+          cleanup();
+          reject(new Error('Store plugin not available after deviceready'));
+        }
+      }, 5000);
+    };
+
+    // Set main timeout
+    timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error('Cordova plugin initialization timeout (10s)'));
+    }, INIT_TIMEOUT);
+
+    // Listen for Cordova events
+    document.addEventListener('deviceready', onDeviceReady, { once: true });
+    document.addEventListener('purchasesReady', onPurchasesReady, { once: true });
+
+    // If deviceready already fired, check immediately
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(() => {
+        if (!devicereadyReceived && (window.cordova || window.Capacitor)) {
+          console.log('📱 Device already ready, checking store plugin...');
+          onDeviceReady();
+        }
+      }, 100);
+    }
+
+    // Alternative: Check if we're in TestFlight and store might be available without events
+    const isTestFlight = navigator.userAgent.includes('TestFlight');
+    if (isTestFlight && window.store) {
+      console.log('📱 TestFlight environment detected, using available store plugin');
+      cleanup();
+      resolve(window.store);
+    }
   });
 };
 
@@ -161,7 +237,8 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       'Network Status': navigator.onLine,
       'Products Loaded': products.length,
       'Initialized': initialized,
-      'Capacitor Platform': window.Capacitor?.getPlatform(),
+      'Capacitor Platform': window.Capacitor?.getPlatform?.(),
+      'TestFlight': navigator.userAgent.includes('TestFlight'),
     };
     console.log('=== IAP ENVIRONMENT DEBUG ===', debugInfo);
     AnalyticsService.trackEvent('debug_info', debugInfo);
@@ -229,6 +306,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     return isOnline;
   }, []);
 
+  // FIXED: Enhanced IAP initialization
   const initializeIAP = async () => {
     AnalyticsService.trackEvent('iap_initialization_started');
 
@@ -243,68 +321,95 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     setLoading(true);
 
     try {
-      // Wait for Cordova to be ready
+      // Wait for Cordova to be ready with enhanced error handling
+      console.log('🔄 Starting Cordova purchase plugin initialization...');
       InAppPurchase = await waitForCordova();
 
       if (!InAppPurchase || typeof InAppPurchase.register !== 'function') {
         throw new Error('In-App Purchase plugin not available or not properly initialized');
       }
 
-      console.log('Cordova Purchase plugin initialized:', InAppPurchase);
+      console.log('✅ Cordova Purchase plugin initialized:', InAppPurchase);
 
       // Set verbosity for production
       InAppPurchase.verbosity = InAppPurchase.WARNING;
 
-      // Register products
+      // FIXED: Enhanced product registration with proper error handling
       await withRetry(async () => {
-        InAppPurchase.register([
-          {
-            id: PRODUCT_IDS.monthly,
-            type: InAppPurchase.PAID_SUBSCRIPTION,
-          },
-          {
-            id: PRODUCT_IDS.yearly,
-            type: InAppPurchase.PAID_SUBSCRIPTION,
-          },
-        ]);
+        return new Promise((resolve, reject) => {
+          try {
+            // Set up product update handler first
+            InAppPurchase.when('product').updated((product) => {
+              console.log('Product updated:', product.id, product.valid ? 'VALID' : 'INVALID');
+              updateProductsList();
+            });
+
+            // Register products
+            console.log('📝 Registering products:', [
+              { id: PRODUCT_IDS.monthly, type: InAppPurchase.PAID_SUBSCRIPTION },
+              { id: PRODUCT_IDS.yearly, type: InAppPurchase.PAID_SUBSCRIPTION }
+            ]);
+            
+            InAppPurchase.register([
+              {
+                id: PRODUCT_IDS.monthly,
+                type: InAppPurchase.PAID_SUBSCRIPTION,
+              },
+              {
+                id: PRODUCT_IDS.yearly,
+                type: InAppPurchase.PAID_SUBSCRIPTION,
+              },
+            ]);
+
+            // Set up approval handlers
+            InAppPurchase.when(PRODUCT_IDS.monthly).approved((product) => {
+              console.log('Monthly subscription approved:', product);
+              AnalyticsService.trackEvent('purchase_approved', { product_id: PRODUCT_IDS.monthly });
+              finishPurchase(product);
+            });
+
+            InAppPurchase.when(PRODUCT_IDS.yearly).approved((product) => {
+              console.log('Yearly subscription approved:', product);
+              AnalyticsService.trackEvent('purchase_approved', { product_id: PRODUCT_IDS.yearly });
+              finishPurchase(product);
+            });
+
+            // Error handling
+            InAppPurchase.error((error) => {
+              console.error('IAP Error event:', error);
+              AnalyticsService.trackEvent('purchase_error_event', { error: error.message });
+              handleIAPError(error);
+            });
+
+            // Resolve after a short delay to allow registration to complete
+            setTimeout(() => {
+              console.log('✅ Product registration completed');
+              resolve();
+            }, 1000);
+          } catch (err) {
+            reject(err);
+          }
+        });
       }, 'product_registration');
 
-      console.log('Products registered successfully');
-
-      // Set up event handlers
-      InAppPurchase.when('product').updated((product) => {
-        console.log('Product updated:', product.id, product.valid ? 'VALID' : 'INVALID');
-        updateProductsList();
-      });
-
-      InAppPurchase.when(PRODUCT_IDS.monthly).approved((product) => {
-        console.log('Monthly subscription approved:', product);
-        AnalyticsService.trackEvent('purchase_approved', { product_id: PRODUCT_IDS.monthly });
-        finishPurchase(product);
-      });
-
-      InAppPurchase.when(PRODUCT_IDS.yearly).approved((product) => {
-        console.log('Yearly subscription approved:', product);
-        AnalyticsService.trackEvent('purchase_approved', { product_id: PRODUCT_IDS.yearly });
-        finishPurchase(product);
-      });
-
-      InAppPurchase.error((error) => {
-        console.error('IAP Error event:', error);
-        AnalyticsService.trackEvent('purchase_error_event', { error: error.message });
-        handleIAPError(error);
-      });
+      console.log('✅ Products registered successfully');
 
       // Refresh products
       await withRetry(async () => {
         await InAppPurchase.refresh();
       }, 'product_refresh');
 
-      console.log('IAP refresh completed');
+      console.log('✅ IAP refresh completed');
+      
+      // Verify products are loaded
+      setTimeout(() => {
+        updateProductsList();
+      }, 2000);
+      
       setInitialized(true);
       AnalyticsService.trackEvent('iap_initialization_success');
     } catch (err) {
-      console.error('IAP Initialization error:', err);
+      console.error('❌ IAP Initialization error:', err);
       const errorMessage = err.message.includes('timeout')
         ? 'Store initialization timed out. Please check your connection and try again.'
         : `Failed to initialize in-app purchases: ${err.message}`;
@@ -318,12 +423,23 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
   const updateProductsList = useCallback(() => {
     try {
-      const monthlyProduct = InAppPurchase?.get(PRODUCT_IDS.monthly);
-      const yearlyProduct = InAppPurchase?.get(PRODUCT_IDS.yearly);
+      if (!InAppPurchase) {
+        console.warn('⚠️ InAppPurchase not available for product update');
+        return;
+      }
+
+      const monthlyProduct = InAppPurchase.get(PRODUCT_IDS.monthly);
+      const yearlyProduct = InAppPurchase.get(PRODUCT_IDS.yearly);
       const availableProducts = [monthlyProduct, yearlyProduct].filter(p => p && p.valid);
       setProducts(availableProducts);
 
-      console.log('Available products:', availableProducts);
+      console.log('📦 Available products:', availableProducts.map(p => ({
+        id: p.id,
+        valid: p.valid,
+        price: p.price,
+        title: p.title
+      })));
+      
       AnalyticsService.trackEvent('products_updated', {
         available_count: availableProducts.length,
         monthly_available: !!monthlyProduct?.valid,
@@ -331,11 +447,12 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       });
 
       if (availableProducts.length === 0 && initialized) {
+        console.warn('⚠️ No valid products available');
         setError('No subscription plans available. Please try again later or contact support.');
         AnalyticsService.trackEvent('no_products_available');
       }
     } catch (err) {
-      console.error('Error updating products list:', err);
+      console.error('❌ Error updating products list:', err);
       AnalyticsService.trackError(err, { stage: 'update_products_list' });
       setError('Failed to load subscription plans. Please try again.');
     }
@@ -343,7 +460,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
   const finishPurchase = async (product) => {
     try {
-      console.log('Finishing purchase:', product);
+      console.log('🏁 Finishing purchase:', product);
       AnalyticsService.trackEvent('purchase_finishing', { product_id: product.id });
 
       // Finish the purchase to avoid billing issues
@@ -357,13 +474,13 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       );
 
       if (verificationResult.valid) {
-        console.log('Purchase verified successfully');
+        console.log('✅ Purchase verified successfully');
         AnalyticsService.trackEvent('purchase_verified_success', { product_id: product.id });
         onPaymentSuccess();
         onClose();
       } else {
         const errorMsg = verificationResult.error || 'Purchase verification failed';
-        console.error('Purchase verification failed:', verificationResult);
+        console.error('❌ Purchase verification failed:', verificationResult);
         AnalyticsService.trackEvent('purchase_verification_failed', {
           product_id: product.id,
           error: errorMsg,
@@ -371,7 +488,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         setError(errorMsg);
       }
     } catch (err) {
-      console.error('Purchase completion error:', err);
+      console.error('❌ Purchase completion error:', err);
       AnalyticsService.trackError(err, { stage: 'finish_purchase', product_id: product.id });
       setError('Failed to complete purchase. Please contact support.');
     } finally {
@@ -401,7 +518,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       try {
         receiptData = await InAppPurchase.getReceipt();
       } catch (err) {
-        console.error('Failed to get receipt:', err);
+        console.error('❌ Failed to get receipt:', err);
         throw new Error('No receipt data found');
       }
     }
@@ -473,7 +590,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       AnalyticsService.trackEvent('restore_purchases_completed');
       setError('Purchases restored successfully. If you still don\'t have access, please contact support.');
     } catch (err) {
-      console.error('Restore purchases error:', err);
+      console.error('❌ Restore purchases error:', err);
       AnalyticsService.trackError(err, { stage: 'restore_purchases' });
       setError('Failed to restore purchases. Please try again or contact support.');
     } finally {
@@ -523,10 +640,10 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         throw new Error('This subscription is not available for purchase.');
       }
 
-      console.log('Initiating purchase for:', productId);
+      console.log('🛒 Initiating purchase for:', productId);
       await InAppPurchase.order(productId);
     } catch (err) {
-      console.error('Purchase initiation error:', err);
+      console.error('❌ Purchase initiation error:', err);
       AnalyticsService.trackError(err, { stage: 'purchase_initiation', plan: selectedPlan });
       setError(err.message || 'Failed to start purchase. Please try again.');
       setPurchaseInProgress(false);
@@ -673,7 +790,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
               {getButtonText()}
             </Button>
 
-            {/* <div className="mt-3">
+            <div className="mt-3">
               <Button
                 variant="outline-light"
                 size="sm"
@@ -683,7 +800,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
                 {restoring ? <Spinner animation="border" size="sm" className="me-2" /> : null}
                 Restore Purchases
               </Button>
-            </div> */}
+            </div>
 
             <div className="mt-4">
               <a
