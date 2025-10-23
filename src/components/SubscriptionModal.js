@@ -12,70 +12,56 @@ const MAX_RETRIES = 3;
 const INIT_TIMEOUT = 10000; // 10 seconds
 const NETWORK_TIMEOUT = 15000; // 15 seconds
 
-// Wait for Cordova to be ready (for Capacitor apps)
+// Wait for Cordova to be ready
 const waitForCordova = () => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     if (typeof window === 'undefined') {
-      resolve(null);
+      reject(new Error('Window object not available'));
       return;
     }
 
-    // Check if already available
-    if (window.store) {
+    if (window.store && typeof window.store.register === 'function') {
       resolve(window.store);
       return;
     }
 
-    // In Capacitor, Cordova plugins load automatically
-    // Wait for deviceready event or check periodically
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      // Give it a moment to load
-      setTimeout(() => {
-        resolve(window.store || null);
-      }, 1000);
-    } else {
-      document.addEventListener('deviceready', () => {
-        setTimeout(() => {
-          resolve(window.store || null);
-        }, 500);
-      }, { once: true });
-      
-      // Fallback timeout
-      setTimeout(() => {
-        resolve(window.store || null);
-      }, 3000);
-    }
+    const timeout = setTimeout(() => {
+      reject(new Error('Cordova deviceready timeout'));
+    }, 5000);
+
+    document.addEventListener(
+      'deviceready',
+      () => {
+        clearTimeout(timeout);
+        if (window.store && typeof window.store.register === 'function') {
+          resolve(window.store);
+        } else {
+          reject(new Error('Cordova Purchase plugin not available'));
+        }
+      },
+      { once: true }
+    );
   });
 };
 
-// Analytics service (replace with your actual analytics in production)
+// Analytics service
 const AnalyticsService = {
   trackEvent: (event, data = {}) => {
-    // Production: Replace with your analytics service (Firebase, Mixpanel, etc.)
-    console.log(`[ANALYTICS] ${event}:`, { 
+    console.log(`[ANALYTICS] ${event}:`, {
       timestamp: new Date().toISOString(),
-      ...data 
+      ...data,
     });
-    
-    // Example integration with actual services:
-    /*
-    if (window.gtag) {
-      window.gtag('event', event, data);
-    }
-    if (window.fbq) {
-      window.fbq('track', event, data);
-    }
-    */
+    // Add production analytics (e.g., Firebase, Mixpanel) here
   },
-  
   trackError: (error, context = {}) => {
     console.error(`[ANALYTICS ERROR] ${error.message}:`, {
       timestamp: new Date().toISOString(),
       error: error.message,
       stack: error.stack,
-      ...context
+      ...context,
     });
-  }
+    // Add production error tracking (e.g., Sentry) here
+  },
 };
 
 const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
@@ -87,24 +73,22 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   const [initialized, setInitialized] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [networkStatus, setNetworkStatus] = useState(true);
-  
-  // Parental Gate States
   const [showParentalGate, setShowParentalGate] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
 
   const PRODUCT_IDS = {
-    monthly: 'com.sarastories.app.monthly',
-    yearly: 'com.sarastories.app.yearly'
+    monthly: 'com.littlestories.app.monthly',
+    yearly: 'com.littlestories.app.yearly',
   };
 
   const FALLBACK_PRICES = {
     monthly: '$4.99/month',
-    yearly: '$34.99/year'
+    yearly: '$34.99/year',
   };
 
   const FALLBACK_TITLES = {
     monthly: 'Monthly Subscription',
-    yearly: 'Yearly Subscription'
+    yearly: 'Yearly Subscription',
   };
 
   // Network status monitoring
@@ -113,7 +97,6 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       setNetworkStatus(true);
       AnalyticsService.trackEvent('network_online');
     };
-    
     const handleOffline = () => {
       setNetworkStatus(false);
       AnalyticsService.trackEvent('network_offline');
@@ -121,8 +104,6 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    
-    // Set initial network status
     setNetworkStatus(navigator.onLine);
 
     return () => {
@@ -131,58 +112,57 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     };
   }, []);
 
-  // Enhanced error handler with production error mapping
+  // Enhanced error handler
   const handleIAPError = useCallback((error) => {
     console.error('IAP Error:', error);
-    
-    // Production error mapping
     const errorMessages = {
-      'cancelled': 'Purchase was cancelled',
+      cancelled: 'Purchase was cancelled',
       'user cancelled': 'Purchase was cancelled',
-      'network': 'Network error. Please check your connection and try again.',
+      network: 'Network error. Please check your connection and try again.',
       'already owned': 'You already own this subscription',
       'not available': 'Subscription not currently available in your region',
       'parental controls': 'Purchases are disabled by parental controls',
       'not allowed': 'Purchases are not allowed on this device',
       'invalid product': 'Subscription plan not available',
-      'configuration': 'Store configuration error. Please try again later.',
-      'timeout': 'Request timed out. Please check your connection.',
-      'receipt': 'Purchase verification failed. Please contact support.',
-      'unauthorized': 'Authentication required. Please sign in and try again.'
+      configuration: 'Store configuration error. Please try again later.',
+      timeout: 'Request timed out. Please check your connection.',
+      receipt: 'Purchase verification failed. Please contact support.',
+      unauthorized: 'Authentication required. Please sign in and try again.',
+      'storekit initialization': 'Failed to initialize StoreKit. Please try again.',
     };
 
     const errorMessage = error?.message?.toLowerCase() || '';
-    const userMessage = Object.entries(errorMessages).find(([key]) => 
-      errorMessage.includes(key)
-    )?.[1] || 'Purchase failed. Please try again.';
+    const userMessage =
+      Object.entries(errorMessages).find(([key]) => errorMessage.includes(key))?.[1] ||
+      'Purchase failed. Please try again or contact support.';
 
     setError(userMessage);
     setPurchaseInProgress(false);
     setLoading(false);
 
-    // Track error analytics
     AnalyticsService.trackError(error, {
       error_type: 'iap_error',
       error_message: errorMessage,
       user_message: userMessage,
-      component: 'SubscriptionModal'
+      component: 'SubscriptionModal',
     });
   }, []);
 
-  // Debug function to check environment
+  // Debug environment
   const debugEnvironment = useCallback(() => {
     const debugInfo = {
-      'window.store': window.store,
-      'window.cordova': window.cordova,
-      'window.Capacitor': window.Capacitor,
+      'window.store': !!window.store,
+      'window.store.register': typeof window.store?.register === 'function',
+      'window.cordova': !!window.cordova,
+      'window.Capacitor': !!window.Capacitor,
       'document.readyState': document.readyState,
       'User Agent': navigator.userAgent,
       'Platform': navigator.platform,
       'Network Status': navigator.onLine,
       'Products Loaded': products.length,
-      'Initialized': initialized
+      'Initialized': initialized,
+      'Capacitor Platform': window.Capacitor?.getPlatform(),
     };
-    
     console.log('=== IAP ENVIRONMENT DEBUG ===', debugInfo);
     AnalyticsService.trackEvent('debug_info', debugInfo);
   }, [products.length, initialized]);
@@ -194,7 +174,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     }
   }, [show, initialized, debugEnvironment]);
 
-  // Parental Gate Handlers
+  // Parental gate handlers
   const handlePrivacyPolicyClick = useCallback((e) => {
     e.preventDefault();
     AnalyticsService.trackEvent('privacy_policy_clicked');
@@ -210,6 +190,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       pendingAction();
     }
     setPendingAction(null);
+    setShowParentalGate(false);
     AnalyticsService.trackEvent('parental_gate_passed');
   }, [pendingAction]);
 
@@ -219,34 +200,19 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     AnalyticsService.trackEvent('parental_gate_cancelled');
   }, []);
 
-  // Network resilience with retry logic
+  // Retry logic
   const withRetry = async (operation, operationName, maxRetries = MAX_RETRIES) => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        AnalyticsService.trackEvent(`operation_attempt`, {
-          operation: operationName,
-          attempt,
-          max_retries: maxRetries
-        });
-        
+        AnalyticsService.trackEvent(`operation_attempt`, { operation: operationName, attempt, max_retries: maxRetries });
         const result = await operation();
-        AnalyticsService.trackEvent(`operation_success`, {
-          operation: operationName,
-          attempt
-        });
+        AnalyticsService.trackEvent(`operation_success`, { operation: operationName, attempt });
         return result;
       } catch (error) {
-        AnalyticsService.trackError(error, {
-          operation: operationName,
-          attempt,
-          max_retries: maxRetries
-        });
-        
+        AnalyticsService.trackError(error, { operation: operationName, attempt, max_retries: maxRetries });
         if (attempt === maxRetries) {
           throw error;
         }
-        
-        // Exponential backoff
         const backoffTime = 1000 * Math.pow(2, attempt - 1);
         console.log(`Retrying ${operationName} in ${backoffTime}ms (attempt ${attempt}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, backoffTime));
@@ -265,133 +231,113 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
   const initializeIAP = async () => {
     AnalyticsService.trackEvent('iap_initialization_started');
-    
+
     if (!checkNetworkStatus()) {
-      const error = new Error('No internet connection');
       setError('No internet connection. Please check your network and try again.');
-      AnalyticsService.trackError(error, { stage: 'network_check' });
+      AnalyticsService.trackError(new Error('No internet connection'), { stage: 'network_check' });
       setInitialized(true);
+      setLoading(false);
       return;
     }
 
     setLoading(true);
 
     try {
-      const initializationPromise = (async () => {
-        console.log('Initializing In-App Purchase...');
-        
-        // Wait for Cordova to be ready
-        InAppPurchase = await waitForCordova();
-        
-        if (!InAppPurchase) {
-          throw new Error('Cordova Purchase plugin not available after waiting');
-        }
+      // Wait for Cordova to be ready
+      InAppPurchase = await waitForCordova();
 
-        console.log('Cordova Purchase plugin found:', InAppPurchase);
+      if (!InAppPurchase || typeof InAppPurchase.register !== 'function') {
+        throw new Error('In-App Purchase plugin not available or not properly initialized');
+      }
 
-        // Configure the plugin
-        InAppPurchase.verbosity = InAppPurchase.WARNING; // Use WARNING for production
-        
-        // Register products with retry
-        await withRetry(async () => {
-          await InAppPurchase.register([
-            {
-              id: PRODUCT_IDS.monthly,
-              type: InAppPurchase.PAID_SUBSCRIPTION
-            },
-            {
-              id: PRODUCT_IDS.yearly,
-              type: InAppPurchase.PAID_SUBSCRIPTION
-            }
-          ]);
-        }, 'product_registration');
+      console.log('Cordova Purchase plugin initialized:', InAppPurchase);
 
-        console.log('Products registered successfully');
+      // Set verbosity for production
+      InAppPurchase.verbosity = InAppPurchase.WARNING;
 
-        // Set up event handlers
-        InAppPurchase.when("product")
-          .updated((product) => {
-            console.log('Product updated:', product.id, product.valid ? 'VALID' : 'INVALID');
-            updateProductsList();
-          });
+      // Register products
+      await withRetry(async () => {
+        InAppPurchase.register([
+          {
+            id: PRODUCT_IDS.monthly,
+            type: InAppPurchase.PAID_SUBSCRIPTION,
+          },
+          {
+            id: PRODUCT_IDS.yearly,
+            type: InAppPurchase.PAID_SUBSCRIPTION,
+          },
+        ]);
+      }, 'product_registration');
 
-        InAppPurchase.when(PRODUCT_IDS.monthly)
-          .approved((product) => {
-            console.log('Monthly subscription approved:', product);
-            AnalyticsService.trackEvent('purchase_approved', { product_id: PRODUCT_IDS.monthly });
-            finishPurchase(product);
-          });
-          
-        InAppPurchase.when(PRODUCT_IDS.yearly)
-          .approved((product) => {
-            console.log('Yearly subscription approved:', product);
-            AnalyticsService.trackEvent('purchase_approved', { product_id: PRODUCT_IDS.yearly });
-            finishPurchase(product);
-          });
+      console.log('Products registered successfully');
 
-        InAppPurchase.when("error").then((error) => {
-          console.error('IAP Error event:', error);
-          AnalyticsService.trackEvent('purchase_error_event', { error: error.message });
-          handleIAPError(error);
-        });
+      // Set up event handlers
+      InAppPurchase.when('product').updated((product) => {
+        console.log('Product updated:', product.id, product.valid ? 'VALID' : 'INVALID');
+        updateProductsList();
+      });
 
-        // Refresh to load product details with retry
-        await withRetry(async () => {
-          await InAppPurchase.refresh();
-        }, 'product_refresh');
+      InAppPurchase.when(PRODUCT_IDS.monthly).approved((product) => {
+        console.log('Monthly subscription approved:', product);
+        AnalyticsService.trackEvent('purchase_approved', { product_id: PRODUCT_IDS.monthly });
+        finishPurchase(product);
+      });
 
-        console.log('IAP refresh completed');
-      })();
+      InAppPurchase.when(PRODUCT_IDS.yearly).approved((product) => {
+        console.log('Yearly subscription approved:', product);
+        AnalyticsService.trackEvent('purchase_approved', { product_id: PRODUCT_IDS.yearly });
+        finishPurchase(product);
+      });
 
-      // Add timeout to initialization
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('IAP initialization timeout')), INIT_TIMEOUT)
-      );
+      InAppPurchase.error((error) => {
+        console.error('IAP Error event:', error);
+        AnalyticsService.trackEvent('purchase_error_event', { error: error.message });
+        handleIAPError(error);
+      });
 
-      await Promise.race([initializationPromise, timeoutPromise]);
-      
+      // Refresh products
+      await withRetry(async () => {
+        await InAppPurchase.refresh();
+      }, 'product_refresh');
+
+      console.log('IAP refresh completed');
       setInitialized(true);
-      setLoading(false);
       AnalyticsService.trackEvent('iap_initialization_success');
-
     } catch (err) {
       console.error('IAP Initialization error:', err);
-      const errorMessage = err.message.includes('timeout') 
+      const errorMessage = err.message.includes('timeout')
         ? 'Store initialization timed out. Please check your connection and try again.'
         : `Failed to initialize in-app purchases: ${err.message}`;
-      
       setError(errorMessage);
-      setInitialized(true);
-      setLoading(false);
       AnalyticsService.trackError(err, { stage: 'initialization' });
+      setInitialized(true);
+    } finally {
+      setLoading(false);
     }
   };
 
   const updateProductsList = useCallback(() => {
     try {
-      const monthlyProduct = InAppPurchase.get(PRODUCT_IDS.monthly);
-      const yearlyProduct = InAppPurchase.get(PRODUCT_IDS.yearly);
-      
+      const monthlyProduct = InAppPurchase?.get(PRODUCT_IDS.monthly);
+      const yearlyProduct = InAppPurchase?.get(PRODUCT_IDS.yearly);
       const availableProducts = [monthlyProduct, yearlyProduct].filter(p => p && p.valid);
       setProducts(availableProducts);
-      
+
       console.log('Available products:', availableProducts);
-      
-      // Track product availability
       AnalyticsService.trackEvent('products_updated', {
         available_count: availableProducts.length,
         monthly_available: !!monthlyProduct?.valid,
-        yearly_available: !!yearlyProduct?.valid
+        yearly_available: !!yearlyProduct?.valid,
       });
-      
-      // If no products available after initialization, show error
+
       if (availableProducts.length === 0 && initialized) {
-        setError('Subscription plans not currently available. This may be due to network issues or App Store configuration.');
+        setError('No subscription plans available. Please try again later or contact support.');
         AnalyticsService.trackEvent('no_products_available');
       }
     } catch (err) {
       console.error('Error updating products list:', err);
       AnalyticsService.trackError(err, { stage: 'update_products_list' });
+      setError('Failed to load subscription plans. Please try again.');
     }
   }, [initialized]);
 
@@ -399,17 +345,17 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     try {
       console.log('Finishing purchase:', product);
       AnalyticsService.trackEvent('purchase_finishing', { product_id: product.id });
-      
-      // CRITICAL: Always finish the purchase first to avoid billing issues
+
+      // Finish the purchase to avoid billing issues
       await product.finish();
       AnalyticsService.trackEvent('purchase_finished', { product_id: product.id });
-      
-      // Then verify with your backend with retry logic
+
+      // Verify with backend
       const verificationResult = await withRetry(
         () => verifyReceipt(product),
         'receipt_verification'
       );
-      
+
       if (verificationResult.valid) {
         console.log('Purchase verified successfully');
         AnalyticsService.trackEvent('purchase_verified_success', { product_id: product.id });
@@ -418,12 +364,11 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       } else {
         const errorMsg = verificationResult.error || 'Purchase verification failed';
         console.error('Purchase verification failed:', verificationResult);
-        AnalyticsService.trackEvent('purchase_verification_failed', { 
+        AnalyticsService.trackEvent('purchase_verification_failed', {
           product_id: product.id,
-          error: errorMsg 
+          error: errorMsg,
         });
         setError(errorMsg);
-        // IMPORTANT: Even if verification fails, the purchase was finished so user won't be charged again
       }
     } catch (err) {
       console.error('Purchase completion error:', err);
@@ -447,15 +392,18 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
     const BASE_URL = "https://kithia.com/website_b5d91c8e/api";
 
-    // Get receipt data
     let receiptData;
     if (product.transaction?.appStoreReceipt) {
       receiptData = product.transaction.appStoreReceipt;
     } else if (product.transaction?.receipt) {
       receiptData = product.transaction.receipt;
     } else {
-      // Fallback: try to get latest receipt
-      receiptData = await InAppPurchase.getReceipt();
+      try {
+        receiptData = await InAppPurchase.getReceipt();
+      } catch (err) {
+        console.error('Failed to get receipt:', err);
+        throw new Error('No receipt data found');
+      }
     }
 
     if (!receiptData) {
@@ -475,9 +423,9 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         body: JSON.stringify({
           receipt_data: receiptData,
           product_id: product.id,
-          platform: 'ios'
+          platform: 'ios',
         }),
-        signal: controller.signal
+        signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
@@ -502,7 +450,6 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     AnalyticsService.trackEvent('plan_selected', { plan });
   }, []);
 
-  // Purchase state recovery
   const restorePurchases = async () => {
     if (!InAppPurchase || !initialized) {
       setError('Please wait for store initialization to complete');
@@ -559,9 +506,9 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     setError(null);
     setPurchaseInProgress(true);
 
-    AnalyticsService.trackEvent('purchase_initiated', { 
+    AnalyticsService.trackEvent('purchase_initiated', {
       plan: selectedPlan,
-      product_id: selectedPlan === 'monthly' ? PRODUCT_IDS.monthly : PRODUCT_IDS.yearly
+      product_id: selectedPlan === 'monthly' ? PRODUCT_IDS.monthly : PRODUCT_IDS.yearly,
     });
 
     try {
@@ -577,11 +524,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       }
 
       console.log('Initiating purchase for:', productId);
-      
-      // Initiate purchase
       await InAppPurchase.order(productId);
-      // The purchase flow continues through the event handlers
-
     } catch (err) {
       console.error('Purchase initiation error:', err);
       AnalyticsService.trackError(err, { stage: 'purchase_initiation', plan: selectedPlan });
@@ -602,7 +545,6 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   const getProductTitle = useCallback((productId) => {
     const product = products.find(p => p.id === productId);
     if (product && product.title) {
-      // Clean up the title (remove app name if present)
       return product.title.replace(/ - Sara Stories$/, '');
     }
     return FALLBACK_TITLES[productId.includes('monthly') ? 'monthly' : 'yearly'];
@@ -645,110 +587,77 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
             Subscribe to Sara Stories
           </Modal.Title>
         </Modal.Header>
-        
+
         <Modal.Body className="d-flex flex-column justify-content-between align-items-center text-white">
-            <ul className="list-unstyled text-center mb-5 benefits-list">
-              <li><BsMoonStarsFill className="benefits-icon"/> Peaceful and restful sleep for your child</li>
-              <li><BsMoonStarsFill className="benefits-icon"/> More than 3000 illustrations</li>
-              <li><BsMoonStarsFill className="benefits-icon"/> Cancel anytime</li>
-              <li><BsMoonStarsFill className="benefits-icon"/> Secure payment via Apple</li>
-            </ul>
+          <ul className="list-unstyled text-center mb-5 benefits-list">
+            <li><BsMoonStarsFill className="benefits-icon" /> Peaceful and restful sleep for your child</li>
+            <li><BsMoonStarsFill className="benefits-icon" /> More than 3000 illustrations</li>
+            <li><BsMoonStarsFill className="benefits-icon" /> Cancel anytime</li>
+          </ul>
 
-            <div style={{ height: "24px" }}></div>
+          <div style={{ height: "24px" }}></div>
 
-            <Row className="w-100 justify-content-center">
-              <Col md={6}>
-                <h5 className="mb-3 text-white text-center">Select Plan</h5>
-                
-                <div
-                  className={`plan-option mb-3 p-3 rounded d-flex align-items-center ${
-                    selectedPlan === "monthly" ? "selected" : ""
-                  }`}
-                  onClick={() => handlePlanChange("monthly")}
-                  style={{ cursor: "pointer" }}
-                >
-                  <Form.Check
-                    type="radio"
-                    id="monthly"
-                    name="plan"
-                    checked={selectedPlan === "monthly"}
-                    onChange={() => handlePlanChange("monthly")}
-                    className="me-3 custom-radio"
-                  />
-                  <div className="d-flex flex-column flex-grow-1">
-                    <span className="text-white fw-bold">
-                      {getProductTitle(PRODUCT_IDS.monthly)}
-                    </span>
-                    <small className="text-white-50">
-                      {getProductPrice(PRODUCT_IDS.monthly)}
-                    </small>
-                  </div>
+          <Row className="w-100 justify-content-center">
+            <Col md={6}>
+              <h5 className="mb-3 text-white text-center">Select Plan</h5>
+
+              <div
+                className={`plan-option mb-3 p-3 rounded d-flex align-items-center ${selectedPlan === "monthly" ? "selected" : ""}`}
+                onClick={() => handlePlanChange("monthly")}
+                style={{ cursor: "pointer" }}
+              >
+                <Form.Check
+                  type="radio"
+                  id="monthly"
+                  name="plan"
+                  checked={selectedPlan === "monthly"}
+                  onChange={() => handlePlanChange("monthly")}
+                  className="me-3 custom-radio"
+                />
+                <div className="d-flex flex-column flex-grow-1">
+                  <span className="text-white fw-bold">{getProductTitle(PRODUCT_IDS.monthly)}</span>
+                  <small className="text-white-50">{getProductPrice(PRODUCT_IDS.monthly)}</small>
                 </div>
+              </div>
 
-                <div
-                  className={`plan-option mb-3 p-3 rounded d-flex align-items-center ${
-                    selectedPlan === "yearly" ? "selected" : ""
-                  }`}
-                  onClick={() => handlePlanChange("yearly")}
-                  style={{ cursor: "pointer" }}
-                >
-                  <Form.Check
-                    type="radio"
-                    id="yearly"
-                    name="plan"
-                    checked={selectedPlan === "yearly"}
-                    onChange={() => handlePlanChange("yearly")}
-                    className="me-3 custom-radio"
-                  />
-                  <div className="d-flex flex-column flex-grow-1">
-                    <span className="text-white fw-bold">
-                      {getProductTitle(PRODUCT_IDS.yearly)}
-                    </span>
-                    <small className="text-white-50">
-                      {getProductPrice(PRODUCT_IDS.yearly)}
-                    </small>
-                  </div>
+              <div
+                className={`plan-option mb-3 p-3 rounded d-flex align-items-center ${selectedPlan === "yearly" ? "selected" : ""}`}
+                onClick={() => handlePlanChange("yearly")}
+                style={{ cursor: "pointer" }}
+              >
+                <Form.Check
+                  type="radio"
+                  id="yearly"
+                  name="plan"
+                  checked={selectedPlan === "yearly"}
+                  onChange={() => handlePlanChange("yearly")}
+                  className="me-3 custom-radio"
+                />
+                <div className="d-flex flex-column flex-grow-1">
+                  <span className="text-white fw-bold">{getProductTitle(PRODUCT_IDS.yearly)}</span>
+                  <small className="text-white-50">{getProductPrice(PRODUCT_IDS.yearly)}</small>
                 </div>
+              </div>
 
-                {!networkStatus && (
-                  <Alert variant="warning" className="mt-3 text-center">
-                    <small>No internet connection. Please check your network.</small>
-                  </Alert>
-                )}
+              {!networkStatus && (
+                <Alert variant="warning" className="mt-3 text-center">
+                  <small>No internet connection. Please check your network.</small>
+                </Alert>
+              )}
 
-                <div className="mt-4 p-3 rounded text-center" style={{background: 'rgba(255,255,255,0.1)'}}>
-                  <small className="text-white-50">
-                    Payment processed securely through Apple. Subscriptions auto-renew until canceled in Settings.
-                  </small>
-                </div>
-              </Col>
-            </Row>
+              {error && (
+                <Alert variant="danger" className="mt-3 w-100 text-center">
+                  {error}
+                </Alert>
+              )}
 
-            {error && (
-              <Alert variant="danger" className="mt-3 w-100 text-center">
-                {error}
-                {/* <div className="mt-2">
-                  <Button 
-                    variant="outline-info" 
-                    size="sm" 
-                    onClick={debugEnvironment}
-                    className="me-2"
-                  >
-                    Debug Info
-                  </Button>
-                  {error.includes('restore') && (
-                    <Button 
-                      variant="outline-warning" 
-                      size="sm" 
-                      onClick={restorePurchases}
-                      disabled={restoring}
-                    >
-                      {restoring ? <Spinner animation="border" size="sm" /> : 'Restore Purchases'}
-                    </Button>
-                  )}
-                </div> */}
-              </Alert>
-            )}
+              <div className="mt-4 p-3 rounded text-center" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                <small className="text-white-50">
+                  Payment processed securely through Apple. Subscriptions auto-renew until canceled in Settings.
+                </small>
+              </div>
+            </Col>
+          </Row>
 
           <div className="w-100 text-center">
             <Button
@@ -785,7 +694,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
                 Privacy Policy
               </a>
             </div>
-            
+
             <div className="mt-2 text-center">
               <small className="text-white-50">
                 Manage subscriptions in Settings
@@ -795,7 +704,6 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         </Modal.Body>
       </Modal>
 
-      {/* Parental Gate Modal */}
       <ParentalGateModal
         show={showParentalGate}
         onClose={handleParentalGateClose}

@@ -49,12 +49,22 @@ workflows:
           set -ex
           echo "=== Installing Node Modules ==="
           npm ci
-          
+
+          echo "=== Installing cordova-plugin-purchase ==="
+          npm install --save cordova-plugin-purchase@13.12.1
+
           echo "=== Installing missing Babel plugin ==="
           npm install --save-dev @babel/plugin-proposal-private-property-in-object
           
           echo "=== Updating browserslist ==="
           npx update-browserslist-db@latest
+
+          echo "=== Verifying cordova-plugin-purchase ==="
+          if [ ! -d "node_modules/cordova-plugin-purchase" ]; then
+            echo "❌ cordova-plugin-purchase not found in node_modules"
+            exit 1
+          fi
+          echo "✅ cordova-plugin-purchase verified"
 
       # PHASE 3: BUILD REACT APP
       - name: Build React App
@@ -70,17 +80,27 @@ workflows:
             echo "❌ React build failed - build directory not found"
             exit 1
           fi
-          
-          echo "✅ React build completed successfully"
 
-      # PHASE 4: CAPACITOR SYNC - FIXED ORIENTATION CONFIGURATION
+          echo "=== Copying Cordova Plugin JS ==="
+          mkdir -p build/plugins/cordova-plugin-purchase/www
+          cp node_modules/cordova-plugin-purchase/www/store.js build/plugins/cordova-plugin-purchase/www/
+          echo "✅ Copied store.js"
+
+      # PHASE 4: CAPACITOR SYNC AND CONFIGURE ORIENTATIONS
       - name: Sync Capacitor and Configure Orientations
         script: |
           set -ex
           echo "=== Syncing Capacitor for iOS ==="
           npx cap sync ios
-          
-          echo "=== Configuring Proper iOS Orientations ==="
+
+          echo "=== Verifying cordova-plugin-purchase inclusion ==="
+          if [ ! -f "ios/App/App/www/cordova_plugins.js" ] || ! grep -q "cordova-plugin-purchase" ios/App/App/www/cordova_plugins.js; then
+            echo "❌ cordova-plugin-purchase not included in cordova_plugins.js"
+            exit 1
+          fi
+          echo "✅ cordova-plugin-purchase included in cordova_plugins.js"
+
+          echo "=== Configuring iOS Orientations ==="
           cd ios/App/App
           PLIST_PATH="Info.plist"
           
@@ -113,20 +133,20 @@ workflows:
           set -ex
           echo "=== Setting up iOS Platform ==="
           cd ios/App
-          
-          echo "=== Generating Podfile with iOS 14.0 platform ==="
+
+          echo "=== Generating Podfile with cordova-plugin-purchase ==="
           cat > Podfile << 'EOF'
           platform :ios, '14.0'
           use_frameworks! :linkage => :dynamic
           
           # Suppress CDN warning
           install! 'cocoapods', :warn_for_unused_master_specs_repo => false
-          
+
           target 'App' do
             # Capacitor Core
             pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
             pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
-            
+
             # Capacitor Plugins
             pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
             pod 'CapacitorDevice', :path => '../../node_modules/@capacitor/device'
@@ -137,6 +157,12 @@ workflows:
             pod 'CapacitorVoiceRecorder', :path => '../../node_modules/capacitor-voice-recorder'
             pod 'AparajitaCapacitorSecureStorage', :path => '../../node_modules/@aparajita/capacitor-secure-storage'
             pod 'CapacitorBlobWriter', :path => '../../node_modules/capacitor-blob-writer'
+
+            # Cordova Plugins
+            pod 'cordova-plugin-purchase', '~> 13.12.1'
+
+            # Ensure Cordova plugins are included
+            pod 'CordovaPlugins', :path => '../../node_modules/@capacitor/cli/assets/capacitor-cordova-ios-plugins'
           end
           
           post_install do |installer|
@@ -145,8 +171,10 @@ workflows:
                 config.build_settings['BUILD_LIBRARY_FOR_DISTRIBUTION'] = 'YES'
                 config.build_settings['ENABLE_BITCODE'] = 'NO'
                 config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
-                
-                # Fix for GCDWebServer deployment target warning
+                config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/App.entitlements'
+                config.build_settings['FRAMEWORK_SEARCH_PATHS'] ||= ['$(inherited)']
+                config.build_settings['OTHER_LDFLAGS'] ||= ['$(inherited)', '-ObjC']
+
                 if target.name == 'GCDWebServer'
                   config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '12.0'
                 end
@@ -161,18 +189,48 @@ workflows:
           EOF
           
           echo "=== Installing CocoaPods ==="
-          pod repo remove master 2>/dev/null || true
           pod install --repo-update --clean-install
-          
+
           echo "=== Verifying Project Structure ==="
-          if [ -d "Pods" ] && [ -d "App.xcworkspace" ]; then
-            echo "✅ CocoaPods installation verified"
+          if [ -d "Pods" ] && [ -d "App.xcworkspace" ] && grep -q "cordova-plugin-purchase" Pods/Podfile.lock; then
+            echo "✅ CocoaPods installation verified, cordova-plugin-purchase included"
           else
-            echo "❌ CocoaPods installation failed!"
+            echo "❌ CocoaPods installation failed or cordova-plugin-purchase missing!"
             exit 1
           fi
 
-      # PHASE 6: CREATE XCODE SCHEME
+      # PHASE 6: CREATE ENTITLEMENTS FILE
+      - name: Create Entitlements File
+        script: |
+          set -ex
+          echo "=== Creating Entitlements File ==="
+          cd ios/App/App
+
+          cat > App.entitlements << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>application-identifier</key>
+              <string>$DEVELOPMENT_TEAM.$BUNDLE_ID</string>
+              <key>get-task-allow</key>
+              <false/>
+              <key>keychain-access-groups</key>
+              <array>
+                  <string>$DEVELOPMENT_TEAM.*</string>
+              </array>
+              <key>com.apple.developer.in-app-payments</key>
+              <array>
+                  <string>com.sarastories.app.monthly</string>
+                  <string>com.sarastories.app.yearly</string>
+              </array>
+          </dict>
+          </plist>
+          EOF
+
+          echo "✅ Entitlements file created with In-App Purchase capability"
+
+      # PHASE 7: CREATE XCODE SCHEME
       - name: Create Xcode Scheme
         script: |
           set -ex
@@ -213,7 +271,7 @@ workflows:
           
           echo "✅ Xcode scheme created"
 
-      # PHASE 7: CODE SIGNING SETUP
+      # PHASE 8: CODE SIGNING SETUP
       - name: Configure Signing
         script: |
           set -ex
@@ -248,13 +306,9 @@ workflows:
           PROVISIONING_PROFILE_SPECIFIER = ""
           DEVELOPMENT_TEAM = ""
           EOF
-          
-          # Update Pods xcconfig files with absolute path
-          find "Pods/Target Support Files" -name "*.*cconfig" | while read file; do
-            echo "#include \"$(pwd)/disable-pod-signing.xcconfig\"" >> "$file"
-          done
-          
-          # Convert to manual signing in project file
+
+          find "Pods/Target Support Files" -name "*.*cconfig" -exec sh -c 'echo "#include \"$(pwd)/disable-pod-signing.xcconfig\"" >> {}' \;
+
           echo "=== Updating Project Settings ==="
           PBXPROJ="App.xcodeproj/project.pbxproj"
           cp "$PBXPROJ" "$PBXPROJ.bak"
@@ -270,17 +324,18 @@ workflows:
               PROVISIONING_PROFILE_SPECIFIER = \"$PROFILE_UUID\"; \\
               DEVELOPMENT_TEAM = $DEVELOPMENT_TEAM; \\
               CODE_SIGN_IDENTITY = \"Apple Distribution\"; \\
+              CODE_SIGN_ENTITLEMENTS = \"App/App.entitlements\"; \\
               " "$PBXPROJ"
           
           echo "PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
           echo "✅ Signing configuration complete"
 
-      # PHASE 8: BUILD CONFIGURATION (DEFINITIVE FIX)
+      # PHASE 9: BUILD CONFIGURATION (DEFINITIVE FIX)
       - name: Configure Build Settings
         script: |
           set -ex
           cd ios/App/App
-          
+
           echo "=== Updating Version Numbers ==="
           PLIST_PATH="Info.plist"
           
@@ -301,7 +356,7 @@ workflows:
             PATCH="0"
           fi
           
-          # Increment patch version (1.0.4 → 1.0.5)
+          # Increment patch version (1.0.5 → 1.0.6)
           NEW_PATCH=$((PATCH + 1))
           NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
           
@@ -329,117 +384,37 @@ workflows:
           # Critical validation - ensure CFBundleShortVersionString is set
           if [ -z "$FINAL_VERSION" ] || [[ "$FINAL_VERSION" == *"$"* ]]; then
             echo "❌ CRITICAL: CFBundleShortVersionString is not properly set!"
-            echo "Setting fallback version: 1.0.5"
-            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.5" "$PLIST_PATH"
+            echo "Setting fallback version: 1.0.6"
+            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.6" "$PLIST_PATH"
             /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_BUILD" "$PLIST_PATH"
           fi
-          
-          # Final verification
-          echo "=== Final Verification ==="
-          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST_PATH"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH"
-          
-          echo "✅ Build settings configured definitively"
 
-      # PHASE 8.5: VERIFY PLIST CONTENTS
-      - name: Verify Plist Contents
-        script: |
-          set -ex
-          cd ios/App/App
-          
-          echo "=== Final Plist Verification ==="
-          PLIST_PATH="Info.plist"
-          
-          echo "=== Complete Plist Dump ==="
-          /usr/libexec/PlistBuddy -c "Print" "$PLIST_PATH"
-          
-          echo "=== Critical Keys ==="
-          echo "CFBundleShortVersionString: $(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST_PATH")"
-          echo "CFBundleVersion: $(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH")"
-          echo "CFBundleIdentifier: $(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST_PATH")"
-          echo "CFBundleName: $(/usr/libexec/PlistBuddy -c "Print :CFBundleName" "$PLIST_PATH")"
-          
-          # Verify the file is valid
-          plutil -lint "$PLIST_PATH" && echo "✅ Plist is valid" || echo "❌ Plist is invalid"
-      # PHASE 9: ADD PRIVACY DESCRIPTIONS (UPDATED WITH STORAGE)
+          echo "✅ Build settings configured"
+
+      # PHASE 10: ADD PRIVACY DESCRIPTIONS
       - name: Add Privacy Descriptions
         script: |
           set -ex
           cd ios/App/App
-          
+
           echo "=== Adding Required Privacy Descriptions ==="
           PLIST_PATH="Info.plist"
-          
-          # Add microphone usage description for voice recorder
+
           /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'This app needs microphone access to record audio for voice stories and narration.'" "$PLIST_PATH" 2>/dev/null || \
           /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'This app needs microphone access to record audio for voice stories and narration.'" "$PLIST_PATH"
-          
-          # Add storage usage description for local data preloading
+
           /usr/libexec/PlistBuddy -c "Add :NSDocumentsFolderUsageDescription string 'This app needs storage access to preload and cache stories and audio files for offline use.'" "$PLIST_PATH" 2>/dev/null || \
           /usr/libexec/PlistBuddy -c "Set :NSDocumentsFolderUsageDescription 'This app needs storage access to preload and cache stories and audio files for offline use.'" "$PLIST_PATH"
-          
-          # Verify the descriptions were added
+
+          /usr/libexec/PlistBuddy -c "Add :NSInAppPurchaseUsageDescription string 'This app offers in-app purchases for premium subscriptions to access additional stories and features.'" "$PLIST_PATH" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :NSInAppPurchaseUsageDescription 'This app offers in-app purchases for premium subscriptions to access additional stories and features.'" "$PLIST_PATH"
+
           echo "=== Verifying Privacy Descriptions ==="
           /usr/libexec/PlistBuddy -c "Print :NSMicrophoneUsageDescription" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Print :NSDocumentsFolderUsageDescription" "$PLIST_PATH"
-          
-          echo "✅ Privacy descriptions added"
+          /usr/libexec/PlistBuddy -c "Print :NSInAppPurchaseUsageDescription" "$PLIST_PATH"
 
-      # # PHASE 10: APP ENCRYPTION DOCUMENTATION
-      # - name: Generate App Encryption Documentation
-      #   script: |
-      #     set -ex
-      #     echo "=== App Encryption Documentation ==="
-      #     cat > app_encryption_info.txt << 'EOF'
-      #     APP ENCRYPTION DOCUMENTATION
-      #     ============================
-          
-      #     App Name: Little Stories
-      #     Bundle ID: com.littlestories.app
-          
-      #     ENCRYPTION USAGE:
-      #     -----------------
-      #     This app uses standard Apple iOS encryption and does NOT implement:
-      #     - Proprietary encryption algorithms
-      #     - Custom encryption implementations
-      #     - Non-standard encryption methods
-          
-      #     ENCRYPTION SOURCES:
-      #     -------------------
-      #     1. Apple iOS Built-in Encryption:
-      #        - iOS Keychain Services for secure data storage
-      #        - iOS CryptoKit framework for standard cryptographic operations
-      #        - iOS Secure Enclave for hardware-based key management
-          
-      #     2. Capacitor Plugin Encryption:
-      #        - @aparajita/capacitor-secure-storage: Uses iOS Keychain with AES encryption
-      #        - Capacitor Filesystem: Uses iOS sandboxed file system with standard protection
-          
-      #     3. Network Encryption:
-      #        - Standard TLS 1.2/1.3 for all HTTP/HTTPS communications
-      #        - iOS URLSession with default security protocols
-          
-      #     SPECIFIC IMPLEMENTATIONS:
-      #     -------------------------
-      #     - Secure Storage: AES encryption via iOS Keychain
-      #     - File Protection: iOS Data Protection API (NSFileProtectionComplete)
-      #     - Network Security: TLS 1.2+ with certificate pinning (if configured)
-      #     - Key Management: iOS Keychain with secure key storage
-          
-      #     EXPORT COMPLIANCE:
-      #     ------------------
-      #     - Uses only Apple's standard encryption available in iOS
-      #     - No proprietary encryption algorithms implemented
-      #     - Compliant with App Store encryption export regulations
-          
-      #     For App Store Connect question "What type of encryption algorithms does your app implement?" 
-      #     select: "None of the algorithms mentioned above"
-          
-      #     This indicates the app uses only Apple's standard iOS encryption.
-      #     EOF
-          
-      #     echo "✅ App encryption documentation generated"
-      #     cat app_encryption_info.txt
+          echo "✅ Privacy descriptions added"
 
       # PHASE 11: BUILD UNSIGNED ARCHIVE
       - name: Build Unsigned Archive
@@ -484,28 +459,7 @@ workflows:
         script: |
           set -ex
           cd ios/App
-          
-          # Prepare entitlements
-          echo "=== Preparing Entitlements ==="
-          TEMP_ENTITLEMENTS=$(mktemp)
-          cat > "$TEMP_ENTITLEMENTS" << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>application-identifier</key>
-              <string>$DEVELOPMENT_TEAM.$BUNDLE_ID</string>
-              <key>get-task-allow</key>
-              <false/>
-              <key>keychain-access-groups</key>
-              <array>
-                  <string>$DEVELOPMENT_TEAM.*</string>
-              </array>
-          </dict>
-          </plist>
-          EOF
-          
-          # Manual signing process
+
           echo "=== Performing Manual Signing ==="
           APP_PATH="build/App.xcarchive/Products/Applications/App.app"
           PROFILE_PATH="$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
@@ -520,7 +474,7 @@ workflows:
           
           # 3. Sign main app bundle
           codesign --force --sign "Apple Distribution" \
-            --entitlements "$TEMP_ENTITLEMENTS" \
+            --entitlements App/App.entitlements \
             --generate-entitlement-der \
             "$APP_PATH"
           
@@ -590,7 +544,6 @@ workflows:
 
     artifacts:
       - ios/App/build/ipa/App.ipa
-      - app_encryption_info.txt
 
     publishing:
       app_store_connect:
