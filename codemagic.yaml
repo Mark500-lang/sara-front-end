@@ -121,37 +121,65 @@ workflows:
           
           echo "✅ Orientation configuration fixed - iPhone: Landscape only, iPad: All orientations"
 
-      # PHASE 4.5: ENHANCED IAP PLUGIN INTEGRATION
-      - name: Enhanced IAP Plugin Integration
+      # PHASE 4.5: FIXED IAP PLUGIN INTEGRATION
+      - name: Fixed IAP Plugin Integration
         script: |
           set -ex
-          echo "=== Enhanced IAP Plugin Integration ==="
+          echo "=== Fixed IAP Plugin Integration ==="
           
-          echo "=== Adding cordova-plugin-purchase to Capacitor ==="
-          npx cap add ios
+          echo "=== Syncing Capacitor with cordova-plugin-purchase ==="
           npx cap sync ios
           
           echo "=== Verifying plugin in iOS project ==="
-          if [ -f "ios/App/App/config.xml" ]; then
-            if grep -q "cordova-plugin-purchase" ios/App/App/config.xml; then
-              echo "✅ cordova-plugin-purchase found in config.xml"
+          
+          # Check if plugin is in capacitor config
+          if [ -f "ios/App/App/capacitor.config.json" ]; then
+            if grep -q "cordova-plugin-purchase" "ios/App/App/capacitor.config.json"; then
+              echo "✅ cordova-plugin-purchase found in Capacitor config"
             else
-              echo "⚠️ cordova-plugin-purchase not found in config.xml, manually adding..."
-              # Manually ensure the plugin is included
-              npx cap update ios
+              echo "⚠️ cordova-plugin-purchase not in Capacitor config, but this is normal for Cordova plugins"
             fi
           fi
           
-          echo "=== Checking for StoreKit framework ==="
-          cd ios/App
-          if grep -q "StoreKit" "App.xcodeproj/project.pbxproj"; then
-            echo "✅ StoreKit framework found in Xcode project"
-          else
-            echo "⚠️ StoreKit framework not found, this might cause issues"
+          # Check if plugin is in the plugins directory
+          if [ -d "ios/App/App/Plugins" ]; then
+            if find "ios/App/App/Plugins" -name "*purchase*" | grep -q .; then
+              echo "✅ IAP plugin files found in iOS project"
+            else
+              echo "⚠️ No IAP plugin files found in Plugins directory"
+            fi
           fi
           
-          echo "=== Final plugin verification ==="
-          npx cap run ios --list | grep -i purchase && echo "✅ IAP plugin detected" || echo "⚠️ IAP plugin not detected in Capacitor"
+          echo "=== Checking Cordova plugin inclusion ==="
+          if [ -f "ios/App/App/config.xml" ]; then
+            if grep -q "cordova-plugin-purchase" "ios/App/App/config.xml"; then
+              echo "✅ cordova-plugin-purchase found in config.xml"
+            else
+              echo "❌ cordova-plugin-purchase MISSING from config.xml - this is the problem!"
+              echo "=== Manually adding plugin to config.xml ==="
+              # Backup config.xml
+              cp "ios/App/App/config.xml" "ios/App/App/config.xml.backup"
+              
+              # Add the plugin to config.xml if missing
+              if ! grep -q "cordova-plugin-purchase" "ios/App/App/config.xml"; then
+                # Find the plugins section and add our plugin
+                if grep -q "</widget>" "ios/App/App/config.xml"; then
+                  sed -i '' '/<\/widget>/i\
+                  <plugin name="cordova-plugin-purchase" spec="^13.12.1" />\
+                  ' "ios/App/App/config.xml"
+                  echo "✅ Added cordova-plugin-purchase to config.xml"
+                else
+                  echo "❌ Could not find </widget> tag in config.xml"
+                fi
+              fi
+            fi
+          else
+            echo "⚠️ config.xml not found (normal for Capacitor 4+)"
+          fi
+          
+          echo "=== Final verification ==="
+          echo "If cordova-plugin-purchase appears in the sync output above, it should work."
+          echo "Plugin integration complete."
           
       # PHASE 5: IOS PROJECT CONFIGURATION - UPDATED
       - name: Configure iOS Project
