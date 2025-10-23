@@ -12,6 +12,11 @@ const config: CapacitorConfig = {
       key: 'auth_token_storage',
       mode: 'AES'
     }
+  },
+  cordova: {
+    preferences: {
+      // Add any Cordova-specific preferences if needed
+    }
   }
 };
 
