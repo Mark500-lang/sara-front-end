@@ -73,36 +73,36 @@ workflows:
           
           echo "✅ React build completed successfully"
 
-      # PHASE 4: CAPACITOR SYNC - UPDATED FOR LANDSCAPE
-      - name: Sync Capacitor and Configure Landscape
-        script: |
-          set -ex
-          echo "=== Syncing Capacitor for iOS ==="
-          npx cap sync ios
-          
-          echo "=== Configuring Landscape-Only Orientation ==="
-          cd ios/App/App
-          PLIST_PATH="Info.plist"
-          
-          # Remove any existing orientation settings
-          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" "$PLIST_PATH" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~ipad" "$PLIST_PATH" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~iphone" "$PLIST_PATH" 2>/dev/null || true
-          
-          # Configure for iPhone (Landscape only)
-          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$PLIST_PATH"
-          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationLandscapeLeft" "$PLIST_PATH"
-          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:1 string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
-          
-          # Configure for iPad (Landscape only)
-          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad array" "$PLIST_PATH"
-          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:0 string UIInterfaceOrientationLandscapeLeft" "$PLIST_PATH"
-          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:1 string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
-          
-          # Set initial interface orientation (optional but recommended)
-          /usr/libexec/PlistBuddy -c "Delete :UIInterfaceOrientation" "$PLIST_PATH" 2>/dev/null || true
-          
-          echo "✅ Landscape-only orientation configured for iPhone and iPad"
+    # PHASE 4: CAPACITOR SYNC - UPDATED FOR LANDSCAPE
+    - name: Sync Capacitor and Configure Landscape
+      script: |
+        set -ex
+        echo "=== Syncing Capacitor for iOS ==="
+        npx cap sync ios
+        
+        echo "=== Configuring Landscape-Only Orientation ==="
+        cd ios/App/App
+        PLIST_PATH="Info.plist"
+        
+        # Remove any existing orientation settings
+        /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" "$PLIST_PATH" 2>/dev/null || true
+        /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~ipad" "$PLIST_PATH" 2>/dev/null || true
+        /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~iphone" "$PLIST_PATH" 2>/dev/null || true
+        
+        # Configure for iPhone (Landscape only)
+        /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$PLIST_PATH"
+        /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationLandscapeLeft" "$PLIST_PATH"
+        /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:1 string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
+        
+        # Configure for iPad (Landscape only)
+        /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad array" "$PLIST_PATH"
+        /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:0 string UIInterfaceOrientationLandscapeLeft" "$PLIST_PATH"
+        /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:1 string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
+        
+        # Set initial interface orientation (optional but recommended)
+        /usr/libexec/PlistBuddy -c "Delete :UIInterfaceOrientation" "$PLIST_PATH" 2>/dev/null || true
+        
+        echo "✅ Landscape-only orientation configured for iPhone and iPad"
 
       # PHASE 5: IOS PROJECT CONFIGURATION
       - name: Configure iOS Project
@@ -298,7 +298,7 @@ workflows:
             PATCH="0"
           fi
           
-          # Increment patch version (1.0.1 → 1.0.2)
+          # Increment patch version (1.0.2 → 1.0.3)
           NEW_PATCH=$((PATCH + 1))
           NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
           
@@ -326,8 +326,8 @@ workflows:
           # Critical validation - ensure CFBundleShortVersionString is set
           if [ -z "$FINAL_VERSION" ] || [[ "$FINAL_VERSION" == *"$"* ]]; then
             echo "❌ CRITICAL: CFBundleShortVersionString is not properly set!"
-            echo "Setting fallback version: 1.0.2"
-            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.2" "$PLIST_PATH"
+            echo "Setting fallback version: 1.0.3"
+            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.3" "$PLIST_PATH"
             /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_BUILD" "$PLIST_PATH"
           fi
           
