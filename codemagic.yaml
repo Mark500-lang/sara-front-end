@@ -1,3 +1,4 @@
+```yaml
 workflows:
   ios-release:
     name: iOS Release Build
@@ -91,23 +92,34 @@ workflows:
         script: |
           set -ex
           echo "=== Syncing Capacitor for iOS ==="
-          # Ensure cordova-plugin-purchase is added to Capacitor
-          npx cordova plugin add cordova-plugin-purchase@13.12.1 --nosave || echo "cordova-plugin-purchase already added or failed to add, continuing..."
           npx cap sync ios
 
           echo "=== Verifying cordova-plugin-purchase inclusion ==="
-          # Wait briefly for file system to settle
+          # Wait for file system to settle
           sleep 2
+          # Check if cordova_plugins.js exists in www directory
           if [ ! -f "ios/App/App/www/cordova_plugins.js" ]; then
-            echo "❌ cordova_plugins.js not found, attempting to regenerate..."
+            echo "❌ cordova_plugins.js not found in ios/App/App/www/, attempting to regenerate..."
+            # Clean and re-sync to ensure plugin inclusion
+            rm -rf ios/App/App/www
             npx cap sync ios
           fi
+          # Verify plugin inclusion
           if [ -f "ios/App/App/www/cordova_plugins.js" ] && grep -q "cordova-plugin-purchase" ios/App/App/www/cordova_plugins.js; then
             echo "✅ cordova-plugin-purchase included in cordova_plugins.js"
           else
             echo "❌ cordova-plugin-purchase not included in cordova_plugins.js"
-            echo "Contents of cordova_plugins.js:"
-            cat ios/App/App/www/cordova_plugins.js || echo "File not found"
+            echo "=== Debugging Info ==="
+            echo "Directory contents (ios/App/App/www/):"
+            ls -la ios/App/App/www/ || echo "Directory not found"
+            echo "capacitor.config.json contents:"
+            cat capacitor.config.json || echo "File not found"
+            if [ -f "ios/App/App/www/cordova_plugins.js" ]; then
+              echo "cordova_plugins.js contents:"
+              cat ios/App/App/www/cordova_plugins.js
+            else
+              echo "cordova_plugins.js not found"
+            fi
             exit 1
           fi
 
@@ -560,3 +572,4 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
+```

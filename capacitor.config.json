@@ -6,5 +6,10 @@
     "App": {
       "deepLinkingEnabled": true
     }
+  },
+  "cordova": {
+    "plugins": [
+      "cordova-plugin-purchase"
+    ]
   }
 }
