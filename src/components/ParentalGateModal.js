@@ -1,16 +1,22 @@
-import React, { useState } from "react";
+// ParentalGateModal.js
+import React, { useState, useCallback } from "react";
 import { Modal, Button } from "react-bootstrap";
 import { motion, AnimatePresence } from "framer-motion";
 
-// Animation Variants (optional, can be customized)
-const EmailSetupModal = ({ show, onClose }) => {
+const ParentalGateModal = ({ 
+  show, 
+  onClose, 
+  onSuccess, 
+  title = "For mom and dad",
+  instruction = "Please answer this question to continue:"
+}) => {
     const [selectedAnswer, setSelectedAnswer] = useState(null);
     const [errorMessage, setErrorMessage] = useState("");
     const [attempts, setAttempts] = useState(0);
     const [isLocked, setIsLocked] = useState(false);
     const [currentQuestion, setCurrentQuestion] = useState(getRandomQuestion());
 
-    // Apple-approved parental gate questions
+    // Expanded Apple-approved parental gate questions (16 questions)
     function getRandomQuestion() {
         const questions = [
             {
@@ -42,6 +48,56 @@ const EmailSetupModal = ({ show, onClose }) => {
                 question: "Which animal says 'meow'?",
                 options: ["Dog", "Cow", "Cat", "Duck"],
                 correct: 2
+            },
+            {
+                question: "What comes after the number 5?",
+                options: ["4", "6", "7", "8"],
+                correct: 1
+            },
+            {
+                question: "Which shape has three sides?",
+                options: ["Circle", "Square", "Triangle", "Rectangle"],
+                correct: 2
+            },
+            {
+                question: "What do you use to write on paper?",
+                options: ["Spoon", "Pencil", "Fork", "Cup"],
+                correct: 1
+            },
+            {
+                question: "Which one is a color?",
+                options: ["Apple", "Red", "Car", "Book"],
+                correct: 1
+            },
+            {
+                question: "How many fingers do you have on one hand?",
+                options: ["3", "4", "5", "6"],
+                correct: 2
+            },
+            {
+                question: "What do you drink when you're thirsty?",
+                options: ["Food", "Water", "Toys", "Clothes"],
+                correct: 1
+            },
+            {
+                question: "Which animal has a long trunk?",
+                options: ["Lion", "Elephant", "Giraffe", "Monkey"],
+                correct: 1
+            },
+            {
+                question: "What do you use to see in the dark?",
+                options: ["Radio", "Flashlight", "Book", "Chair"],
+                correct: 1
+            },
+            {
+                question: "Which month comes after April?",
+                options: ["March", "May", "June", "July"],
+                correct: 1
+            },
+            {
+                question: "What do you call a baby dog?",
+                options: ["Kitten", "Puppy", "Calf", "Cub"],
+                correct: 1
             }
         ];
         return questions[Math.floor(Math.random() * questions.length)];
@@ -72,8 +128,9 @@ const EmailSetupModal = ({ show, onClose }) => {
         }
 
         if (selectedAnswer === currentQuestion.correct) {
-            // Parental gate passed - open email
-            window.location.href = `mailto:support@papricut.com?subject=Support Request`;
+            // Parental gate passed
+            onSuccess();
+            onClose();
         } else {
             const newAttempts = attempts + 1;
             setAttempts(newAttempts);
@@ -87,7 +144,7 @@ const EmailSetupModal = ({ show, onClose }) => {
                     setAttempts(0);
                     setCurrentQuestion(getRandomQuestion());
                     setErrorMessage("");
-                }, 30000); // 30 second lockout
+                }, 30000);
             } else {
                 setCurrentQuestion(getRandomQuestion());
                 setErrorMessage("Incorrect answer. Please try again.");
@@ -121,11 +178,11 @@ const EmailSetupModal = ({ show, onClose }) => {
                         exit={{ opacity: 0, y: 50, transition: { duration: 0.3 } }}
                     >
                         <Modal.Header closeButton>
-                            <Modal.Title className="modal-title">For mom and dad</Modal.Title>
+                            <Modal.Title className="modal-title">{title}</Modal.Title>
                         </Modal.Header>
                         <Modal.Body className="modal-body">
                             <p className="instruction-text">
-                                Please answer this question to continue:
+                                {instruction}
                             </p>
                             
                             <p className="question-text">
@@ -267,4 +324,4 @@ const EmailSetupModal = ({ show, onClose }) => {
     );
 };
 
-export default EmailSetupModal;
+export default ParentalGateModal;
