@@ -144,52 +144,27 @@ workflows:
               echo "✅ Cleaned config.xml"
             fi
           fi
-      # PHASE 4.6: VERIFY IAP CAPABILITIES
-      - name: Verify IAP Capabilities
+
+      # PHASE 4.6: SIMPLE IAP CAPABILITY CHECK
+      - name: Simple IAP Capability Check
         script: |
           set -ex
-          echo "=== Verifying IAP Capabilities ==="
+          echo "=== Checking IAP Capabilities ==="
           cd ios/App/App
           
-          # Check if entitlements file exists and has IAP
+          echo "=== Checking for entitlements file ==="
           if [ -f "App.entitlements" ]; then
-            echo "=== Current Entitlements ==="
+            echo "✅ Entitlements file exists"
+            echo "=== Current entitlements ==="
             cat App.entitlements
-            
-            # Add IAP entitlement if missing
-            if ! grep -q "in-app-payments" App.entitlements; then
-              echo "⚠️ IAP entitlement missing, adding..."
-              # Backup current entitlements
-              cp App.entitlements App.entitlements.backup
-              
-              # Create new entitlements with IAP
-              cat > App.entitlements << EOF
-              <?xml version="1.0" encoding="UTF-8"?>
-              <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-              <plist version="1.0">
-              <dict>
-                  <key>com.apple.developer.in-app-payments</key>
-                  <array>
-                      <string>merchant.com.littlestories.app</string>
-                  </array>
-              </dict>
-              </plist>
-              EOF
-              echo "✅ Added IAP entitlement"
-            else
-              echo "✅ IAP entitlement found"
-            fi
           else
-            echo "❌ No entitlements file found - this may be the issue"
+            echo "⚠️ No entitlements file found"
+            echo "Capacitor should automatically add IAP capabilities during build"
           fi
           
-          # Check Xcode project for capabilities
-          echo "=== Checking Xcode Project ==="
-          if grep -q "InAppPurchase" "App.xcodeproj/project.pbxproj"; then
-            echo "✅ InAppPurchase capability found in Xcode project"
-          else
-            echo "⚠️ InAppPurchase capability not found in Xcode project"
-          fi
+          echo "=== IAP capability check completed ==="
+          echo "Note: IAP capabilities are typically added automatically by Capacitor"
+          echo "Manual entitlement modification is usually not required"
 
       # PHASE 5: IOS PROJECT CONFIGURATION - UPDATED
       - name: Configure iOS Project
