@@ -125,19 +125,44 @@
 }
 
 @media (max-width: 890px) {
-  /* .book-grid {
-    grid-template-columns: repeat(2, 1fr);
-    padding: 0px 20px 40px;
-  } */
+  .book-grid {
+    /* grid-template-columns: repeat(2, 1fr); */
+    padding: 0px 30px 40px;
+  }
   .book-container {
     position: relative;
-    width: 190px;
+    width: 170px;
     padding: 0px;
     height: auto; 
   }
   .book-title {
     font-size: 1.3rem;
   }
+
+  .home-nav-icon{
+  width: 100px;
+  height: auto;
+  cursor: pointer;
+}
+.green-icon {
+  width: 40px;
+  height: 40px;
+}
+
+.blue-icon {
+  width: 40px;
+  height: 40px;
+}
+
+.music-icon {
+  height: 40px;
+  width: 40px;
+}
+
+.profile-icon{
+  width: 40px;
+  height: 40px;
+}
 }
 .book-cover {
   width: 100%;

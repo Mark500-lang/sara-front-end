@@ -145,8 +145,8 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   const [pendingAction, setPendingAction] = useState(null);
 
   const PRODUCT_IDS = {
-    monthly: 'com.littlestories.app.monthly',
-    yearly: 'com.littlestories.app.yearly',
+    monthly: 'com.littlestories.app.premiummonthly',
+    yearly: 'com.littlestories.app.premiumyearly',
   };
 
   const FALLBACK_PRICES = {

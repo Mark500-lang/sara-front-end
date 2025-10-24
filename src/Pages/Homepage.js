@@ -317,27 +317,23 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
 
   // Calculate scale factor and target positions
   useEffect(() => {
-    if (bookInitialPosition) {
+    if (bookInitialPosition && viewPortCenter.x > 0) {
       const w = bookInitialPosition.width;
       const h = bookInitialPosition.height;
       const pageW = w - 10;
       const pageH = h - 10;
-      const topOffset = 5;
       const sX = window.innerWidth / (2 * pageW);
       const sY = window.innerHeight / pageH;
       const s = Math.max(sX, sY);
       setScaleFactor(s);
 
-      const isOverflowVert = s > sY;
-      const topTarget = isOverflowVert ? 0 : (window.innerHeight - pageH * s) / 2;
-      const targetYCalc = topTarget + (h / 2) * (s - 1) - topOffset * s;
-      setTargetY(targetYCalc);
+      // Position the wrapper's left edge (spine/origin) at horizontal center
+      setTargetX(viewPortCenter.x);
 
-      const leftTarget = 0;
-      const targetXCalc = leftTarget + pageW * s;
-      setTargetX(targetXCalc);
+      // Keep vertical positioning centered (top at centerY - h/2, scales around vertical center)
+      setTargetY(viewPortCenter.y - h / 2);
     }
-  }, [bookInitialPosition]);
+  }, [bookInitialPosition, viewPortCenter]);
 
   // Trigger animation stage when book is selected
   useEffect(() => {
