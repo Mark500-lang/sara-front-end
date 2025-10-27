@@ -764,7 +764,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
           <div className="w-100 text-center">
             <Button
               variant="warning"
-              className="mt-4 w-75 fw-bold py-2"
+              className="mt-4 w-50 fw-bold py-2"
               onClick={handleSubscribe}
               disabled={isButtonDisabled()}
               size="lg"

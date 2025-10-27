@@ -186,6 +186,15 @@
   background-color: #ff0000;
   color: white;
 }
+  .navigation-and-text {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    max-width: 850px;
+    pointer-events: auto; 
+  }
 
 .record-button.stop {
   background-color: #808080;
@@ -356,3 +365,39 @@
 }
 
 
+@media (max-width: 890px) {
+  .navigation-and-text {
+    max-width: 600px;
+  }
+  .page-text {
+    font-size: 16px;
+    padding: 15px;
+    max-width: 78%;
+  }
+  
+  .header-icons img.book-nav-icon {
+    width: 85px; 
+  }
+  .pause-play-icons {
+    width: 20px; 
+    height: 20px;
+    font-size: 12px;
+  }
+  
+  .recording-timer {
+    font-size: 14px;
+  }
+
+  .custom-popup {
+    width: 320px !important;
+    padding: 0px 0px 20px;
+  }
+  .custom-btn-yes img {
+      width: 35px;
+  }
+
+  .custom-btn-yes p {
+    font-size: 17px;
+  }
+
+}

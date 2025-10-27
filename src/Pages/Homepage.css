@@ -138,31 +138,33 @@
   .book-title {
     font-size: 1.3rem;
   }
-
+  .unlock-btn {
+    font-size: 19px;
+  }
   .home-nav-icon{
-  width: 100px;
-  height: auto;
-  cursor: pointer;
-}
-.green-icon {
-  width: 40px;
-  height: 40px;
-}
+    width: 85px;
+    height: auto;
+    cursor: pointer;
+  }
+  .green-icon {
+    width: 40px;
+    height: 40px;
+  }
 
-.blue-icon {
-  width: 40px;
-  height: 40px;
-}
+  .blue-icon {
+    width: 40px;
+    height: 40px;
+  }
 
-.music-icon {
-  height: 40px;
-  width: 40px;
-}
+  .music-icon {
+    height: 40px;
+    width: 40px;
+  }
 
-.profile-icon{
-  width: 40px;
-  height: 40px;
-}
+  .profile-icon{
+    width: 40px;
+    height: 40px;
+  }
 }
 .book-cover {
   width: 100%;

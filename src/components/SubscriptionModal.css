@@ -98,3 +98,17 @@
   color: #ffca2c !important;
   margin-bottom: 1rem;
 }
+@media (max-width: 890px) {
+  .benefits-list li {
+    font-size: 1rem;
+  }
+  .plan-option {
+    font-size: 0.9rem;
+  }
+  .form-control.custom-input {
+    font-size: 0.9rem;
+  }
+  .text-warning {
+    font-size: 0.9rem;
+  }
+}

@@ -931,9 +931,9 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
                 (currentPage.image ? `${imageBaseUrl}${currentPage.image}` : "")
               })`
             }}
-            initial={{ opacity: 1 }}
+            initial={{ opacity: 0.6 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 1.2, ease: "easeInOut" }}
+            transition={{ duration: 1.8, ease: "easeInOut" }}
           />
         )}
       </div>
