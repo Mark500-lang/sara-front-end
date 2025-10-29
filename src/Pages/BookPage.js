@@ -219,6 +219,32 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     return null;
   };
 
+  const preloadUserAudioForNarrator = async (narrator, start, end) => {
+    if (!narrator || narrator === "professional") return;
+    try {
+      for (let i = start; i <= end && i <= bookPages.length; i++) {
+        if (!myAudios[narrator]?.[i]) {
+          await fetchAudioForPage(i, narrator);
+        }
+      }
+      console.log(`Preloaded user audio for ${narrator} pages ${start}-${end}`);
+    } catch (err) {
+      console.error("Error preloading user audio for narrator:", err);
+    }
+  };
+
+  useEffect(() => {
+    const preloadAllCompleteNarrators = async () => {
+      if (!bookPages.length || completeNarrators.length === 0) return;
+      for (const narrator of completeNarrators) {
+        const start = 1;
+        const end = Math.min(6, bookPages.length);
+        await preloadUserAudioForNarrator(narrator, start, end);
+      }
+    };
+    preloadAllCompleteNarrators();
+  }, [completeNarrators, bookPages.length]);
+
   useEffect(() => {
     if (!bookPages.length) return;
 
@@ -291,7 +317,9 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
       }
     };
 
-    preloadRange(currentPageId, currentPageId + 4);
+    const preloadStart = Math.max(1, currentPageId - 1); // Preload previous for back nav
+    const preloadEnd = Math.min(bookPages.length, currentPageId + 5);
+    preloadRange(preloadStart, preloadEnd);
   }, [currentPageId, selectedNarration, bookPages, bookId]);
 
   useEffect(() => {
@@ -495,29 +523,39 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     const result = await VoiceRecorder.stopRecording();
     setIsRecording(false);
     if (result.value && result.value.recordDataBase64) {
-      const recordData = atob(result.value.recordDataBase64);
+      const base64Data = result.value.recordDataBase64;
+      const mimeType = result.value.mimeType || 'audio/mp4'; // Use plugin's MIME for accuracy
+
+      // For preview: Create data URL directly (iOS-friendly)
+      const dataUrl = `data:${mimeType};base64,${base64Data}`;
+      setAudioURL(dataUrl);
+
+      // For upload: Convert base64 to byteArray (as before)
+      const recordData = atob(base64Data);
       const byteArray = new Uint8Array(recordData.length);
       for (let i = 0; i < recordData.length; i++) {
         byteArray[i] = recordData.charCodeAt(i);
       }
-      const newBlob = new Blob([byteArray], { type: "audio/mp4" });
+      const newBlob = new Blob([byteArray], { type: mimeType }); // Use correct MIME
       setCurrentBlob(newBlob);
-      const url = URL.createObjectURL(newBlob);
-      setAudioURL(url);
-      console.log(`Stopped recording for page ${currentPageId}, blob size: ${newBlob.size}`);
+      console.log(`Stopped recording for page ${currentPageId}, blob size: ${newBlob.size}, MIME: ${mimeType}`);
       return newBlob;
     }
     return null;
   };
 
   const deleteAudio = () => {
-    if (audioURL) {
-      URL.revokeObjectURL(audioURL);
-      if (previewAudioRef.current) {
-        previewAudioRef.current.pause();
-        previewAudioRef.current = null;
-        setIsPreviewPlaying(false);
+    // No URL.revokeObjectURL() needed for data URLs
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      if (Capacitor.isNative && Capacitor.getPlatform() === 'ios') {
+        // Clean up DOM append if added
+        if (document.body.contains(previewAudioRef.current)) {
+          document.body.removeChild(previewAudioRef.current);
+        }
       }
+      previewAudioRef.current = null;
+      setIsPreviewPlaying(false);
     }
     setAudioURL("");
     setCurrentBlob(null);
@@ -530,8 +568,12 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     }
 
     const narr = narratorName;
-    const fileName = `${narr}_${page}.mp3`;
-    const audioFile = new File([blob], fileName, { type: "audio/mp3" });
+    // Use .m4a for iOS or dynamic extension based on MIME (e.g., .aac, .mp4)
+    const mimeType = blob.type || 'audio/mp4'; // From blob (set in stopRecording)
+    const extension = mimeType.includes('mp4') ? '.m4a' : '.aac'; // Adjust as needed
+    const fileName = `${narr}_${page}${extension}`;
+    const audioFile = new File([blob], fileName, { type: mimeType }); // Don't force mp3
+
     const formData = new FormData();
 
     formData.append("audio_path", audioFile);
@@ -628,33 +670,49 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
     }
 
     try {
-      const isNative = Capacitor.isNative;
-      if (isNative) {
-        // Hypothetical CapacitorAudio plugin for native playback
-        // await CapacitorAudio.play({ url: audioURL });
-        // For demonstration, using Audio API
-        previewAudioRef.current = new Audio(audioURL);
+      previewAudioRef.current = new Audio();
+      previewAudioRef.current.src = audioURL;
+      previewAudioRef.current.volume = narrationVolume || 1; // Reuse your narration volume if needed
+      previewAudioRef.current.preload = 'auto'; // Encourage full load for smoother play
+
+      // Add ended listener (optional: pause UI when done)
+      previewAudioRef.current.addEventListener('ended', () => {
+        setIsPreviewPlaying(false);
+      });
+
+      // Add error listener (improved logging)
+      previewAudioRef.current.addEventListener('error', (e) => {
+        console.error('Preview audio error:', e);
+        setIsPreviewPlaying(false);
+        alert('Failed to play preview audio. Check microphone permissions and try again.');
+      });
+
+      // Load and play on readiness (key for iOS data URLs)
+      previewAudioRef.current.addEventListener('canplaythrough', () => {
         previewAudioRef.current.play().then(() => {
           setIsPreviewPlaying(true);
-        }).catch(error => {
-          console.error("Preview audio playback failed:", error);
+        }).catch((error) => {
+          console.error('Preview audio playback failed:', error);
           setIsPreviewPlaying(false);
-          alert("Failed to play preview audio. Please try again.");
+          // More specific iOS hint
+          if (Capacitor.isNative && Capacitor.getPlatform() === 'ios') {
+            alert('Audio playback failed on iOS. Ensure the app has microphone access and try a shorter recording.');
+          } else {
+            alert('Failed to play preview audio. Please try again.');
+          }
         });
-      } else {
-        previewAudioRef.current = new Audio(audioURL);
-        previewAudioRef.current.play().then(() => {
-          setIsPreviewPlaying(true);
-        }).catch(error => {
-          console.error("Preview audio playback failed:", error);
-          setIsPreviewPlaying(false);
-          alert("Failed to play preview audio. Please try again.");
-        });
+      });
+
+      previewAudioRef.current.load(); // Explicit load for iOS/Safari
+
+      // Optional: Append to DOM for extra iOS compatibility (some reports suggest it helps)
+      if (Capacitor.isNative && Capacitor.getPlatform() === 'ios') {
+        document.body.appendChild(previewAudioRef.current);
       }
     } catch (error) {
-      console.error("Preview audio setup failed:", error);
+      console.error('Preview audio setup failed:', error);
       setIsPreviewPlaying(false);
-      alert("Failed to set up preview audio. Please try again.");
+      alert('Failed to set up preview audio. Please try again.');
     }
   };
 
@@ -814,12 +872,15 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
       }
       if (previewAudioRef.current) {
         previewAudioRef.current.pause();
+        if (Capacitor.isNative && Capacitor.getPlatform() === 'ios') {
+          if (document.body.contains(previewAudioRef.current)) {
+            document.body.removeChild(previewAudioRef.current);
+          }
+        }
         previewAudioRef.current = null;
         setIsPreviewPlaying(false);
       }
-      if (audioURL) {
-        URL.revokeObjectURL(audioURL);
-      }
+      // Remove the audioURL revoke since it's now a data URL
     };
   }, [bookId, audioURL]);
 

@@ -112,3 +112,170 @@
     font-size: 0.9rem;
   }
 }
+.subscription-modal-fullscreen {
+  margin: 0 !important;
+  max-width: 100% !important;
+  height: 100vh !important;
+}
+
+.modal-body-fullscreen {
+  min-height: 100vh !important;
+  padding-top: 80px;
+  padding-bottom: 40px;
+}
+
+.modal-header-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1055;
+  background: transparent;
+  min-height: 60px;
+}
+
+/* Conspicuous pricing styling */
+.plan-option .fs-4 {
+  font-size: 1.5rem !important;
+  font-weight: 800 !important;
+  line-height: 1.2;
+}
+
+.plan-option .fs-6 {
+  font-size: 0.9rem !important;
+  font-weight: 400;
+}
+
+/* Error message styling - subtle */
+.error-message {
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+/* Button improvements */
+.subscribe-button {
+  font-size: 1.1rem;
+  min-height: 54px;
+}
+
+.restore-button {
+  font-size: 0.9rem;
+}
+
+/* Ensure full coverage on all devices */
+@media (max-width: 576px) {
+  .subscription-modal-fullscreen .modal-body {
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+  
+  .plan-option .fs-4 {
+    font-size: 1.3rem !important;
+  }
+}
+
+/* Portrait mode fixes */
+@media (orientation: portrait) {
+  .subscription-modal-fullscreen {
+    height: 100vh !important;
+  }
+  
+  .modal-body-fullscreen {
+    padding-bottom: 20px;
+  }
+}
+
+/* Landscape mode fixes */
+@media (orientation: landscape) and (max-height: 600px) {
+  .modal-body-fullscreen {
+    padding-top: 60px;
+    padding-bottom: 20px;
+  }
+  
+  .benefits-list {
+    margin-bottom: 1rem !important;
+  }
+  
+  .benefits-list li {
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+  }
+}
+
+/* Keep your existing styles and add these */
+.modal-backdrop.custom-backdrop {
+  background: linear-gradient(to right, rgba(2, 25, 51, 0.3), rgba(2, 25, 51, 0.904), rgba(2, 25, 51, 0.3));
+  opacity: 1 !important;
+}
+
+.modal-dialog.bg-transparent .modal-content {
+  background: transparent;
+  border: none;
+}
+
+.modal-header .btn-close {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1060;
+  filter: invert(1);
+}
+
+.benefits-list {
+  font-size: 1.1rem;
+  font-weight: bold;
+  list-style-type: none;
+  padding-left: 0;
+  margin-bottom: 1rem;
+}
+
+.benefits-list li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  position: relative;
+  color: white;
+}
+
+.benefits-list .benefits-icon {
+  font-size: 20px;
+  color: rgba(255, 174, 0, 0.966);
+}
+
+.plan-option {
+  transition: background-color 0.3s ease;
+  border-radius: 50rem;
+  border: none !important;
+}
+
+.plan-option.selected {
+  background-color: #30345386;
+}
+
+.form-check-input.custom-radio {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  border: 2px solid white;
+  background-color: transparent;
+}
+
+.form-check-input.custom-radio:checked {
+  background-color: rgb(95, 95, 138);
+  border-color: rgb(94, 94, 156);
+}
+
+.text-warning {
+  color: #ffca2c !important;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 890px) {
+  .benefits-list li {
+    font-size: 1rem;
+  }
+  .plan-option {
+    font-size: 0.9rem;
+  }
+}

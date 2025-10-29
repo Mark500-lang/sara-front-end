@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import "./SubscriptionModal.css";
 import { BsMoonStarsFill } from "react-icons/bs";
-import { Modal, Button, Form, Spinner, Alert, Row, Col } from "react-bootstrap";
+import { Modal, Button, Form, Spinner, Row, Col } from "react-bootstrap";
 import ParentalGateModal from "./ParentalGateModal";
 
 // Initialize the purchase plugin
@@ -180,29 +180,31 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     };
   }, []);
 
-  // Enhanced error handler
+  // Enhanced error handler - REMOVED SERVER ERRORS FROM USER DISPLAY
   const handleIAPError = useCallback((error) => {
     console.error('IAP Error:', error);
+    
+    // User-friendly error messages only - no technical details
     const errorMessages = {
       cancelled: 'Purchase was cancelled',
       'user cancelled': 'Purchase was cancelled',
       network: 'Network error. Please check your connection and try again.',
       'already owned': 'You already own this subscription',
-      'not available': 'Subscription not currently available in your region',
+      'not available': 'Subscription not currently available',
       'parental controls': 'Purchases are disabled by parental controls',
       'not allowed': 'Purchases are not allowed on this device',
       'invalid product': 'Subscription plan not available',
       configuration: 'Store configuration error. Please try again later.',
       timeout: 'Request timed out. Please check your connection.',
-      receipt: 'Purchase verification failed. Please contact support.',
+      receipt: 'Unable to verify purchase. Please contact support.',
       unauthorized: 'Authentication required. Please sign in and try again.',
-      'storekit initialization': 'Failed to initialize StoreKit. Please try again.',
+      'storekit initialization': 'Failed to initialize payment system. Please try again.',
     };
 
     const errorMessage = error?.message?.toLowerCase() || '';
     const userMessage =
       Object.entries(errorMessages).find(([key]) => errorMessage.includes(key))?.[1] ||
-      'Purchase failed. Please try again or contact support.';
+      'Purchase failed. Please try again.';
 
     setError(userMessage);
     setPurchaseInProgress(false);
@@ -383,14 +385,14 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     } catch (err) {
       console.error('❌ IAP Initialization error:', err);
       
-      // More specific error messages
+      // More specific error messages - NO TECHNICAL DETAILS
       let errorMessage;
       if (err.message.includes('timeout')) {
-        errorMessage = 'Store initialization timed out. The payment system is taking longer than expected to initialize. Please try again in a moment.';
+        errorMessage = 'Payment system is taking longer than expected. Please try again.';
       } else if (err.message.includes('native')) {
         errorMessage = 'In-app purchases are only available in the app version from the App Store.';
       } else {
-        errorMessage = `Failed to initialize in-app purchases: ${err.message}`;
+        errorMessage = 'Unable to initialize payment system. Please try again later.';
       }
       
       setError(errorMessage);
@@ -428,7 +430,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
       if (availableProducts.length === 0 && initialized) {
         console.warn('⚠️ No valid products available');
-        setError('No subscription plans available. Please try again later or contact support.');
+        setError('No subscription plans available. Please try again later.');
         AnalyticsService.trackEvent('no_products_available');
       }
     } catch (err) {
@@ -447,7 +449,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       await product.finish();
       AnalyticsService.trackEvent('purchase_finished', { product_id: product.id });
 
-      // Verify with backend
+      // Verify with backend using the new server logic
       const verificationResult = await withRetry(
         () => verifyReceipt(product),
         'receipt_verification'
@@ -459,18 +461,19 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         onPaymentSuccess();
         onClose();
       } else {
-        const errorMsg = verificationResult.error || 'Purchase verification failed';
         console.error('❌ Purchase verification failed:', verificationResult);
         AnalyticsService.trackEvent('purchase_verification_failed', {
           product_id: product.id,
-          error: errorMsg,
+          error: verificationResult.error,
         });
-        setError(errorMsg);
+        // USER-FRIENDLY ERROR ONLY - no technical details
+        setError('Unable to verify purchase. Please contact support.');
       }
     } catch (err) {
       console.error('❌ Purchase completion error:', err);
       AnalyticsService.trackError(err, { stage: 'finish_purchase', product_id: product.id });
-      setError('Failed to complete purchase. Please contact support.');
+      // USER-FRIENDLY ERROR ONLY - no technical details
+      setError('Failed to complete purchase. Please try again or contact support.');
     } finally {
       setPurchaseInProgress(false);
       setLoading(false);
@@ -529,7 +532,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       return await response.json();
@@ -577,7 +580,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     } catch (err) {
       console.error('❌ Restore purchases error:', err);
       AnalyticsService.trackError(err, { stage: 'restore_purchases' });
-      setError('Failed to restore purchases. Please try again or contact support.');
+      setError('Failed to restore purchases. Please try again.');
     } finally {
       setRestoring(false);
     }
@@ -636,13 +639,33 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     }
   };
 
+  // FIXED: Conspicuous pricing display - BOLD AMOUNT FIRST, then period
   const getProductPrice = useCallback((productId) => {
     const product = products.find(p => p.id === productId);
     if (product && product.price) {
-      return product.price;
+      // Extract the amount and period for proper formatting
+      const price = product.price;
+      // Format: "AMOUNT PERIOD" with amount being most prominent
+      return price;
     }
     return FALLBACK_PRICES[productId.includes('monthly') ? 'monthly' : 'yearly'];
   }, [products]);
+
+  // NEW: Get just the amount part for bold display
+  const getPriceAmount = useCallback((productId) => {
+    const fullPrice = getProductPrice(productId);
+    // Extract just the amount part (before any space or slash)
+    const amountMatch = fullPrice.match(/^[^\s\/]+/);
+    return amountMatch ? amountMatch[0] : fullPrice;
+  }, [getProductPrice]);
+
+  // NEW: Get just the period part for smaller display
+  const getPricePeriod = useCallback((productId) => {
+    const fullPrice = getProductPrice(productId);
+    // Extract everything after the amount
+    const amount = getPriceAmount(productId);
+    return fullPrice.replace(amount, '').trim();
+  }, [getProductPrice, getPriceAmount]);
 
   const getProductTitle = useCallback((productId) => {
     const product = products.find(p => p.id === productId);
@@ -680,91 +703,115 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         show={show}
         onHide={onClose}
         fullscreen={true}
-        dialogClassName="bg-transparent border-0"
+        dialogClassName="subscription-modal-fullscreen bg-transparent border-0"
         backdropClassName="custom-backdrop"
         centered
+        scrollable={false}
       >
-        <Modal.Header closeButton className="border-0">
-          <Modal.Title className="text-white w-100 text-center">
-            Subscribe to Sara Stories
-          </Modal.Title>
+        <Modal.Header closeButton className="border-0 modal-header-fixed">
         </Modal.Header>
 
-        <Modal.Body className="d-flex flex-column justify-content-between align-items-center text-white">
-          <ul className="list-unstyled text-center mb-5 benefits-list">
-            <li><BsMoonStarsFill className="benefits-icon" /> Peaceful and restful sleep for your child</li>
-            <li><BsMoonStarsFill className="benefits-icon" /> More than 3000 illustrations</li>
-            <li><BsMoonStarsFill className="benefits-icon" /> Cancel anytime</li>
-          </ul>
+        <Modal.Body className="d-flex flex-column justify-content-between align-items-center text-white modal-body-fullscreen">
+            <h3 className="text-white w-100 text-center mt-3 mb-5">
+            Subscribe to Sara Stories</h3>
+            <ul className="list-unstyled text-center mb-3 benefits-list">
+              <li><BsMoonStarsFill className="benefits-icon" /> Peaceful and restful sleep for your child</li>
+              <li><BsMoonStarsFill className="benefits-icon" /> More than 3000 illustrations</li>
+              <li><BsMoonStarsFill className="benefits-icon" /> Cancel anytime</li>
+            </ul>
 
-          <div style={{ height: "24px" }}></div>
+          <div className="flex-grow-1 d-flex flex-column justify-content-center w-100">
+            <div style={{ height: "24px" }}></div>
 
-          <Row className="w-100 justify-content-center">
-            <Col md={6}>
-              <h5 className="mb-3 text-white text-center">Select Plan</h5>
+            <Row className="w-100 justify-content-center">
+              <Col xs={12} md={8} lg={6}>
+                <h5 className="mb-4 text-white text-center">Select Plan</h5>
 
-              <div
-                className={`plan-option mb-3 p-3 rounded d-flex align-items-center ${selectedPlan === "monthly" ? "selected" : ""}`}
-                onClick={() => handlePlanChange("monthly")}
-                style={{ cursor: "pointer" }}
-              >
-                <Form.Check
-                  type="radio"
-                  id="monthly"
-                  name="plan"
-                  checked={selectedPlan === "monthly"}
-                  onChange={() => handlePlanChange("monthly")}
-                  className="me-3 custom-radio"
-                />
-                <div className="d-flex flex-column flex-grow-1">
-                  <span className="text-white fw-bold">{getProductTitle(PRODUCT_IDS.monthly)}</span>
-                  <small className="text-white-50">{getProductPrice(PRODUCT_IDS.monthly)}</small>
+                {/* Monthly Plan - FIXED CONSPICUOUS PRICING */}
+                <div
+                  className={`plan-option mb-3 p-3 rounded d-flex align-items-center ${selectedPlan === "monthly" ? "selected" : ""}`}
+                  onClick={() => handlePlanChange("monthly")}
+                  style={{ cursor: "pointer" }}
+                >
+                  <Form.Check
+                    type="radio"
+                    id="monthly"
+                    name="plan"
+                    checked={selectedPlan === "monthly"}
+                    onChange={() => handlePlanChange("monthly")}
+                    className="me-3 custom-radio"
+                  />
+                  <div className="d-flex flex-column flex-grow-1">
+                    <span className="text-white fw-bold">{getProductTitle(PRODUCT_IDS.monthly)}</span>
+                    <div className="d-flex align-items-baseline">
+                      {/* BOLD AMOUNT FIRST - Most conspicuous */}
+                      <span className="text-white fw-bold fs-4 me-1">
+                        {getPriceAmount(PRODUCT_IDS.monthly)}
+                      </span>
+                      {/* Period in smaller font */}
+                      <span className="text-white-50 fs-6">
+                        {getPricePeriod(PRODUCT_IDS.monthly)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <div
-                className={`plan-option mb-3 p-3 rounded d-flex align-items-center ${selectedPlan === "yearly" ? "selected" : ""}`}
-                onClick={() => handlePlanChange("yearly")}
-                style={{ cursor: "pointer" }}
-              >
-                <Form.Check
-                  type="radio"
-                  id="yearly"
-                  name="plan"
-                  checked={selectedPlan === "yearly"}
-                  onChange={() => handlePlanChange("yearly")}
-                  className="me-3 custom-radio"
-                />
-                <div className="d-flex flex-column flex-grow-1">
-                  <span className="text-white fw-bold">{getProductTitle(PRODUCT_IDS.yearly)}</span>
-                  <small className="text-white-50">{getProductPrice(PRODUCT_IDS.yearly)}</small>
+                {/* Yearly Plan - FIXED CONSPICUOUS PRICING */}
+                <div
+                  className={`plan-option mb-3 p-3 rounded d-flex align-items-center ${selectedPlan === "yearly" ? "selected" : ""}`}
+                  onClick={() => handlePlanChange("yearly")}
+                  style={{ cursor: "pointer" }}
+                >
+                  <Form.Check
+                    type="radio"
+                    id="yearly"
+                    name="plan"
+                    checked={selectedPlan === "yearly"}
+                    onChange={() => handlePlanChange("yearly")}
+                    className="me-3 custom-radio"
+                  />
+                  <div className="d-flex flex-column flex-grow-1">
+                    <span className="text-white fw-bold">{getProductTitle(PRODUCT_IDS.yearly)}</span>
+                    <div className="d-flex align-items-baseline">
+                      {/* BOLD AMOUNT FIRST - Most conspicuous */}
+                      <span className="text-white fw-bold fs-4 me-1">
+                        {getPriceAmount(PRODUCT_IDS.yearly)}
+                      </span>
+                      {/* Period in smaller font */}
+                      <span className="text-white-50 fs-6">
+                        {getPricePeriod(PRODUCT_IDS.yearly)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              {!networkStatus && (
-                <Alert variant="warning" className="mt-3 text-center">
-                  <small>No internet connection. Please check your network.</small>
-                </Alert>
-              )}
+                {/* Network Status - Subtle indicator */}
+                {!networkStatus && (
+                  <div className="mt-3 text-center">
+                    <small className="text-warning">⚠️ No internet connection</small>
+                  </div>
+                )}
 
-              {error && (
-                <Alert variant="danger" className="mt-3 w-100 text-center">
-                  {error}
-                </Alert>
-              )}
+                {/* Error Display - USER FRIENDLY ONLY */}
+                {error && (
+                  <div className="mt-3 p-2 rounded text-center error-message">
+                    <small className="text-warning">{error}</small>
+                  </div>
+                )}
 
-              <div className="mt-4 p-3 rounded text-center" style={{ background: 'rgba(255,255,255,0.1)' }}>
-                <small className="text-white-50">
-                  Payment processed securely through Apple. Subscriptions auto-renew until canceled in Settings.
-                </small>
-              </div>
-            </Col>
-          </Row>
+                <div className="mt-4 p-3 rounded text-center" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                  <small className="text-white-50">
+                    Payment processed securely through Apple. Subscriptions auto-renew until canceled in Settings.
+                  </small>
+                </div>
+              </Col>
+            </Row>
+          </div>
 
-          <div className="w-100 text-center">
+          <div className="w-100 text-center pb-4">
             <Button
               variant="warning"
-              className="mt-4 w-50 fw-bold py-2"
+              className="mt-4 w-75 fw-bold py-3 subscribe-button"
               onClick={handleSubscribe}
               disabled={isButtonDisabled()}
               size="lg"
@@ -781,6 +828,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
                 size="sm"
                 onClick={restorePurchases}
                 disabled={restoring || !initialized || !networkStatus}
+                className="restore-button"
               >
                 {restoring ? <Spinner animation="border" size="sm" className="me-2" /> : null}
                 Restore Purchases

@@ -633,7 +633,7 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
                   />
                 ) : (
                   <div className="book-cover-loading">
-                    <ClipLoader color="#00ffcc" size={30} />
+                    <ClipLoader color="white" size={30} />
                   </div>
                 )}
                 <div className="book-title-overlay">

@@ -1,0 +1,16 @@
+Subject: Urgent: Subscription Approval Needed for App Review
+
+Hello App Review Team,
+
+Our app Sara Stories was rejected because the in-app purchases are failing during review. This is because our subscriptions are still waiting for approval.
+
+Could you please prioritize reviewing our subscription group so that your team can properly test the purchase flow?
+
+Subscription Group: Sara Stories Premium
+Subscription IDs: 
+- com.littlestories.app.premiumyearly
+- com.littlestories.app.premiummonthly
+
+Once the subscriptions are approved, we're confident the purchase flow will work correctly during review.
+
+Thank you for your assistance.

@@ -220,7 +220,7 @@ const ChildProfileScreen = () => {
   if (isChecking) {
     return (
       <div className="d-flex justify-content-center align-items-center vh-100">
-        <div className="spinner-border text-primary" role="status">
+        <div className="spinner-border text-white" role="status">
           <span className="visually-hidden">Checking for updates...</span>
         </div>
       </div>
