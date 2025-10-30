@@ -806,7 +806,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         </Modal.Header>
 
         <Modal.Body className="d-flex flex-column justify-content-between align-items-center text-white modal-body-fullscreen">
-          <div className="flex-grow-1 d-flex flex-column justify-content-center w-100">
+          
             <h3 className="text-white w-100 text-center mt-3 mb-4">
               Subscribe to Sara Stories
             </h3>
@@ -816,7 +816,8 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
               <li><BsMoonStarsFill className="benefits-icon" /> More than 3000 illustrations</li>
               <li><BsMoonStarsFill className="benefits-icon" /> Cancel anytime</li>
             </ul>
-
+            
+          <div className="flex-grow-1 d-flex flex-column justify-content-center w-100">
             <Row className="w-100 justify-content-center">
               <Col xs={12} md={8} lg={6}>
                 <h5 className="mb-4 text-white text-center">Select Plan</h5>
