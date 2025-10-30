@@ -384,7 +384,7 @@ workflows:
           
           # Verify the file is valid
           plutil -lint "$PLIST_PATH" && echo "✅ Plist is valid" || echo "❌ Plist is invalid"
-          
+
         # PHASE 8.6: ADD SUBSCRIPTION DISCLOSURE TO INFO.PLIST
       - name: Add Subscription Disclosure to Info.plist
         script: |
@@ -420,6 +420,30 @@ workflows:
           /usr/libexec/PlistBuddy -c "Print :TermsOfUseURL" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Print :SubscriptionMonthlyTitle" "$PLIST_PATH" 2>/dev/null || echo "Monthly title not set"
           /usr/libexec/PlistBuddy -c "Print :SubscriptionYearlyTitle" "$PLIST_PATH" 2>/dev/null || echo "Yearly title not set"
+
+      # PHASE 8.6: ADD SUBSCRIPTION DISCLOSURE TO INFO.PLIST
+      - name: Add Subscription Disclosure to Info.plist
+        script: |
+          set -ex
+          cd ios/App/App
+          
+          echo "=== Adding Required Subscription Disclosure to Info.plist ==="
+          PLIST_PATH="Info.plist"
+          
+          # Add Privacy Policy URL (required in binary)
+          /usr/libexec/PlistBuddy -c "Add :PrivacyPolicyURL string https://www.privacypolicies.com/live/396845b8-e470-4bed-8cbb-5432ab867986" "$PLIST_PATH" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :PrivacyPolicyURL https://www.privacypolicies.com/live/396845b8-e470-4bed-8cbb-5432ab867986" "$PLIST_PATH"
+          
+          # Add Terms of Use URL (required in binary)
+          /usr/libexec/PlistBuddy -c "Add :TermsOfUseURL string https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" "$PLIST_PATH" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :TermsOfUseURL https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" "$PLIST_PATH"
+          
+          echo "✅ Subscription disclosure added to Info.plist"
+          
+          # Verify
+          echo "=== Verifying Subscription Disclosure ==="
+          /usr/libexec/PlistBuddy -c "Print :PrivacyPolicyURL" "$PLIST_PATH"
+          /usr/libexec/PlistBuddy -c "Print :TermsOfUseURL" "$PLIST_PATH"
 
       # PHASE 9: ADD PRIVACY DESCRIPTIONS (UPDATED WITH STORAGE)
       - name: Add Privacy Descriptions

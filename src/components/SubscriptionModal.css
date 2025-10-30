@@ -155,7 +155,7 @@
 /* Button improvements */
 .subscribe-button {
   font-size: 1.1rem;
-  min-height: 54px;
+  min-height: 30px;
 }
 
 .restore-button {

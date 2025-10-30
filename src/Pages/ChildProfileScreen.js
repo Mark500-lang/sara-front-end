@@ -43,7 +43,7 @@ const ChildProfileScreen = () => {
       const platformStr = deviceInfo.platform === 'ios' ? 'ios' : 
                          deviceInfo.platform === 'android' ? 'android' : 
                          'web'; // Fallback to 'web'
-      let version = '1.0.6'; // Default; in full hook, use App.getInfo().version
+      let version = '1.0.6';
       try {
         const appInfo = await window.Capacitor.Plugins.App.getInfo?.();
         version = appInfo?.version || version;

@@ -11,6 +11,7 @@ let InAppPurchase = null;
 const MAX_RETRIES = 3;
 const INIT_TIMEOUT = 10000; // 10 seconds
 const NETWORK_TIMEOUT = 15000; // 15 seconds
+const PURCHASE_TIMEOUT = 45000; // NEW: 45 second purchase timeout (Apple's max)
 
 // FIXED: Enhanced Cordova purchase plugin initialization
 const waitForCordova = () => {
@@ -119,7 +120,6 @@ const AnalyticsService = {
       timestamp: new Date().toISOString(),
       ...data,
     });
-    // Add production analytics (e.g., Firebase, Mixpanel) here
   },
   trackError: (error, context = {}) => {
     console.error(`[ANALYTICS ERROR] ${error.message}:`, {
@@ -128,12 +128,11 @@ const AnalyticsService = {
       stack: error.stack,
       ...context,
     });
-    // Add production error tracking (e.g., Sentry) here
   },
 };
 
 const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
-  const [selectedPlan, setSelectedPlan] = useState("yearly");
+  const [selectedPlan, setSelectedPlan] = useState("yearly"); // Default to yearly
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [products, setProducts] = useState([]);
@@ -143,6 +142,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   const [networkStatus, setNetworkStatus] = useState(true);
   const [showParentalGate, setShowParentalGate] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
+  const [purchaseTimeoutId, setPurchaseTimeoutId] = useState(null); // NEW: Track purchase timeout
 
   const PRODUCT_IDS = {
     monthly: 'com.littlestories.app.premiummonthly',
@@ -180,11 +180,10 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     };
   }, []);
 
-  // Enhanced error handler - REMOVED SERVER ERRORS FROM USER DISPLAY
+  // Enhanced error handler
   const handleIAPError = useCallback((error) => {
     console.error('IAP Error:', error);
     
-    // User-friendly error messages only - no technical details
     const errorMessages = {
       cancelled: 'Purchase was cancelled',
       'user cancelled': 'Purchase was cancelled',
@@ -207,8 +206,16 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       'Purchase failed. Please try again.';
 
     setError(userMessage);
+    
+    // CRITICAL FIX: Always reset loading states in error handler
     setPurchaseInProgress(false);
     setLoading(false);
+    
+    // Clear any pending timeout
+    if (purchaseTimeoutId) {
+      clearTimeout(purchaseTimeoutId);
+      setPurchaseTimeoutId(null);
+    }
 
     AnalyticsService.trackError(error, {
       error_type: 'iap_error',
@@ -216,7 +223,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       user_message: userMessage,
       component: 'SubscriptionModal',
     });
-  }, []);
+  }, [purchaseTimeoutId]);
 
   // Debug environment
   const debugEnvironment = useCallback(() => {
@@ -252,6 +259,16 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     setPendingAction(() => () => {
       window.open('https://www.privacypolicies.com/live/396845b8-e470-4bed-8cbb-5432ab867986', '_blank');
       AnalyticsService.trackEvent('privacy_policy_opened');
+    });
+    setShowParentalGate(true);
+  }, []);
+
+  const handleTermsOfUseClick = useCallback((e) => {
+    e.preventDefault();
+    AnalyticsService.trackEvent('terms_of_use_clicked');
+    setPendingAction(() => () => {
+      window.open('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/', '_blank');
+      AnalyticsService.trackEvent('terms_of_use_opened');
     });
     setShowParentalGate(true);
   }, []);
@@ -300,7 +317,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     return isOnline;
   }, []);
 
-  // FIXED: Enhanced IAP initialization
+  // FIXED: Enhanced IAP initialization with infinite loading prevention
   const initializeIAP = async () => {
     AnalyticsService.trackEvent('iap_initialization_started');
 
@@ -328,7 +345,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       console.log('✅ Cordova Purchase plugin initialized successfully');
 
       // Set verbosity for production
-      InAppPurchase.verbosity = InAppPurchase.DEBUG; // Use DEBUG for more logs during testing
+      InAppPurchase.verbosity = InAppPurchase.DEBUG;
 
       // Set up event handlers FIRST
       InAppPurchase.when('product').updated((product) => {
@@ -385,7 +402,6 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     } catch (err) {
       console.error('❌ IAP Initialization error:', err);
       
-      // More specific error messages - NO TECHNICAL DETAILS
       let errorMessage;
       if (err.message.includes('timeout')) {
         errorMessage = 'Payment system is taking longer than expected. Please try again.';
@@ -397,7 +413,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       
       setError(errorMessage);
       AnalyticsService.trackError(err, { stage: 'initialization' });
-      setInitialized(true); // Mark as initialized even if failed to prevent infinite loading
+      setInitialized(true); // CRITICAL: Prevent infinite loading
     } finally {
       setLoading(false);
     }
@@ -440,7 +456,16 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     }
   }, [initialized]);
 
+  // FIXED: Enhanced finishPurchase with guaranteed state cleanup
   const finishPurchase = async (product) => {
+    // Clear purchase timeout immediately when purchase completes
+    if (purchaseTimeoutId) {
+      clearTimeout(purchaseTimeoutId);
+      setPurchaseTimeoutId(null);
+    }
+
+    let verificationAttempted = false;
+    
     try {
       console.log('🏁 Finishing purchase:', product);
       AnalyticsService.trackEvent('purchase_finishing', { product_id: product.id });
@@ -448,6 +473,8 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       // Finish the purchase to avoid billing issues
       await product.finish();
       AnalyticsService.trackEvent('purchase_finished', { product_id: product.id });
+
+      verificationAttempted = true;
 
       // Verify with backend using the new server logic
       const verificationResult = await withRetry(
@@ -466,15 +493,24 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
           product_id: product.id,
           error: verificationResult.error,
         });
-        // USER-FRIENDLY ERROR ONLY - no technical details
         setError('Unable to verify purchase. Please contact support.');
       }
     } catch (err) {
       console.error('❌ Purchase completion error:', err);
-      AnalyticsService.trackError(err, { stage: 'finish_purchase', product_id: product.id });
-      // USER-FRIENDLY ERROR ONLY - no technical details
-      setError('Failed to complete purchase. Please try again or contact support.');
+      AnalyticsService.trackError(err, { 
+        stage: 'finish_purchase', 
+        product_id: product.id,
+        verification_attempted: verificationAttempted
+      });
+      
+      // FIXED: Better error messages based on what failed
+      const errorMsg = verificationAttempted 
+        ? 'Failed to complete purchase. Please try again or contact support.'
+        : 'Failed to process purchase. Please try again.';
+      
+      setError(errorMsg);
     } finally {
+      // CRITICAL FIX: ALWAYS reset loading states, no matter what
       setPurchaseInProgress(false);
       setLoading(false);
     }
@@ -550,6 +586,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     AnalyticsService.trackEvent('plan_selected', { plan });
   }, []);
 
+  // FIXED: Enhanced restorePurchases with timeout protection
   const restorePurchases = async () => {
     if (!InAppPurchase) {
       setError('In-app purchases not available on this device');
@@ -570,6 +607,13 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     setError(null);
     AnalyticsService.trackEvent('restore_purchases_started');
 
+    // NEW: Restore timeout protection
+    const restoreTimeout = setTimeout(() => {
+      console.error('❌ Restore purchases timeout');
+      setError('Restore process timed out. Please try again.');
+      setRestoring(false);
+    }, 15000);
+
     try {
       console.log('🔄 Starting restore purchases...');
       await InAppPurchase.restore();
@@ -582,10 +626,13 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       AnalyticsService.trackError(err, { stage: 'restore_purchases' });
       setError('Failed to restore purchases. Please try again.');
     } finally {
+      // CRITICAL FIX: Always clear timeout and reset state
+      clearTimeout(restoreTimeout);
       setRestoring(false);
     }
   };
 
+  // FIXED: Enhanced handleSubscribe with timeout protection and guaranteed state cleanup
   const handleSubscribe = async () => {
     if (!InAppPurchase) {
       setError('In-app purchases not available on this device');
@@ -607,6 +654,11 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       return;
     }
 
+    if (!selectedPlan) {
+      setError('Please select a subscription plan');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setPurchaseInProgress(true);
@@ -615,6 +667,17 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       plan: selectedPlan,
       product_id: selectedPlan === 'monthly' ? PRODUCT_IDS.monthly : PRODUCT_IDS.yearly,
     });
+
+    // NEW: Purchase timeout protection (45 seconds - Apple's maximum)
+    const timeoutId = setTimeout(() => {
+      console.error('❌ Purchase timeout - resetting button state');
+      setError('Purchase timed out. Please try again.');
+      setPurchaseInProgress(false);
+      setLoading(false);
+      setPurchaseTimeoutId(null);
+    }, PURCHASE_TIMEOUT);
+
+    setPurchaseTimeoutId(timeoutId);
 
     try {
       const productId = selectedPlan === 'monthly' ? PRODUCT_IDS.monthly : PRODUCT_IDS.yearly;
@@ -630,39 +693,54 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
       console.log('🛒 Initiating purchase for:', productId);
       await InAppPurchase.order(productId);
+      
+      // Purchase initiated successfully - wait for approval callback
+      // The loading state will be cleared in finishPurchase()
+      
     } catch (err) {
       console.error('❌ Purchase initiation error:', err);
       AnalyticsService.trackError(err, { stage: 'purchase_initiation', plan: selectedPlan });
-      setError(err.message || 'Failed to start purchase. Please try again.');
+      
+      // FIXED: Better error messages for common cases
+      let userMessage = 'Failed to start purchase. Please try again.';
+      
+      if (err.message.includes('cancelled') || err.message.includes('user cancelled')) {
+        userMessage = 'Purchase was cancelled';
+      } else if (err.message.includes('network') || err.message.includes('timeout')) {
+        userMessage = 'Network error. Please check your connection and try again.';
+      } else if (err.message.includes('already') || err.message.includes('owned')) {
+        userMessage = 'You already own this subscription';
+      }
+      
+      setError(userMessage);
+      
+      // CRITICAL FIX: Always reset loading states on initiation error
       setPurchaseInProgress(false);
       setLoading(false);
+      
+      // Clear timeout
+      clearTimeout(timeoutId);
+      setPurchaseTimeoutId(null);
     }
   };
 
-  // FIXED: Conspicuous pricing display - BOLD AMOUNT FIRST, then period
+  // Pricing display functions
   const getProductPrice = useCallback((productId) => {
     const product = products.find(p => p.id === productId);
     if (product && product.price) {
-      // Extract the amount and period for proper formatting
-      const price = product.price;
-      // Format: "AMOUNT PERIOD" with amount being most prominent
-      return price;
+      return product.price;
     }
     return FALLBACK_PRICES[productId.includes('monthly') ? 'monthly' : 'yearly'];
   }, [products]);
 
-  // NEW: Get just the amount part for bold display
   const getPriceAmount = useCallback((productId) => {
     const fullPrice = getProductPrice(productId);
-    // Extract just the amount part (before any space or slash)
     const amountMatch = fullPrice.match(/^[^\s\/]+/);
     return amountMatch ? amountMatch[0] : fullPrice;
   }, [getProductPrice]);
 
-  // NEW: Get just the period part for smaller display
   const getPricePeriod = useCallback((productId) => {
     const fullPrice = getProductPrice(productId);
-    // Extract everything after the amount
     const amount = getPriceAmount(productId);
     return fullPrice.replace(amount, '').trim();
   }, [getProductPrice, getPriceAmount]);
@@ -684,18 +762,34 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   }, [loading, purchaseInProgress, products.length, restoring]);
 
   const isButtonDisabled = useCallback(() => {
-    return loading || purchaseInProgress || !initialized || products.length === 0 || restoring || !networkStatus;
-  }, [loading, purchaseInProgress, initialized, products.length, restoring, networkStatus]);
+    return loading || purchaseInProgress || !initialized || products.length === 0 || restoring || !networkStatus || !selectedPlan;
+  }, [loading, purchaseInProgress, initialized, products.length, restoring, networkStatus, selectedPlan]);
 
-  // Reset state when modal closes
+  // FIXED: Enhanced reset when modal closes - clear all timeouts
   useEffect(() => {
     if (!show) {
+      // Reset ALL states to prevent stuck loading
       setError(null);
       setLoading(false);
       setPurchaseInProgress(false);
       setRestoring(false);
+      
+      // Clear any pending timeouts
+      if (purchaseTimeoutId) {
+        clearTimeout(purchaseTimeoutId);
+        setPurchaseTimeoutId(null);
+      }
     }
-  }, [show]);
+  }, [show, purchaseTimeoutId]);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (purchaseTimeoutId) {
+        clearTimeout(purchaseTimeoutId);
+      }
+    };
+  }, [purchaseTimeoutId]);
 
   return (
     <>
@@ -712,22 +806,22 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         </Modal.Header>
 
         <Modal.Body className="d-flex flex-column justify-content-between align-items-center text-white modal-body-fullscreen">
-            <h3 className="text-white w-100 text-center mt-3 mb-5">
-            Subscribe to Sara Stories</h3>
-            <ul className="list-unstyled text-center mb-3 benefits-list">
+          <div className="flex-grow-1 d-flex flex-column justify-content-center w-100">
+            <h3 className="text-white w-100 text-center mt-3 mb-4">
+              Subscribe to Sara Stories
+            </h3>
+            
+            <ul className="list-unstyled text-center mb-4 benefits-list">
               <li><BsMoonStarsFill className="benefits-icon" /> Peaceful and restful sleep for your child</li>
               <li><BsMoonStarsFill className="benefits-icon" /> More than 3000 illustrations</li>
               <li><BsMoonStarsFill className="benefits-icon" /> Cancel anytime</li>
             </ul>
 
-          <div className="flex-grow-1 d-flex flex-column justify-content-center w-100">
-            <div style={{ height: "24px" }}></div>
-
             <Row className="w-100 justify-content-center">
               <Col xs={12} md={8} lg={6}>
                 <h5 className="mb-4 text-white text-center">Select Plan</h5>
 
-                {/* Monthly Plan - FIXED CONSPICUOUS PRICING */}
+                {/* Monthly Plan */}
                 <div
                   className={`plan-option mb-3 p-3 rounded d-flex align-items-center ${selectedPlan === "monthly" ? "selected" : ""}`}
                   onClick={() => handlePlanChange("monthly")}
@@ -744,11 +838,9 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
                   <div className="d-flex flex-column flex-grow-1">
                     <span className="text-white fw-bold">{getProductTitle(PRODUCT_IDS.monthly)}</span>
                     <div className="d-flex align-items-baseline">
-                      {/* BOLD AMOUNT FIRST - Most conspicuous */}
                       <span className="text-white fw-bold fs-4 me-1">
                         {getPriceAmount(PRODUCT_IDS.monthly)}
                       </span>
-                      {/* Period in smaller font */}
                       <span className="text-white-50 fs-6">
                         {getPricePeriod(PRODUCT_IDS.monthly)}
                       </span>
@@ -756,7 +848,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
                   </div>
                 </div>
 
-                {/* Yearly Plan - FIXED CONSPICUOUS PRICING */}
+                {/* Yearly Plan */}
                 <div
                   className={`plan-option mb-3 p-3 rounded d-flex align-items-center ${selectedPlan === "yearly" ? "selected" : ""}`}
                   onClick={() => handlePlanChange("yearly")}
@@ -773,11 +865,9 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
                   <div className="d-flex flex-column flex-grow-1">
                     <span className="text-white fw-bold">{getProductTitle(PRODUCT_IDS.yearly)}</span>
                     <div className="d-flex align-items-baseline">
-                      {/* BOLD AMOUNT FIRST - Most conspicuous */}
                       <span className="text-white fw-bold fs-4 me-1">
                         {getPriceAmount(PRODUCT_IDS.yearly)}
                       </span>
-                      {/* Period in smaller font */}
                       <span className="text-white-50 fs-6">
                         {getPricePeriod(PRODUCT_IDS.yearly)}
                       </span>
@@ -785,14 +875,14 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
                   </div>
                 </div>
 
-                {/* Network Status - Subtle indicator */}
+                {/* Network Status */}
                 {!networkStatus && (
                   <div className="mt-3 text-center">
                     <small className="text-warning">⚠️ No internet connection</small>
                   </div>
                 )}
 
-                {/* Error Display - USER FRIENDLY ONLY */}
+                {/* Error Display */}
                 {error && (
                   <div className="mt-3 p-2 rounded text-center error-message">
                     <small className="text-warning">{error}</small>
@@ -835,7 +925,8 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
               </Button>
             </div>
 
-            <div className="mt-4">
+            {/* Links side by side in a row with parental gates */}
+            <div className="mt-4 d-flex justify-content-center gap-4">
               <a
                 href="#"
                 className="text-decoration-underline text-warning"
@@ -843,9 +934,16 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
               >
                 Privacy Policy
               </a>
+              <a
+                href="#"
+                className="text-decoration-underline text-warning"
+                onClick={handleTermsOfUseClick}
+              >
+                Terms of Use
+              </a>
             </div>
 
-            <div className="mt-2 text-center">
+            <div className="mt-3 text-center">
               <small className="text-white-50">
                 Manage subscriptions in Settings
               </small>
@@ -859,7 +957,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         onClose={handleParentalGateClose}
         onSuccess={handleParentalGateSuccess}
         title="For Mom and Dad"
-        instruction="Please answer this question to view our Privacy Policy:"
+        instruction="Please answer this question to continue:"
       />
     </>
   );
