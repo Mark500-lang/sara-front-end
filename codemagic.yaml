@@ -43,7 +43,7 @@ workflows:
           rm -rf ios/Pods ios/Podfile.lock
           npm cache clean --force
 
-      # PHASE 2: DEPENDENCY INSTALLATION - FIXED
+      # PHASE 2: DEPENDENCY INSTALLATION
       - name: Install Dependencies
         script: |
           set -ex
@@ -87,7 +87,7 @@ workflows:
           
           echo "✅ React build completed successfully"
 
-      # PHASE 4: CAPACITOR SYNC - FIXED ORIENTATION CONFIGURATION
+      # PHASE 4: CAPACITOR SYNC
       - name: Sync Capacitor and Configure Orientations
         script: |
           set -ex
@@ -103,7 +103,7 @@ workflows:
           /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~ipad" "$PLIST_PATH" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~iphone" "$PLIST_PATH" 2>/dev/null || true
           
-          # Configure for iPhone (Landscape only - your preference)
+          # Configure for iPhone (Landscape only)
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationLandscapeLeft" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:1 string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
@@ -115,66 +115,14 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:2 string UIInterfaceOrientationLandscapeLeft" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:3 string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
           
-          # Set initial interface orientation to landscape (will still work on iPad)
-          /usr/libexec/PlistBuddy -c "Delete :UIInterfaceOrientation" "$PLIST_PATH" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :UIInterfaceOrientation string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
-          
-          echo "✅ Orientation configuration fixed - iPhone: Landscape only, iPad: All orientations"
+          echo "✅ Orientation configuration fixed"
 
-      # PHASE 4.5: SIMPLIFIED IAP PLUGIN VERIFICATION
-      - name: Verify IAP Plugin Integration
-        script: |
-          set -ex
-          echo "=== Verifying IAP Plugin Integration ==="
-          
-          echo "=== Syncing Capacitor ==="
-          npx cap sync ios
-          
-          echo "=== Plugin Status ==="
-          echo "✅ cordova-plugin-purchase detected during sync (see above)"
-          echo "✅ Plugin should be automatically included by Capacitor"
-          echo "✅ No manual config.xml modifications needed"
-          
-          # Clean up any manual additions from previous builds
-          if [ -f "ios/App/App/config.xml" ]; then
-            if grep -q "cordova-plugin-purchase" "ios/App/App/config.xml"; then
-              echo "⚠️ Removing manual plugin addition from config.xml"
-              cp "ios/App/App/config.xml" "ios/App/App/config.xml.backup"
-              sed -i '' '/cordova-plugin-purchase/d' "ios/App/App/config.xml"
-              echo "✅ Cleaned config.xml"
-            fi
-          fi
-
-      # PHASE 4.6: SIMPLE IAP CAPABILITY CHECK
-      - name: Simple IAP Capability Check
-        script: |
-          set -ex
-          echo "=== Checking IAP Capabilities ==="
-          cd ios/App/App
-          
-          echo "=== Checking for entitlements file ==="
-          if [ -f "App.entitlements" ]; then
-            echo "✅ Entitlements file exists"
-            echo "=== Current entitlements ==="
-            cat App.entitlements
-          else
-            echo "⚠️ No entitlements file found"
-            echo "Capacitor should automatically add IAP capabilities during build"
-          fi
-          
-          echo "=== IAP capability check completed ==="
-          echo "Note: IAP capabilities are typically added automatically by Capacitor"
-          echo "Manual entitlement modification is usually not required"
-
-      # PHASE 5: IOS PROJECT CONFIGURATION - UPDATED
+      # PHASE 5: IOS PROJECT CONFIGURATION
       - name: Configure iOS Project
         script: |
           set -ex
           echo "=== Setting up iOS Platform ==="
           cd ios/App
-          
-          echo "=== Using auto-generated Podfile from Capacitor ==="
-          echo "=== Capacitor should automatically include cordova-plugin-purchase ==="
           
           echo "=== Installing CocoaPods ==="
           pod install --repo-update --clean-install
@@ -185,14 +133,6 @@ workflows:
           else
             echo "❌ CocoaPods installation failed!"
             exit 1
-          fi
-          
-          echo "=== Checking for cordova-plugin-purchase in Podfile.lock ==="
-          if grep -q "cordova-plugin-purchase" Pods/Podfile.lock; then
-            echo "✅ cordova-plugin-purchase found in Podfile.lock"
-          else
-            echo "⚠️ cordova-plugin-purchase not found in Podfile.lock"
-            echo "This might be normal if Capacitor handles it differently"
           fi
 
       # PHASE 6: CREATE XCODE SCHEME
@@ -298,7 +238,7 @@ workflows:
           echo "PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
           echo "✅ Signing configuration complete"
 
-      # PHASE 8: BUILD CONFIGURATION (DEFINITIVE FIX)
+      # PHASE 8: BUILD CONFIGURATION
       - name: Configure Build Settings
         script: |
           set -ex
@@ -364,88 +304,95 @@ workflows:
           
           echo "✅ Build settings configured definitively"
 
-      # PHASE 8.5: VERIFY PLIST CONTENTS
-      - name: Verify Plist Contents
+      # PHASE 9: COMPLETE SUBSCRIPTION DISCLOSURE (FIXED - NO DUPLICATES)
+      - name: Add Complete Subscription Disclosure
         script: |
           set -ex
           cd ios/App/App
           
-          echo "=== Final Plist Verification ==="
+          echo "=== Adding COMPLETE Subscription Disclosure to Info.plist ==="
           PLIST_PATH="Info.plist"
           
-          echo "=== Complete Plist Dump ==="
-          /usr/libexec/PlistBuddy -c "Print" "$PLIST_PATH"
-          
-          echo "=== Critical Keys ==="
-          echo "CFBundleShortVersionString: $(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST_PATH")"
-          echo "CFBundleVersion: $(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH")"
-          echo "CFBundleIdentifier: $(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST_PATH")"
-          echo "CFBundleName: $(/usr/libexec/PlistBuddy -c "Print :CFBundleName" "$PLIST_PATH")"
-          
-          # Verify the file is valid
-          plutil -lint "$PLIST_PATH" && echo "✅ Plist is valid" || echo "❌ Plist is invalid"
-
-        # PHASE 8.6: ADD SUBSCRIPTION DISCLOSURE TO INFO.PLIST
-      - name: Add Subscription Disclosure to Info.plist
-        script: |
-          set -ex
-          cd ios/App/App
-          
-          echo "=== Adding Required Subscription Disclosure to Info.plist ==="
-          PLIST_PATH="Info.plist"
-          
-          # Add subscription disclosure information
-          echo "=== Adding Subscription Metadata ==="
-          
-          # Add Privacy Policy URL (required)
+          # 1. FUNCTIONAL LINKS (Required by Apple)
+          echo "=== Adding Functional Links ==="
           /usr/libexec/PlistBuddy -c "Add :PrivacyPolicyURL string https://www.privacypolicies.com/live/396845b8-e470-4bed-8cbb-5432ab867986" "$PLIST_PATH" 2>/dev/null || \
           /usr/libexec/PlistBuddy -c "Set :PrivacyPolicyURL https://www.privacypolicies.com/live/396845b8-e470-4bed-8cbb-5432ab867986" "$PLIST_PATH"
           
-          # Add Terms of Use URL (required)
           /usr/libexec/PlistBuddy -c "Add :TermsOfUseURL string https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" "$PLIST_PATH" 2>/dev/null || \
           /usr/libexec/PlistBuddy -c "Set :TermsOfUseURL https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" "$PLIST_PATH"
           
-          # Add subscription titles and descriptions (optional but recommended)
+          # 2. SUBSCRIPTION TITLES (Required - same as IAP product names)
+          echo "=== Adding Subscription Titles ==="
           /usr/libexec/PlistBuddy -c "Add :SubscriptionMonthlyTitle string Premium Monthly Subscription" "$PLIST_PATH" 2>/dev/null || \
           /usr/libexec/PlistBuddy -c "Set :SubscriptionMonthlyTitle Premium Monthly Subscription" "$PLIST_PATH"
           
           /usr/libexec/PlistBuddy -c "Add :SubscriptionYearlyTitle string Premium Yearly Subscription" "$PLIST_PATH" 2>/dev/null || \
           /usr/libexec/PlistBuddy -c "Set :SubscriptionYearlyTitle Premium Yearly Subscription" "$PLIST_PATH"
           
-          echo "✅ Subscription disclosure added to Info.plist"
+          # 3. SUBSCRIPTION LENGTHS (Required)
+          echo "=== Adding Subscription Lengths ==="
+          /usr/libexec/PlistBuddy -c "Add :SubscriptionMonthlyLength string 1 month" "$PLIST_PATH" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :SubscriptionMonthlyLength 1 month" "$PLIST_PATH"
           
-          # Verify the disclosure was added
-          echo "=== Verifying Subscription Disclosure ==="
-          /usr/libexec/PlistBuddy -c "Print :PrivacyPolicyURL" "$PLIST_PATH"
-          /usr/libexec/PlistBuddy -c "Print :TermsOfUseURL" "$PLIST_PATH"
-          /usr/libexec/PlistBuddy -c "Print :SubscriptionMonthlyTitle" "$PLIST_PATH" 2>/dev/null || echo "Monthly title not set"
-          /usr/libexec/PlistBuddy -c "Print :SubscriptionYearlyTitle" "$PLIST_PATH" 2>/dev/null || echo "Yearly title not set"
+          /usr/libexec/PlistBuddy -c "Add :SubscriptionYearlyLength string 1 year" "$PLIST_PATH" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :SubscriptionYearlyLength 1 year" "$PLIST_PATH"
+          
+          # 4. SUBSCRIPTION PRICES (Required - with price per unit)
+          echo "=== Adding Subscription Prices ==="
+          /usr/libexec/PlistBuddy -c "Add :SubscriptionMonthlyPrice string \$4.99" "$PLIST_PATH" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :SubscriptionMonthlyPrice \$4.99" "$PLIST_PATH"
+          
+          /usr/libexec/PlistBuddy -c "Add :SubscriptionMonthlyPricePerUnit string \$4.99 per month" "$PLIST_PATH" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :SubscriptionMonthlyPricePerUnit \$4.99 per month" "$PLIST_PATH"
+          
+          /usr/libexec/PlistBuddy -c "Add :SubscriptionYearlyPrice string \$34.99" "$PLIST_PATH" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :SubscriptionYearlyPrice \$34.99" "$PLIST_PATH"
+          
+          /usr/libexec/PlistBuddy -c "Add :SubscriptionYearlyPricePerUnit string \$2.92 per month" "$PLIST_PATH" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :SubscriptionYearlyPricePerUnit \$2.92 per month" "$PLIST_PATH"
+          
+          # 5. AUTO-RENEWAL DISCLOSURE (Required for auto-renewable subscriptions)
+          echo "=== Adding Auto-Renewal Disclosure ==="
+          /usr/libexec/PlistBuddy -c "Add :SubscriptionAutoRenewalDisclosure string Subscriptions auto-renew unless canceled at least 24 hours before the end of the current period. You can manage subscriptions in your Account Settings." "$PLIST_PATH" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :SubscriptionAutoRenewalDisclosure Subscriptions auto-renew unless canceled at least 24 hours before the end of the current period. You can manage subscriptions in your Account Settings." "$PLIST_PATH"
+          
+          echo "✅ Complete subscription disclosure added to Info.plist"
 
-      # PHASE 8.6: ADD SUBSCRIPTION DISCLOSURE TO INFO.PLIST
-      - name: Add Subscription Disclosure to Info.plist
+      # PHASE 10: VERIFY COMPLETE PLIST CONTENTS
+      - name: Verify Complete Plist Contents
         script: |
           set -ex
           cd ios/App/App
           
-          echo "=== Adding Required Subscription Disclosure to Info.plist ==="
+          echo "=== VERIFYING COMPLETE PLIST CONTENTS ==="
           PLIST_PATH="Info.plist"
           
-          # Add Privacy Policy URL (required in binary)
-          /usr/libexec/PlistBuddy -c "Add :PrivacyPolicyURL string https://www.privacypolicies.com/live/396845b8-e470-4bed-8cbb-5432ab867986" "$PLIST_PATH" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Set :PrivacyPolicyURL https://www.privacypolicies.com/live/396845b8-e470-4bed-8cbb-5432ab867986" "$PLIST_PATH"
+          echo "=== SUBSCRIPTION DISCLOSURE VERIFICATION ==="
+          echo "PrivacyPolicyURL: $(/usr/libexec/PlistBuddy -c "Print :PrivacyPolicyURL" "$PLIST_PATH")"
+          echo "TermsOfUseURL: $(/usr/libexec/PlistBuddy -c "Print :TermsOfUseURL" "$PLIST_PATH")"
+          echo "SubscriptionMonthlyTitle: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionMonthlyTitle" "$PLIST_PATH")"
+          echo "SubscriptionYearlyTitle: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionYearlyTitle" "$PLIST_PATH")"
+          echo "SubscriptionMonthlyLength: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionMonthlyLength" "$PLIST_PATH")"
+          echo "SubscriptionYearlyLength: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionYearlyLength" "$PLIST_PATH")"
+          echo "SubscriptionMonthlyPrice: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionMonthlyPrice" "$PLIST_PATH")"
+          echo "SubscriptionMonthlyPricePerUnit: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionMonthlyPricePerUnit" "$PLIST_PATH")"
+          echo "SubscriptionYearlyPrice: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionYearlyPrice" "$PLIST_PATH")"
+          echo "SubscriptionYearlyPricePerUnit: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionYearlyPricePerUnit" "$PLIST_PATH")"
+          echo "SubscriptionAutoRenewalDisclosure: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionAutoRenewalDisclosure" "$PLIST_PATH")"
           
-          # Add Terms of Use URL (required in binary)
-          /usr/libexec/PlistBuddy -c "Add :TermsOfUseURL string https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" "$PLIST_PATH" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Set :TermsOfUseURL https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" "$PLIST_PATH"
+          echo "=== CRITICAL APP KEYS ==="
+          echo "CFBundleShortVersionString: $(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST_PATH")"
+          echo "CFBundleVersion: $(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH")"
+          echo "CFBundleIdentifier: $(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST_PATH")"
           
-          echo "✅ Subscription disclosure added to Info.plist"
+          # Final validation
+          plutil -lint "$PLIST_PATH" && echo "✅ Info.plist is valid and complete" || echo "❌ Info.plist is invalid"
           
-          # Verify
-          echo "=== Verifying Subscription Disclosure ==="
-          /usr/libexec/PlistBuddy -c "Print :PrivacyPolicyURL" "$PLIST_PATH"
-          /usr/libexec/PlistBuddy -c "Print :TermsOfUseURL" "$PLIST_PATH"
+          # Create a readable copy for artifacts
+          cp "$PLIST_PATH" "Info_With_Subscription_Disclosure.plist"
+          echo "✅ Created verification copy of Info.plist"
 
-      # PHASE 9: ADD PRIVACY DESCRIPTIONS (UPDATED WITH STORAGE)
+      # PHASE 11: ADD PRIVACY DESCRIPTIONS
       - name: Add Privacy Descriptions
         script: |
           set -ex
@@ -462,14 +409,9 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :NSDocumentsFolderUsageDescription string 'This app needs storage access to preload and cache stories and audio files for offline use.'" "$PLIST_PATH" 2>/dev/null || \
           /usr/libexec/PlistBuddy -c "Set :NSDocumentsFolderUsageDescription 'This app needs storage access to preload and cache stories and audio files for offline use.'" "$PLIST_PATH"
           
-          # Verify the descriptions were added
-          echo "=== Verifying Privacy Descriptions ==="
-          /usr/libexec/PlistBuddy -c "Print :NSMicrophoneUsageDescription" "$PLIST_PATH"
-          /usr/libexec/PlistBuddy -c "Print :NSDocumentsFolderUsageDescription" "$PLIST_PATH"
-          
           echo "✅ Privacy descriptions added"
 
-      # PHASE 10: APP ENCRYPTION COMPLIANCE DOCUMENTATION
+      # PHASE 12: APP ENCRYPTION COMPLIANCE
       - name: Add App Encryption Compliance
         script: |
           set -ex
@@ -483,82 +425,8 @@ workflows:
           /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "$PLIST_PATH"
           
           echo "✅ Added ITSAppUsesNonExemptEncryption = false to Info.plist"
-          
-          # Verify the setting was added
-          echo "=== Verifying Encryption Compliance Setting ==="
-          /usr/libexec/PlistBuddy -c "Print :ITSAppUsesNonExemptEncryption" "$PLIST_PATH"
-          
-          echo "=== Encryption Compliance Documentation ==="
-          cat > app_encryption_compliance.txt << 'EOF'
-          APP ENCRYPTION COMPLIANCE DOCUMENTATION
-          =======================================
-          
-          App Name: Little Stories
-          Bundle ID: com.littlestories.app
-          ITSAppUsesNonExemptEncryption: false
-          
-          ENCRYPTION USAGE SUMMARY:
-          -------------------------
-          This app uses standard Apple iOS encryption and does NOT implement:
-          - Proprietary encryption algorithms
-          - Custom encryption implementations  
-          - Non-standard encryption methods
-          
-          ENCRYPTION SOURCES:
-          -------------------
-          1. Apple iOS Built-in Encryption:
-             - iOS Keychain Services for secure data storage
-             - iOS CryptoKit framework for standard cryptographic operations
-             - iOS Secure Enclave for hardware-based key management
-          
-          2. Capacitor Plugin Encryption:
-             - @aparajita/capacitor-secure-storage: Uses iOS Keychain with AES encryption
-             - Capacitor Filesystem: Uses iOS sandboxed file system with standard protection
-          
-          3. Network Encryption:
-             - Standard TLS 1.2/1.3 for all HTTP/HTTPS communications
-             - iOS URLSession with default security protocols
-          
-          SPECIFIC IMPLEMENTATIONS:
-          -------------------------
-          - Secure Storage: AES encryption via iOS Keychain
-          - File Protection: iOS Data Protection API (NSFileProtectionComplete)
-          - Network Security: TLS 1.2+ with certificate pinning (if configured)
-          - Key Management: iOS Keychain with secure key storage
-          
-          EXPORT COMPLIANCE:
-          ------------------
-          - Uses only Apple's standard encryption available in iOS
-          - No proprietary encryption algorithms implemented
-          - Compliant with App Store encryption export regulations
-          
-          For App Store Connect question "What type of encryption algorithms does your app implement?" 
-          select: "None of the algorithms mentioned above"
-          
-          This indicates the app uses only Apple's standard iOS encryption.
-          
-          LEGAL BASIS FOR EXEMPTION:
-          --------------------------
-          This app qualifies for exemption under Section 740.13(b)(1) of the EAR because:
-          - It uses encryption only for authentication, digital signatures, or data protection
-          - The encryption is limited to the provisions in Apple's operating system
-          - No proprietary encryption algorithms are implemented
-          
-          REFERENCES:
-          -----------
-          - EAR Section 740.13(b)(1): Mass market encryption commodities and software
-          - Apple Developer Documentation: App Store Connect Export Compliance
-          - BIS Export Administration Regulations
-          EOF
-          
-          echo "✅ App encryption compliance documentation generated"
-          echo "=== Key Points ==="
-          echo "• Added ITSAppUsesNonExemptEncryption = false to Info.plist"
-          echo "• This tells App Store Connect you only use Apple's standard encryption"
-          echo "• When asked about encryption, select: 'None of the algorithms mentioned above'"
-          echo "• No manual export compliance documentation needed for App Store Connect"
 
-      # PHASE 11: BUILD UNSIGNED ARCHIVE
+      # PHASE 13: BUILD UNSIGNED ARCHIVE
       - name: Build Unsigned Archive
         script: |
           set -ex
@@ -596,7 +464,7 @@ workflows:
           
           echo "✅ Unsigned archive created successfully"
 
-      # PHASE 12: MANUAL SIGNING
+      # PHASE 14: MANUAL SIGNING
       - name: Manual Signing
         script: |
           set -ex
@@ -646,7 +514,7 @@ workflows:
           codesign -vvv --deep --strict "$APP_PATH"
           echo "✅ Build successfully signed and validated"
 
-      # PHASE 13: CREATE IPA MANUALLY
+      # PHASE 15: CREATE IPA MANUALLY
       - name: Create IPA Manually
         script: |
           set -ex
@@ -672,24 +540,20 @@ workflows:
           
           echo "✅ IPA created manually"
 
-      # PHASE 14: VALIDATION
-      - name: Validate Build
+      # PHASE 16: VALIDATION AND ARTIFACT PREPARATION
+      - name: Validate Build and Prepare Artifacts
         script: |
           set -ex
           echo "=== Validating Build Artifacts ==="
           
           if [ ! -f "ios/App/build/ipa/App.ipa" ]; then
             echo "❌ IPA file not found"
-            echo "=== Checking export directories ==="
-            find ios/App/build -name "*.ipa" 2>/dev/null || true
-            ls -la ios/App/build/ || true
             exit 1
           fi
           
           # Check IPA contents
           unzip -l "ios/App/build/ipa/App.ipa" | grep "Payload/App.app" || {
             echo "❌ Invalid IPA structure"
-            unzip -l "ios/App/build/ipa/App.ipa"
             exit 1
           }
           
@@ -702,11 +566,20 @@ workflows:
           }
           rm -rf "$TEMP_DIR"
           
+          # Create final Info.plist verification artifact
+          cd ios/App/App
+          cp Info.plist Final_Info_Plist_Verification.plist
+          echo "=== FINAL INFO.PLIST CONTENTS ===" > Info_Plist_Verification.txt
+          /usr/libexec/PlistBuddy -c "Print" Info.plist >> Info_Plist_Verification.txt
+          
           echo "✅ Build validation successful"
           echo "📱 IPA file size: $(du -h ios/App/build/ipa/App.ipa | cut -f1)"
 
     artifacts:
       - ios/App/build/ipa/App.ipa
+      - ios/App/App/Final_Info_Plist_Verification.plist
+      - ios/App/App/Info_Plist_Verification.txt
+      - ios/App/App/Info_With_Subscription_Disclosure.plist
       - app_encryption_info.txt
 
     publishing:
