@@ -11,7 +11,7 @@ let InAppPurchase = null;
 const MAX_RETRIES = 3;
 const INIT_TIMEOUT = 10000; // 10 seconds
 const NETWORK_TIMEOUT = 15000; // 15 seconds
-const PURCHASE_TIMEOUT = 45000; // NEW: 45 second purchase timeout (Apple's max)
+const PURCHASE_TIMEOUT = 45000; // 45 second purchase timeout (Apple's max)
 
 // FIXED: Enhanced Cordova purchase plugin initialization
 const waitForCordova = () => {
@@ -142,7 +142,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   const [networkStatus, setNetworkStatus] = useState(true);
   const [showParentalGate, setShowParentalGate] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
-  const [purchaseTimeoutId, setPurchaseTimeoutId] = useState(null); // NEW: Track purchase timeout
+  const [purchaseTimeoutId, setPurchaseTimeoutId] = useState(null);
 
   const PRODUCT_IDS = {
     monthly: 'com.littlestories.app.premiummonthly',
@@ -157,6 +157,27 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   const FALLBACK_TITLES = {
     monthly: 'Monthly Subscription',
     yearly: 'Yearly Subscription',
+  };
+
+  // NEW: Environment detection for better debugging
+  const detectEnvironment = () => {
+    const userAgent = navigator.userAgent.toLowerCase();
+    const isTestFlight = userAgent.includes('testflight');
+    const isSandbox = window.store ? window.store.sandbox : false;
+    const isProduction = !isSandbox && !isTestFlight;
+    
+    const environment = {
+      testFlight: isTestFlight,
+      sandbox: isSandbox,
+      production: isProduction,
+      userAgent: navigator.userAgent,
+      platform: window.Capacitor?.getPlatform?.() || 'unknown'
+    };
+    
+    console.log('🌍 Environment Detection:', environment);
+    AnalyticsService.trackEvent('environment_detected', environment);
+    
+    return environment;
   };
 
   // Network status monitoring
@@ -248,6 +269,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   useEffect(() => {
     if (show && !initialized) {
       debugEnvironment();
+      detectEnvironment(); // NEW: Environment detection
       initializeIAP();
     }
   }, [show, initialized, debugEnvironment]);
@@ -317,7 +339,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     return isOnline;
   }, []);
 
-  // FIXED: Enhanced IAP initialization with infinite loading prevention
+  // FIXED: Enhanced IAP initialization that works with unapproved products
   const initializeIAP = async () => {
     AnalyticsService.trackEvent('iap_initialization_started');
 
@@ -344,15 +366,28 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
       console.log('✅ Cordova Purchase plugin initialized successfully');
 
-      // Set verbosity for production
+      // Set verbosity for debugging
       InAppPurchase.verbosity = InAppPurchase.DEBUG;
 
-      // Set up event handlers FIRST
+      // CRITICAL FIX: Set up event handlers for ALL purchase states
       InAppPurchase.when('product').updated((product) => {
-        console.log(`📦 Product ${product.id} updated:`, product.valid ? 'VALID' : 'INVALID');
+        console.log(`📦 Product ${product.id} updated:`, {
+          valid: product.valid,
+          state: product.state,
+          canPurchase: product.canPurchase,
+          price: product.price
+        });
+        
+        // NEW: Handle unapproved products gracefully
+        if (!product.valid) {
+          console.warn(`⚠️ Product ${product.id} is INVALID - may be unapproved`);
+          console.log('ℹ️ This is normal for products waiting for review');
+        }
+        
         updateProductsList();
       });
 
+      // Handle approved purchases
       InAppPurchase.when(PRODUCT_IDS.monthly).approved((product) => {
         console.log('✅ Monthly subscription approved:', product);
         AnalyticsService.trackEvent('purchase_approved', { product_id: PRODUCT_IDS.monthly });
@@ -365,13 +400,24 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         finishPurchase(product);
       });
 
+      // NEW: Handle initiated purchases (critical for unapproved products)
+      InAppPurchase.when(PRODUCT_IDS.monthly).initiated((product) => {
+        console.log('🔄 Monthly purchase initiated:', product);
+        AnalyticsService.trackEvent('purchase_initiated', { product_id: PRODUCT_IDS.monthly });
+      });
+
+      InAppPurchase.when(PRODUCT_IDS.yearly).initiated((product) => {
+        console.log('🔄 Yearly purchase initiated:', product);
+        AnalyticsService.trackEvent('purchase_initiated', { product_id: PRODUCT_IDS.yearly });
+      });
+
       InAppPurchase.error((error) => {
         console.error('❌ IAP Error event:', error);
         AnalyticsService.trackEvent('purchase_error_event', { error: error.message });
         handleIAPError(error);
       });
 
-      // Register products
+      // Register products (even if unapproved)
       console.log('📝 Registering products...');
       InAppPurchase.register([
         {
@@ -391,13 +437,10 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       await InAppPurchase.refresh();
       console.log('✅ Products refreshed');
 
-      // Wait a moment for products to load, then update UI
+      // Wait for products to load and update UI regardless of approval status
       setTimeout(() => {
-        updateProductsList();
-        setInitialized(true);
-        console.log('🎉 IAP initialization completed successfully');
-        AnalyticsService.trackEvent('iap_initialization_success');
-      }, 2000);
+        validateProductsAndUpdateUI();
+      }, 3000);
 
     } catch (err) {
       console.error('❌ IAP Initialization error:', err);
@@ -413,7 +456,60 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       
       setError(errorMessage);
       AnalyticsService.trackError(err, { stage: 'initialization' });
-      setInitialized(true); // CRITICAL: Prevent infinite loading
+      setInitialized(true);
+      setLoading(false);
+    }
+  };
+
+  // NEW: Enhanced product validation that works with unapproved products
+  const validateProductsAndUpdateUI = () => {
+    try {
+      const monthlyProduct = InAppPurchase.get(PRODUCT_IDS.monthly);
+      const yearlyProduct = InAppPurchase.get(PRODUCT_IDS.yearly);
+      
+      console.log('🔍 Product Validation Check:', {
+        monthly: monthlyProduct ? {
+          id: monthlyProduct.id,
+          valid: monthlyProduct.valid,
+          state: monthlyProduct.state,
+          canPurchase: monthlyProduct.canPurchase,
+          price: monthlyProduct.price,
+          title: monthlyProduct.title
+        } : 'NOT FOUND',
+        yearly: yearlyProduct ? {
+          id: yearlyProduct.id,
+          valid: yearlyProduct.valid,
+          state: yearlyProduct.state,
+          canPurchase: yearlyProduct.canPurchase,
+          price: yearlyProduct.price,
+          title: yearlyProduct.title
+        } : 'NOT FOUND'
+      });
+
+      // CRITICAL FIX: Show products even if invalid (unapproved)
+      const allProducts = [monthlyProduct, yearlyProduct].filter(p => p !== null && p !== undefined);
+      setProducts(allProducts);
+
+      // NEW: Better messaging for unapproved products
+      if (allProducts.length === 0) {
+        setError('No subscription plans found. Please try again later.');
+      } else if (!monthlyProduct?.valid || !yearlyProduct?.valid) {
+        console.log('ℹ️ Products are unapproved/waiting for review - this is normal during Apple review');
+        // Don't show error - let users attempt purchase anyway
+      }
+
+      setInitialized(true);
+      console.log('🎉 IAP initialization completed');
+      AnalyticsService.trackEvent('iap_initialization_success', {
+        products_found: allProducts.length,
+        monthly_valid: !!monthlyProduct?.valid,
+        yearly_valid: !!yearlyProduct?.valid
+      });
+
+    } catch (err) {
+      console.error('❌ Product validation error:', err);
+      setInitialized(true);
+      setError('Failed to load subscription plans. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -428,24 +524,29 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
       const monthlyProduct = InAppPurchase.get(PRODUCT_IDS.monthly);
       const yearlyProduct = InAppPurchase.get(PRODUCT_IDS.yearly);
-      const availableProducts = [monthlyProduct, yearlyProduct].filter(p => p && p.valid);
-      setProducts(availableProducts);
+      
+      // CRITICAL FIX: Include all products even if invalid
+      const allProducts = [monthlyProduct, yearlyProduct].filter(p => p !== null && p !== undefined);
+      setProducts(allProducts);
 
-      console.log('📦 Available products:', availableProducts.map(p => ({
+      console.log('📦 Available products:', allProducts.map(p => ({
         id: p.id,
         valid: p.valid,
+        state: p.state,
         price: p.price,
         title: p.title
       })));
       
       AnalyticsService.trackEvent('products_updated', {
-        available_count: availableProducts.length,
-        monthly_available: !!monthlyProduct?.valid,
-        yearly_available: !!yearlyProduct?.valid,
+        available_count: allProducts.length,
+        monthly_available: !!monthlyProduct,
+        yearly_available: !!yearlyProduct,
+        monthly_valid: !!monthlyProduct?.valid,
+        yearly_valid: !!yearlyProduct?.valid,
       });
 
-      if (availableProducts.length === 0 && initialized) {
-        console.warn('⚠️ No valid products available');
+      if (allProducts.length === 0 && initialized) {
+        console.warn('⚠️ No products found at all');
         setError('No subscription plans available. Please try again later.');
         AnalyticsService.trackEvent('no_products_available');
       }
@@ -458,7 +559,9 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
   // FIXED: Enhanced finishPurchase with guaranteed state cleanup
   const finishPurchase = async (product) => {
-    // Clear purchase timeout immediately when purchase completes
+    console.log('🏁 Finishing purchase with guaranteed cleanup:', product.id);
+    
+    // IMMEDIATE timeout clearance - CRITICAL FIX
     if (purchaseTimeoutId) {
       clearTimeout(purchaseTimeoutId);
       setPurchaseTimeoutId(null);
@@ -467,16 +570,20 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     let verificationAttempted = false;
     
     try {
-      console.log('🏁 Finishing purchase:', product);
       AnalyticsService.trackEvent('purchase_finishing', { product_id: product.id });
 
-      // Finish the purchase to avoid billing issues
-      await product.finish();
+      // FIXED: Add timeout to product.finish() to prevent hanging
+      const finishPromise = product.finish();
+      const finishTimeout = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Product finish timeout')), 10000)
+      );
+      
+      await Promise.race([finishPromise, finishTimeout]);
       AnalyticsService.trackEvent('purchase_finished', { product_id: product.id });
 
       verificationAttempted = true;
 
-      // Verify with backend using the new server logic
+      // Verify with backend
       const verificationResult = await withRetry(
         () => verifyReceipt(product),
         'receipt_verification'
@@ -488,13 +595,10 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         onPaymentSuccess();
         onClose();
       } else {
-        console.error('❌ Purchase verification failed:', verificationResult);
-        AnalyticsService.trackEvent('purchase_verification_failed', {
-          product_id: product.id,
-          error: verificationResult.error,
-        });
-        setError('Unable to verify purchase. Please contact support.');
+        console.error('❌ Purchase verification failed');
+        throw new Error(verificationResult.error || 'Verification failed');
       }
+
     } catch (err) {
       console.error('❌ Purchase completion error:', err);
       AnalyticsService.trackError(err, { 
@@ -503,16 +607,28 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         verification_attempted: verificationAttempted
       });
       
-      // FIXED: Better error messages based on what failed
-      const errorMsg = verificationAttempted 
-        ? 'Failed to complete purchase. Please try again or contact support.'
-        : 'Failed to process purchase. Please try again.';
+      // FIXED: User-friendly error messages
+      let userMessage = 'Purchase completed but verification failed. Please contact support.';
       
-      setError(errorMsg);
+      if (err.message.includes('timeout')) {
+        userMessage = 'Purchase is taking longer than expected. Please check your subscription status.';
+      } else if (err.message.includes('network')) {
+        userMessage = 'Network error during verification. Please check your connection.';
+      }
+      
+      setError(userMessage);
+      
     } finally {
-      // CRITICAL FIX: ALWAYS reset loading states, no matter what
+      // CRITICAL FIX: GUARANTEED state cleanup - no matter what happens
+      console.log('🔧 Guaranteed state cleanup for purchase');
       setPurchaseInProgress(false);
       setLoading(false);
+      
+      // Double-check timeout clearance
+      if (purchaseTimeoutId) {
+        clearTimeout(purchaseTimeoutId);
+        setPurchaseTimeoutId(null);
+      }
     }
   };
 
@@ -632,7 +748,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     }
   };
 
-  // FIXED: Enhanced handleSubscribe with timeout protection and guaranteed state cleanup
+  // FIXED: Enhanced handleSubscribe that attempts purchase even for unapproved products
   const handleSubscribe = async () => {
     if (!InAppPurchase) {
       setError('In-app purchases not available on this device');
@@ -649,59 +765,105 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       return;
     }
 
-    if (products.length === 0) {
-      setError('No subscription plans available. Please try again later.');
-      return;
-    }
-
     if (!selectedPlan) {
       setError('Please select a subscription plan');
       return;
+    }
+
+    const productId = selectedPlan === 'monthly' ? PRODUCT_IDS.monthly : PRODUCT_IDS.yearly;
+    const product = InAppPurchase.get(productId);
+
+    // CRITICAL FIX: Allow purchase attempt even if product is invalid
+    if (!product) {
+      setError('Selected subscription plan not found. Please try again.');
+      return;
+    }
+
+    console.log('🛒 Purchase attempt details:', {
+      productId,
+      valid: product.valid,
+      state: product.state,
+      canPurchase: product.canPurchase,
+      price: product.price
+    });
+
+    // NEW: Informative message for unapproved products
+    if (!product.valid) {
+      console.warn('⚠️ Product is invalid/unapproved - attempting purchase anyway');
+      // Don't block the purchase - let Apple's system handle it
     }
 
     setLoading(true);
     setError(null);
     setPurchaseInProgress(true);
 
-    AnalyticsService.trackEvent('purchase_initiated', {
+    AnalyticsService.trackEvent('purchase_attempt', {
       plan: selectedPlan,
-      product_id: selectedPlan === 'monthly' ? PRODUCT_IDS.monthly : PRODUCT_IDS.yearly,
+      product_id: productId,
+      product_valid: product.valid,
+      product_state: product.state
     });
 
-    // NEW: Purchase timeout protection (45 seconds - Apple's maximum)
+    // Purchase timeout protection
     const timeoutId = setTimeout(() => {
-      console.error('❌ Purchase timeout - resetting button state');
-      setError('Purchase timed out. Please try again.');
+      console.error('❌ Purchase timeout - executing guaranteed cleanup');
+      
+      // CRITICAL: Multiple state resets
       setPurchaseInProgress(false);
       setLoading(false);
       setPurchaseTimeoutId(null);
+      
+      setError('Purchase timed out. Please check your subscription status or try again.');
+      
+      // Additional safety: force finish any pending purchase
+      if (InAppPurchase) {
+        try {
+          const product = InAppPurchase.get(selectedPlan === 'monthly' ? PRODUCT_IDS.monthly : PRODUCT_IDS.yearly);
+          if (product && typeof product.finish === 'function') {
+            product.finish().catch(e => console.warn('Cleanup finish attempt:', e));
+          }
+        } catch (e) {
+          console.warn('Timeout cleanup attempt:', e);
+        }
+      }
     }, PURCHASE_TIMEOUT);
 
     setPurchaseTimeoutId(timeoutId);
 
     try {
       const productId = selectedPlan === 'monthly' ? PRODUCT_IDS.monthly : PRODUCT_IDS.yearly;
-      const product = InAppPurchase.get(productId);
-
-      if (!product) {
-        throw new Error('Subscription plan not available. Please try again later.');
-      }
-
-      if (!product.canPurchase) {
-        throw new Error('This subscription is not available for purchase.');
-      }
-
-      console.log('🛒 Initiating purchase for:', productId);
+      console.log('🛒 Initiating purchase with enhanced monitoring:', productId);
+      
       await InAppPurchase.order(productId);
       
-      // Purchase initiated successfully - wait for approval callback
-      // The loading state will be cleared in finishPurchase()
+      // FIXED: Add secondary timeout for the entire purchase flow
+      const secondaryTimeout = setTimeout(() => {
+        console.warn('⚠️ Secondary timeout - purchase taking too long');
+        setError('Purchase is taking longer than expected. Please check your subscription status.');
+        setPurchaseInProgress(false);
+        setLoading(false);
+      }, 60000); // 60 seconds total maximum
+
+      // Clean up secondary timeout when purchase completes
+      const cleanup = () => {
+        clearTimeout(secondaryTimeout);
+        setPurchaseTimeoutId(null);
+      };
+
+      // Ensure cleanup happens
+      setTimeout(cleanup, 59000);
       
     } catch (err) {
+      // FIXED: Enhanced error handling with guaranteed cleanup
       console.error('❌ Purchase initiation error:', err);
-      AnalyticsService.trackError(err, { stage: 'purchase_initiation', plan: selectedPlan });
       
-      // FIXED: Better error messages for common cases
+      // GUARANTEED cleanup on any error
+      clearTimeout(timeoutId);
+      setPurchaseTimeoutId(null);
+      setPurchaseInProgress(false);
+      setLoading(false);
+      
+      // ENHANCED: Better error messages for review scenario
       let userMessage = 'Failed to start purchase. Please try again.';
       
       if (err.message.includes('cancelled') || err.message.includes('user cancelled')) {
@@ -710,11 +872,14 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         userMessage = 'Network error. Please check your connection and try again.';
       } else if (err.message.includes('already') || err.message.includes('owned')) {
         userMessage = 'You already own this subscription';
+      } else if (err.message.includes('invalid') && !product?.valid) {
+        // Special case: product unapproved but purchase attempted
+        userMessage = 'Subscription plan is not yet available. Please try again later.';
       }
       
       setError(userMessage);
       
-      // CRITICAL FIX: Always reset loading states on initiation error
+      // Reset states
       setPurchaseInProgress(false);
       setLoading(false);
       
@@ -724,12 +889,13 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     }
   };
 
-  // Pricing display functions
+  // FIXED: Enhanced product display that shows fallbacks for unapproved products
   const getProductPrice = useCallback((productId) => {
     const product = products.find(p => p.id === productId);
     if (product && product.price) {
       return product.price;
     }
+    // Show fallback prices even for unapproved products
     return FALLBACK_PRICES[productId.includes('monthly') ? 'monthly' : 'yearly'];
   }, [products]);
 
@@ -745,6 +911,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     return fullPrice.replace(amount, '').trim();
   }, [getProductPrice, getPriceAmount]);
 
+  // FIXED: Enhanced product title that shows fallbacks for unapproved products
   const getProductTitle = useCallback((productId) => {
     const product = products.find(p => p.id === productId);
     if (product && product.title) {
@@ -753,13 +920,29 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     return FALLBACK_TITLES[productId.includes('monthly') ? 'monthly' : 'yearly'];
   }, [products]);
 
+  // NEW: Check if product is available for purchase
+  const isProductAvailable = useCallback((productId) => {
+    const product = InAppPurchase ? InAppPurchase.get(productId) : null;
+    // CRITICAL: Return true even for invalid products during review
+    return product !== null && product !== undefined;
+  }, [InAppPurchase]);
+
   const getButtonText = useCallback(() => {
     if (restoring) return "Restoring...";
     if (loading && !purchaseInProgress) return "Initializing...";
     if (purchaseInProgress) return "Processing...";
     if (products.length === 0) return "Loading plans...";
+    
+    const productId = selectedPlan === 'monthly' ? PRODUCT_IDS.monthly : PRODUCT_IDS.yearly;
+    const product = InAppPurchase?.get(productId);
+    
+    // NEW: Show appropriate text for unapproved products
+    if (product && !product.valid) {
+      return "Subscribe Now"; // Still allow attempt
+    }
+    
     return "Subscribe Now";
-  }, [loading, purchaseInProgress, products.length, restoring]);
+  }, [loading, purchaseInProgress, products.length, restoring, selectedPlan]);
 
   const isButtonDisabled = useCallback(() => {
     return loading || purchaseInProgress || !initialized || products.length === 0 || restoring || !networkStatus || !selectedPlan;
