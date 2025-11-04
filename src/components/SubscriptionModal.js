@@ -35,149 +35,6 @@ const FALLBACK_PRODUCTS = {
   }
 };
 
-// BULLETPROOF StoreKit initialization that NEVER fails
-const waitForCordova = () => {
-  return new Promise((resolve) => {
-    console.log('🔄 Starting ULTRA-RELIABLE StoreKit initialization...');
-
-    // Strategy 1: Immediate store detection
-    const getStore = () => {
-      if (window.store && typeof window.store.register === 'function') {
-        console.log('✅ Store available immediately');
-        return window.store;
-      }
-      if (window.cordova?.plugins?.inapppurchase) {
-        console.log('✅ Store via cordova.plugins');
-        return window.cordova.plugins.inapppurchase;
-      }
-      if (window.purchase && typeof window.purchase.register === 'function') {
-        console.log('✅ Store via window.purchase');
-        return window.purchase;
-      }
-      return null;
-    };
-
-    // Check immediately
-    const immediateStore = getStore();
-    if (immediateStore) {
-      resolve(immediateStore);
-      return;
-    }
-
-    console.log('⏳ Store not immediately available - starting enhanced detection');
-
-    // Strategy 2: Event-based detection with guaranteed timeout
-    let resolved = false;
-    const maxWaitTime = 12000; // 12 seconds
-
-    const succeed = (store) => {
-      if (resolved) return;
-      resolved = true;
-      console.log('🎉 StoreKit initialized successfully');
-      resolve(store);
-    };
-
-    // Strategy 3: Event listeners
-    const onDeviceReady = () => {
-      console.log('📱 deviceready received');
-      checkForStore();
-    };
-
-    const onPurchasesReady = () => {
-      console.log('🛒 purchasesReady received');
-      checkForStore();
-    };
-
-    const checkForStore = () => {
-      const store = getStore();
-      if (store) {
-        succeed(store);
-        return true;
-      }
-      return false;
-    };
-
-    // Listen for Cordova events
-    document.addEventListener('deviceready', onDeviceReady, { once: true });
-    document.addEventListener('purchasesReady', onPurchasesReady, { once: true });
-
-    // Strategy 4: Periodic checking
-    const checkInterval = setInterval(() => {
-      if (checkForStore()) {
-        clearInterval(checkInterval);
-        clearTimeout(finalTimeout);
-      }
-    }, 500);
-
-    // Strategy 5: FINAL FALLBACK - Create minimal store after timeout
-    const finalTimeout = setTimeout(() => {
-      clearInterval(checkInterval);
-      
-      console.log('🔄 Creating minimal store fallback for Apple review');
-      
-      const fallbackStore = {
-        register: () => console.log('📝 Store registered (fallback)'),
-        ready: (cb) => { 
-          setTimeout(cb, 100); 
-          return fallbackStore; 
-        },
-        error: (cb) => fallbackStore,
-        when: (id) => ({
-          approved: (cb) => {
-            console.log(`✅ Approval handler for ${id}`);
-            // Store callback for later
-            if (!window.store) window.store = {};
-            if (!window.store._approvalCallbacks) window.store._approvalCallbacks = {};
-            window.store._approvalCallbacks[id] = cb;
-            return fallbackStore;
-          },
-          initiated: () => fallbackStore,
-          updated: () => fallbackStore
-        }),
-        get: (id) => ({
-          id: id,
-          title: id.includes('monthly') ? 'Premium Monthly Subscription' : 'Premium Yearly Subscription',
-          price: id.includes('monthly') ? '$4.99' : '$34.99',
-          valid: true,
-          canPurchase: true,
-          state: 'valid'
-        }),
-        refresh: () => Promise.resolve(),
-        order: (productId) => {
-          console.log(`🛒 Purchase attempt for ${productId} (fallback mode)`);
-          // Simulate successful purchase for Apple review testing
-          return new Promise((resolve) => {
-            setTimeout(() => {
-              // Trigger approval callback if it exists
-              if (window.store?._approvalCallbacks?.[productId]) {
-                const product = {
-                  id: productId,
-                  transaction: {
-                    appStoreReceipt: 'fallback-receipt-' + Date.now()
-                  }
-                };
-                window.store._approvalCallbacks[productId](product);
-              }
-              resolve();
-            }, 2000);
-          });
-        },
-        restore: () => Promise.resolve(),
-        getReceipt: () => Promise.resolve('fallback-receipt-data-' + Date.now()),
-        verbosity: 0,
-        DEBUG: 0,
-        PAID_SUBSCRIPTION: 'paid_subscription',
-        sandbox: true
-      };
-      
-      succeed(fallbackStore);
-    }, maxWaitTime);
-
-    // Initial check
-    checkForStore();
-  });
-};
-
 const AnalyticsService = {
   trackEvent: (event, data = {}) => {
     console.log(`[ANALYTICS] ${event}:`, data);
@@ -299,108 +156,42 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   // Network status check
   const checkNetworkStatus = useCallback(() => navigator.onLine, []);
 
-  // GUARANTEED IAP initialization
+  // IAP initialization
   const initializeIAP = async () => {
-    console.log('🚀 Starting GUARANTEED IAP initialization...');
-    
-    AnalyticsService.trackEvent('iap_initialization_started');
-
-    if (!checkNetworkStatus()) {
-      setError('No internet connection. Please check your network and try again.');
-      setInitialized(true);
-      setLoading(false);
+    if (!window.store) {
+      setError('In-app purchase system is not available on this device.');
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    InAppPurchase = window.store;
 
-    try {
-      // Wait for StoreKit - THIS NOW ALWAYS RESOLVES
-      InAppPurchase = await waitForCordova();
+    const store = InAppPurchase;
+    store.verbosity = store.DEBUG;
 
-      // Check if we're using fallback store
-      const isFallback = InAppPurchase.sandbox === true;
-      setUsingFallbackStore(isFallback);
-      
-      console.log('✅ Store acquired - proceeding with setup');
-      if (isFallback) {
-        console.log('🎭 Using fallback store for Apple review testing');
-      }
+    store.register({
+      id: PRODUCT_IDS.monthly,
+      type: store.PAID_SUBSCRIPTION,
+    });
+    store.register({
+      id: PRODUCT_IDS.yearly,
+      type: store.PAID_SUBSCRIPTION,
+    });
 
-      // Set up global error handler
-      InAppPurchase.error((error) => {
-        console.error('❌ IAP Global Error:', error);
-        if (!error.message.includes('cancelled')) {
-          handleIAPError(error);
-        }
-      });
+    store.error((err) => handleIAPError(err));
 
-      // Register products
-      console.log('📝 Registering products...');
-      InAppPurchase.register([
-        {
-          id: PRODUCT_IDS.monthly,
-          type: InAppPurchase.PAID_SUBSCRIPTION,
-        },
-        {
-          id: PRODUCT_IDS.yearly,
-          type: InAppPurchase.PAID_SUBSCRIPTION,
-        },
-      ]);
+    store.when(PRODUCT_IDS.monthly).approved(finishPurchase);
+    store.when(PRODUCT_IDS.yearly).approved(finishPurchase);
 
-      console.log('✅ Products registered');
+    store.when(PRODUCT_IDS.monthly).owned(finishPurchase);
+    store.when(PRODUCT_IDS.yearly).owned(finishPurchase);
 
-      // Set up purchase approval handlers
-      InAppPurchase.when(PRODUCT_IDS.monthly).approved((product) => {
-        console.log('✅ Monthly subscription approved');
-        AnalyticsService.trackEvent('purchase_approved', { product_id: PRODUCT_IDS.monthly });
-        finishPurchase(product);
-      });
-
-      InAppPurchase.when(PRODUCT_IDS.yearly).approved((product) => {
-        console.log('✅ Yearly subscription approved');
-        AnalyticsService.trackEvent('purchase_approved', { product_id: PRODUCT_IDS.yearly });
-        finishPurchase(product);
-      });
-
-      // Set up product update handler
-      InAppPurchase.when('product').updated((product) => {
-        console.log(`📦 Product ${product.id} updated:`, {
-          valid: product.valid,
-          state: product.state,
-          canPurchase: product.canPurchase,
-          price: product.price
-        });
-        updateProductsList();
-      });
-
-      // Try to refresh products, but don't fail if it doesn't work
-      try {
-        await InAppPurchase.refresh();
-        console.log('✅ Products refreshed');
-      } catch (refreshError) {
-        console.log('⚠️ Product refresh not needed for fallback store');
-      }
-
-      // Set products for UI
-      updateProductsList();
-      
+    store.ready(() => {
+      console.log('✅ StoreKit ready');
+      store.refresh();
       setInitialized(true);
-      console.log('🎉 IAP initialization completed SUCCESSFULLY');
-      AnalyticsService.trackEvent('iap_initialization_success', {
-        fallback_store: isFallback
-      });
-
-    } catch (err) {
-      // THIS SHOULD NEVER HAPPEN, but just in case:
-      console.warn('Unexpected initialization issue:', err);
-      setInitialized(true); // ← CRITICAL: Still mark as initialized
-      setError('Payment system ready. Please try your purchase.');
-    } finally {
-      setLoading(false);
-    }
+    });
   };
+
 
   // Update products list
   const updateProductsList = useCallback(() => {
@@ -544,14 +335,14 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error('Unable to verify your purchase at the moment. Please try again later.');
       }
 
       return await response.json();
     } catch (err) {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
-        throw new Error('Receipt verification timeout');
+        throw new Error('The verification took too long. Please try again.');
       }
       throw err;
     }
@@ -582,7 +373,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       await InAppPurchase.restore();
       setError('Purchases restored successfully. If you still don\'t have access, please contact support.');
     } catch (err) {
-      setError('Failed to restore purchases. Please try again.');
+      setError('Couldn’t restore your purchases. Please try again.');
     } finally {
       clearTimeout(restoreTimeout);
       setRestoring(false);
@@ -746,6 +537,20 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       }
     }
   }, [show, purchaseTimeoutId]);
+
+  useEffect(() => {
+    if (show && !initialized) {
+      if (!window.store) {
+        console.warn('⚠️ No StoreKit detected - fallback mode active');
+        setUsingFallbackStore(true);
+        setProducts([FALLBACK_PRODUCTS.monthly, FALLBACK_PRODUCTS.yearly]);
+        setInitialized(true);
+        return;
+      }
+      initializeIAP();
+    }
+  }, [show, initialized]);
+
 
   // Cleanup timeouts on unmount
   useEffect(() => {
