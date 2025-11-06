@@ -8,8 +8,16 @@
     }
   },
   "cordova": {
-    "plugins": [
-      "cordova-plugin-purchase"
-    ]
+    "preferences": {
+      "AutoHideSplashScreen": "true",
+      "FadeSplashScreen": "true"
+    },
+    "plugins": {
+      "cordova-plugin-purchase": {}
+    }
+  },
+  "ios": {
+    "scheme": "SaraStories",
+    "contentInset": "always"
   }
 }
