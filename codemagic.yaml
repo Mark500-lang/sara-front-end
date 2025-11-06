@@ -50,12 +50,6 @@ workflows:
           echo "=== Installing Node Modules ==="
           npm ci
           
-          echo "=== Installing cordova-plugin-purchase for IAP ==="
-          npm install --save cordova-plugin-purchase@13.12.1
-          
-          echo "=== Installing Capacitor IAP Bridge Dependencies ==="
-          npm install --save @ionic-native/in-app-purchase-2@5.36.0
-          
           echo "=== Installing missing Babel plugin ==="
           npm install --save-dev @babel/plugin-proposal-private-property-in-object
           
@@ -87,13 +81,32 @@ workflows:
           
           echo "✅ React build completed successfully"
 
-      # PHASE 4: CAPACITOR SYNC
-      - name: Sync Capacitor and Configure Orientations
+      # PHASE 4: CAPACITOR SYNC WITH IAP VERIFICATION
+      - name: Sync Capacitor and Verify IAP
         script: |
           set -ex
           echo "=== Syncing Capacitor for iOS ==="
           npx cap sync ios
           
+          echo "=== Verifying IAP Plugin Integration ==="
+          if [ -d "ios/App/App/Plugins/cordova-plugin-purchase" ]; then
+            echo "✅ cordova-plugin-purchase properly integrated in iOS project"
+          else
+            echo "❌ cordova-plugin-purchase missing from iOS plugins"
+            echo "Re-adding iOS platform to ensure plugin integration"
+            npx cap rm ios
+            npx cap add ios
+            npx cap sync ios
+          fi
+          
+          # Final verification
+          if [ -f "ios/App/App/Plugins/cordova-plugin-purchase/CDVPurchase.m" ]; then
+            echo "✅ IAP plugin source files verified"
+          else
+            echo "❌ IAP plugin source files missing"
+            exit 1
+          fi
+
           echo "=== Configuring Proper iOS Orientations ==="
           cd ios/App/App
           PLIST_PATH="Info.plist"

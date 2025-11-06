@@ -7,6 +7,7 @@ import { ClipLoader } from "react-spinners";
 import "./Homepage.css";
 import SubscriptionModal from "../components/SubscriptionModal";
 import EmailSetupModal from "../components/EmailSetupModal.js";
+import ParentalGateModal from "../components/ParentalGateModal"; // Add this import
 
 import backgroundMusic from "../assets/please-calm-my-mind-125566.mp3";
 import emailIcon from "../assets/Email Icon.png";
@@ -72,7 +73,30 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
 
+  // Parental gate state - ADD THIS
+  const [showParentalGate, setShowParentalGate] = useState(false);
+  const [pendingSubscription, setPendingSubscription] = useState(false);
+
   const imageBaseUrl = "https://kithia.com/website_b5d91c8e/book-backend/public/";
+
+  // Parental gate handlers - ADD THIS
+  const handleUnlockBooksClick = () => {
+    setPendingSubscription(true);
+    setShowParentalGate(true);
+  };
+
+  const handleParentalGateSuccess = () => {
+    if (pendingSubscription) {
+      setShowSubscriptionModal(true);
+      setPendingSubscription(false);
+    }
+    setShowParentalGate(false);
+  };
+
+  const handleParentalGateClose = () => {
+    setShowParentalGate(false);
+    setPendingSubscription(false);
+  };
 
   // Calculate viewport center
   useEffect(() => {
@@ -348,7 +372,7 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
     setIsSelecting(true);
 
     if (book.id !== 1 && !isSubscribed) {
-      handleSubscriptionModalOpen();
+      handleUnlockBooksClick(); 
       setIsSelecting(false);
     } else if (!book.cover_image) {
       console.warn(`No cover_image for book ID ${book.id}, skipping animation`);
@@ -592,7 +616,7 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
           <img className="home-nav-icon" src={emailIcon} onClick={handleModalShow} alt="Email Icon"/>
         </div>
         {!isSubscribed ? (
-          <button className="unlock-btn" onClick={handleSubscriptionModalOpen}>
+          <button className="unlock-btn" onClick={handleUnlockBooksClick}>
             Unlock all books
           </button>
         ) : (
@@ -658,6 +682,15 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
         randomDigits={randomDigits}
         setRandomDigits={setRandomDigits}
         inputDigits={inputDigits}
+      />
+      
+      {/* PARENTAL GATE MODAL */}
+      <ParentalGateModal
+        show={showParentalGate}
+        onClose={handleParentalGateClose}
+        onSuccess={handleParentalGateSuccess}
+        title="For Mom and Dad"
+        instruction="Please answer this question to continue:"
       />
     </Container>
   );
