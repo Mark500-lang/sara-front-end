@@ -621,6 +621,17 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
               <Col xs={12} md={8} lg={6}>
                 <h5 className="mb-4 text-white text-center">Select Plan</h5>
 
+                {/* Debug Status Panel */}
+                <div className="mb-3 p-2 rounded text-center" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                  <small className="text-white-50">
+                    <strong>Debug Info:</strong><br />
+                    StoreKit: {window.store ? '✅ Loaded' : '❌ Missing'} | 
+                    Initialized: {initialized ? '✅ Yes' : '❌ No'} | 
+                    Products: {products.length} | 
+                    Network: {networkStatus ? '✅ Online' : '❌ Offline'}
+                  </small>
+                </div>
+
                 {/* Monthly Plan */}
                 <div
                   className={`plan-option mb-3 p-3 rounded d-flex align-items-center ${selectedPlan === "monthly" ? "selected" : ""}`}
@@ -674,6 +685,17 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
                     </div>
                   </div>
                 </div>
+
+                {/* Product Debug Info */}
+                {window.store && (
+                  <div className="mt-2 p-2 rounded text-center" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                    <small className="text-white-50">
+                      <strong>Product Status:</strong><br />
+                      Monthly: {window.store.get(PRODUCT_IDS.monthly)?.state || 'Not found'} | 
+                      Yearly: {window.store.get(PRODUCT_IDS.yearly)?.state || 'Not found'}
+                    </small>
+                  </div>
+                )}
 
                 {/* Network Status */}
                 {!networkStatus && (
