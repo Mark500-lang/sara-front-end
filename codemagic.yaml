@@ -629,29 +629,39 @@ workflows:
           
           echo "✅ Now using Apple's system StoreKit framework (not third-party pod)"
 
-      - name: Fix Plugin Location and Native Integration
+      # CORRECTED: FIX PLUGIN LOCATION FOR CAPACITOR
+      - name: Fix Plugin Location for Capacitor
         script: |
           set -ex
-          echo "=== FIXING PLUGIN LOCATION AND NATIVE INTEGRATION ==="
+          echo "=== FIXING PLUGIN LOCATION FOR CAPACITOR ==="
           
           # Remove plugin from wrong location
+          echo "=== Removing plugin from wrong location ==="
           rm -rf ios/App/App/public/plugins/cordova-plugin-purchase
           
-          # Reinstall plugin properly through Cordova
-          npx cordova plugin remove cordova-plugin-purchase
-          npx cordova plugin add cordova-plugin-purchase@13.12.1
-          
-          # Ensure native integration
+          # Use Capacitor commands instead of Cordova
+          echo "=== Reinstalling plugin via Capacitor ==="
+          npx cap rm ios
+          npm install cordova-plugin-purchase@13.12.1
+          npx cap add ios
           npx cap sync ios
           
-          # Verify plugin is in correct location
-          echo "=== VERIFYING CORRECT PLUGIN LOCATION ==="
+          # Verify plugin location
+          echo "=== VERIFYING PLUGIN LOCATION ==="
           if [ -d "ios/App/App/Plugins/cordova-plugin-purchase" ]; then
-            echo "✅ Plugin in CORRECT location: Plugins/cordova-plugin-purchase"
+            echo "✅✅ SUCCESS: Plugin in CORRECT location: Plugins/cordova-plugin-purchase"
+            echo "Plugin files:"
+            find ios/App/App/Plugins/cordova-plugin-purchase -type f | head -10
+          elif [ -d "ios/App/App/public/plugins/cordova-plugin-purchase" ]; then
+            echo "❌ STILL WRONG: Plugin in public/plugins/"
+            echo "Manual intervention required"
           else
-            echo "❌ Plugin still in wrong location - checking:"
+            echo "⚠️ Plugin not found in expected locations"
+            echo "Searching for plugin files:"
             find ios/App -name "*purchase*" -type d
           fi
+          
+          echo "=== Plugin location fix complete ==="
 
       - name: Verify Native IAP Framework
         script: |
