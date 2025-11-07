@@ -663,27 +663,44 @@ workflows:
           
           echo "=== Plugin location fix complete ==="# CORRECTED: UNIVERSAL PLUGIN LOCATION FIX
 
-      - name: Simple Manual Plugin Fix
+      # CORRECTED: PLUGIN LOCATION FIX (NO CAPACITOR RM)
+      - name: Fix Plugin Location Final
         script: |
           set -ex
-          echo "=== SIMPLE MANUAL PLUGIN FIX ==="
+          echo "=== FINAL PLUGIN LOCATION FIX ==="
           
-          # Remove from wrong location
+          # Remove plugin from wrong location
+          echo "=== Removing plugin from wrong location ==="
           rm -rf ios/App/App/public/plugins/cordova-plugin-purchase
           
-          # Create correct location and copy files manually
-          mkdir -p ios/App/App/Plugins/cordova-plugin-purchase
+          # Clean and rebuild iOS platform WITHOUT 'cap rm'
+          echo "=== Rebuilding iOS platform ==="
+          rm -rf ios
+          npx cap add ios
           
-          # Copy from node_modules if available
-          if [ -d "node_modules/cordova-plugin-purchase/www" ]; then
-            cp -R node_modules/cordova-plugin-purchase/www/* ios/App/App/Plugins/cordova-plugin-purchase/
-            echo "✅ Copied plugin files to Plugins directory"
+          # Ensure plugin is installed
+          if [ ! -d "node_modules/cordova-plugin-purchase" ]; then
+            echo "Installing cordova-plugin-purchase..."
+            npm install cordova-plugin-purchase@13.12.1
           fi
           
-          # Just resync - don't rebuild entire platform
           npx cap sync ios
           
-          echo "✅ Manual fix applied"
+          # Final verification
+          echo "=== FINAL VERIFICATION ==="
+          if [ -d "ios/App/App/Plugins/cordova-plugin-purchase" ]; then
+            echo "✅✅ SUCCESS: Plugin in CORRECT location"
+            echo "Plugin files in Plugins/:"
+            find ios/App/App/Plugins/cordova-plugin-purchase -type f | head -5
+          elif [ -d "ios/App/App/public/plugins/cordova-plugin-purchase" ]; then
+            echo "❌ STILL WRONG: Plugin in public/plugins/"
+            echo "This confirms the fundamental Capacitor-Cordova incompatibility"
+          else
+            echo "⚠️ Plugin location unknown"
+            find ios/App -name "*purchase*" -type d
+          fi
+          
+          echo "=== Fix complete ==="
 
       - name: Verify Native IAP Framework
         script: |
