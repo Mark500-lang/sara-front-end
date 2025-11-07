@@ -17,6 +17,11 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   const [initialized, setInitialized] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [networkStatus, setNetworkStatus] = useState(true);
+  
+  // VISUAL DEBUG STATES - Users can see these on screen
+  const [debugStatus, setDebugStatus] = useState("Ready");
+  const [storeKitStatus, setStoreKitStatus] = useState("Checking...");
+  const [productStatus, setProductStatus] = useState("Unknown");
 
   // Simple network monitoring
   useEffect(() => {
@@ -36,15 +41,22 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     };
   }, [error]);
 
-  // SIMPLIFIED IAP Initialization
+  // SIMPLIFIED IAP Initialization with VISUAL DEBUGGING
   const initializeIAP = useCallback(async () => {
+    setDebugStatus("Initializing StoreKit...");
+    setStoreKitStatus("Checking availability");
+    
     if (!window.store) {
-      console.log('StoreKit not available');
-      setInitialized(true); // Allow attempts even if StoreKit missing
+      setDebugStatus("StoreKit NOT available");
+      setStoreKitStatus("❌ Missing - Check cordova plugin");
+      setInitialized(true);
       return;
     }
 
     try {
+      setStoreKitStatus("✅ Available");
+      setDebugStatus("Registering products...");
+      
       const store = window.store;
       
       // Minimal product registration
@@ -55,31 +67,54 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       store.when(PRODUCT_IDS.yearly).approved(finishPurchase);
       
       store.ready(() => {
-        console.log('StoreKit ready');
+        setDebugStatus("StoreKit ready - products loaded");
         setInitialized(true);
+        
+        // Check product status for debugging
+        const monthly = store.get(PRODUCT_IDS.monthly);
+        const yearly = store.get(PRODUCT_IDS.yearly);
+        
+        if (monthly && yearly) {
+          setProductStatus(`Monthly: ${monthly.state}, Yearly: ${yearly.state}`);
+        } else {
+          setProductStatus("Products not found in StoreKit");
+        }
       });
       
       await store.initialize();
+      setDebugStatus("StoreKit initialized successfully");
       
     } catch (error) {
-      console.log('StoreKit init completed with warnings');
-      setInitialized(true); // CRITICAL: Always allow purchase attempts
+      setDebugStatus("StoreKit initialization failed");
+      setStoreKitStatus("❌ Initialization error");
+      setInitialized(true);
     }
   }, []);
 
   useEffect(() => {
     if (show && !initialized) {
-      initializeIAP();
+      // Give components time to mount before initializing StoreKit
+      const timer = setTimeout(() => {
+        initializeIAP();
+      }, 500);
+      return () => clearTimeout(timer);
     }
   }, [show, initialized, initializeIAP]);
 
   const finishPurchase = async (product) => {
+    setDebugStatus("Completing purchase...");
+    
     try {
-      if (product.finish) await product.finish();
+      if (product.finish) {
+        await product.finish();
+        setDebugStatus("Purchase finished in StoreKit");
+      }
       
       // Simple receipt verification
       const userToken = localStorage.getItem("auth_token");
       if (userToken) {
+        setDebugStatus("Verifying receipt...");
+        
         const BASE_URL = "https://kithia.com/website_b5d91c8e/api";
         let receiptData = product.transaction?.appStoreReceipt || 
                          product.transaction?.receipt || 
@@ -98,73 +133,98 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
               platform: 'ios',
             }),
           });
+          setDebugStatus("Receipt verified successfully");
         }
       }
       
+      setDebugStatus("Purchase completed successfully!");
       onPaymentSuccess();
       onClose();
     } catch (err) {
-      console.log('Purchase completion with minor issues');
-      onPaymentSuccess(); // Still consider successful for user experience
+      setDebugStatus("Purchase completed with minor verification issues");
+      setError("Purchase completed! Please check your subscription status.");
+      onPaymentSuccess();
       onClose();
     }
   };
 
-  // FIXED: Purchase handler with network check and loading states
+  // FIXED: Purchase handler with VISUAL DEBUGGING
   const handleSubscribe = async () => {
     if (!initialized) {
       setError('Payment system initializing...');
+      setDebugStatus("System not ready yet");
       return;
     }
 
     if (!networkStatus) {
       setError('No internet connection. Please check your network.');
+      setDebugStatus("No internet connection");
       return;
     }
 
     if (!selectedPlan) {
       setError('Please select a subscription plan.');
+      setDebugStatus("No plan selected");
       return;
     }
 
     setLoading(true);
     setError(null);
     setPurchaseInProgress(true);
+    setDebugStatus("Starting purchase process...");
 
     const productId = selectedPlan === 'monthly' ? PRODUCT_IDS.monthly : PRODUCT_IDS.yearly;
 
     try {
       if (window.store) {
-        console.log('Initiating purchase for:', productId);
+        setDebugStatus(`Attempting to purchase: ${productId}`);
+        
+        // Check product status before purchase
+        const product = window.store.get(productId);
+        if (product) {
+          setDebugStatus(`Product found: ${product.state}, valid: ${product.valid}`);
+        } else {
+          setDebugStatus("Product not found in StoreKit");
+        }
+        
+        setDebugStatus("Calling store.order()...");
         await window.store.order(productId);
+        
+        setDebugStatus("Purchase initiated successfully - waiting for Apple...");
         // Loading state continues until finishPurchase is called
+        
       } else {
+        setDebugStatus("StoreKit not available - IAP disabled");
         setError('In-app purchases not available on this device.');
         setLoading(false);
         setPurchaseInProgress(false);
       }
     } catch (err) {
-      console.error('Purchase initiation failed:', err);
-      setError('Failed to start purchase. Please try again.');
+      setDebugStatus(`Purchase failed: ${err.message}`);
+      setError(`Failed to start purchase: ${err.message}`);
       setLoading(false);
       setPurchaseInProgress(false);
     }
   };
 
-  // Simple restore purchases
+  // Simple restore purchases with debugging
   const restorePurchases = async () => {
     if (!window.store) {
       setError('In-app purchases not available');
+      setDebugStatus("StoreKit not available for restore");
       return;
     }
 
     setRestoring(true);
     setError(null);
+    setDebugStatus("Restoring purchases...");
 
     try {
       await window.store.restore();
+      setDebugStatus("Restore completed");
       setError('Purchases restored successfully.');
     } catch (err) {
+      setDebugStatus(`Restore failed: ${err.message}`);
       setError('Could not restore purchases. Please try again.');
     } finally {
       setRestoring(false);
@@ -189,18 +249,9 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       setLoading(false);
       setPurchaseInProgress(false);
       setRestoring(false);
+      setDebugStatus("Ready");
     }
   }, [show]);
-
-  useEffect(() => {
-    if (show && !initialized) {
-      // Give components time to mount before initializing StoreKit
-      const timer = setTimeout(() => {
-        initializeIAP();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [show, initialized, initializeIAP]);
 
   return (
     <>
@@ -231,6 +282,15 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
             <Row className="w-100 justify-content-center">
               <Col xs={12} md={8} lg={6}>
                 <h5 className="mb-4 text-white text-center">Select Plan</h5>
+
+                {/* VISUAL DEBUG PANEL - Users can see this on device */}
+                <div className="mb-3 p-2 rounded text-center" style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)' }}>
+                  <small className="text-white-50">
+                    <strong>Status:</strong> {debugStatus}<br/>
+                    <strong>StoreKit:</strong> {storeKitStatus}<br/>
+                    <strong>Products:</strong> {productStatus}
+                  </small>
+                </div>
 
                 {/* Monthly Plan */}
                 <div
