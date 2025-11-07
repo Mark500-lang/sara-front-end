@@ -63,7 +63,7 @@ workflows:
             echo "❌ cordova-plugin-purchase not found in node_modules"
             exit 1
           fi
-          
+
       # 🆕 NEW PHASE 1: COMPREHENSIVE IAP DIAGNOSTIC (ADD THIS FIRST)
       - name: Comprehensive IAP Diagnostic
         script: |
@@ -124,7 +124,7 @@ workflows:
           
           # Remove and re-add iOS platform to ensure clean state
           echo "=== Clean iOS platform setup ==="
-          npx cap rm ios
+          npx cap remove ios
           npx cap add ios
           
           # CRITICAL: Use Cordova to properly install the plugin
