@@ -10,14 +10,23 @@
   "cordova": {
     "preferences": {
       "AutoHideSplashScreen": "true",
-      "FadeSplashScreen": "true"
+      "FadeSplashScreen": "true",
+      "IAP_AUTO_FINISH_TRANSACTIONS": "true"
     },
     "plugins": {
-      "cordova-plugin-purchase": {}
+      "cordova-plugin-purchase": {
+        "IOS_PRODUCT_CATEGORY": "PUBLIC.BOOK",
+        "BYPASS_APPSTORE_REQUIREMENTS": "false"
+      }
     }
   },
   "ios": {
     "scheme": "SaraStories",
-    "contentInset": "always"
+    "contentInset": "always",
+    "cordovaSwiftVersion": "5.0",
+    "minVersion": "13.0",
+    "preferences": {
+      "deployment-target": "13.0"
+    }
   }
 }

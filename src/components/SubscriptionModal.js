@@ -18,10 +18,11 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   const [restoring, setRestoring] = useState(false);
   const [networkStatus, setNetworkStatus] = useState(true);
   
-  // VISUAL DEBUG STATES - Users can see these on screen
+  // ENHANCED VISUAL DEBUG STATES
   const [debugStatus, setDebugStatus] = useState("Ready");
   const [storeKitStatus, setStoreKitStatus] = useState("Checking...");
   const [productStatus, setProductStatus] = useState("Unknown");
+  const [debugDetails, setDebugDetails] = useState(""); // New: For detailed debug info
 
   // Simple network monitoring
   useEffect(() => {
@@ -41,68 +42,135 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     };
   }, [error]);
 
-  // SIMPLIFIED IAP Initialization with VISUAL DEBUGGING
+  // ENHANCED: Debug logging that shows on screen
+  const addDebugDetail = (message) => {
+    setDebugDetails(prev => {
+      const timestamp = new Date().toLocaleTimeString();
+      const newMessage = `[${timestamp}] ${message}\n`;
+      // Keep last 10 debug messages to avoid overflow
+      const lines = (prev + newMessage).split('\n');
+      if (lines.length > 10) {
+        return lines.slice(-10).join('\n');
+      }
+      return prev + newMessage;
+    });
+  };
+
+  // ENHANCED IAP Initialization with VISUAL DEBUGGING
   const initializeIAP = useCallback(async () => {
-    setDebugStatus("Checking Cordova runtime...");
-    
-    // Wait for Cordova to be ready
+    setDebugStatus("Starting IAP initialization...");
+    addDebugDetail("🚀 Starting IAP initialization...");
+
+    // Wait for device ready with timeout
     const waitForCordova = () => {
-      return new Promise((resolve) => {
-        if (window.cordova) {
+      return new Promise((resolve, reject) => {
+        if (window.cordova && window.cordova.platformId) {
+          addDebugDetail("✅ Cordova already ready");
           resolve();
-        } else {
-          document.addEventListener('deviceready', resolve, { once: true });
-          // Fallback timeout
-          setTimeout(resolve, 3000);
+          return;
         }
+        
+        const timeout = setTimeout(() => {
+          reject(new Error('Cordova timeout after 5 seconds'));
+        }, 5000);
+
+        document.addEventListener('deviceready', () => {
+          clearTimeout(timeout);
+          addDebugDetail("✅ Cordova deviceReady fired");
+          resolve();
+        }, { once: true });
+
+        addDebugDetail("⏳ Waiting for Cordova deviceReady...");
       });
     };
 
     try {
       await waitForCordova();
-      
-      if (!window.cordova) {
-        setDebugStatus("Cordova runtime not available");
-        setStoreKitStatus("❌ Cordova.js not loaded");
-        setInitialized(true);
-        return;
-      }
+      setDebugStatus("Cordova ready");
+      addDebugDetail("📱 Cordova platform: " + (window.cordova?.platformId || 'unknown'));
 
-      setDebugStatus("Cordova ready, checking StoreKit...");
-      
+      // Check if store plugin is properly loaded
       if (!window.store) {
-        setDebugStatus("StoreKit plugin not registered");
-        setStoreKitStatus("❌ Plugin not in Cordova");
-        setInitialized(true);
-        return;
+        const errorMsg = "❌ Store plugin missing - cordova-plugin-purchase not loaded";
+        setDebugStatus(errorMsg);
+        setStoreKitStatus("Plugin not loaded");
+        addDebugDetail(errorMsg);
+        addDebugDetail("🔍 Available globals: " + Object.keys(window).filter(k => k.includes('cordova') || k.includes('store')).join(', '));
+        throw new Error('cordova-plugin-purchase not loaded');
       }
 
-      setStoreKitStatus("✅ Available");
-      setDebugStatus("Initializing StoreKit...");
+      // Verify store methods exist
+      const requiredMethods = ['get', 'order', 'register', 'when', 'initialize', 'restore'];
+      const missingMethods = requiredMethods.filter(method => typeof window.store[method] !== 'function');
+      
+      if (missingMethods.length > 0) {
+        const errorMsg = `❌ Missing methods: ${missingMethods.join(', ')}`;
+        setDebugStatus(errorMsg);
+        addDebugDetail(errorMsg);
+        addDebugDetail("🔍 Available store methods: " + Object.getOwnPropertyNames(window.store).filter(k => typeof window.store[k] === 'function').join(', '));
+        throw new Error(`Incomplete store plugin: ${missingMethods.join(', ')} missing`);
+      }
+
+      setStoreKitStatus("✅ Plugin loaded");
+      setDebugStatus("Configuring StoreKit...");
+      addDebugDetail("✅ All store methods available");
+      addDebugDetail("⚙️ Configuring StoreKit product handlers...");
 
       const store = window.store;
-      
-      // Minimal setup
-      store.register([PRODUCT_IDS.monthly, PRODUCT_IDS.yearly]);
-      store.when(PRODUCT_IDS.monthly).approved(finishPurchase);
-      store.when(PRODUCT_IDS.yearly).approved(finishPurchase);
-      
-      store.ready(() => {
-        setDebugStatus("StoreKit ready");
-        setInitialized(true);
+
+      // Enhanced error handling
+      store.error((error) => {
+        console.error('Store error:', error);
+        const errorMsg = `💥 Store error: ${error.code} - ${error.message}`;
+        setDebugStatus(errorMsg);
+        addDebugDetail(errorMsg);
       });
 
+      // Register products
+      store.register([
+        { id: PRODUCT_IDS.monthly, type: store.PAID_SUBSCRIPTION },
+        { id: PRODUCT_IDS.yearly, type: store.PAID_SUBSCRIPTION }
+      ]);
+      addDebugDetail(`📝 Registered products: ${PRODUCT_IDS.monthly}, ${PRODUCT_IDS.yearly}`);
+
+      // Product handlers
+      store.when(PRODUCT_IDS.monthly).updated((product) => {
+        const status = `📦 Monthly: ${product.state} (valid: ${product.valid})`;
+        setProductStatus(status);
+        addDebugDetail(status);
+      });
+
+      store.when(PRODUCT_IDS.yearly).updated((product) => {
+        const status = `📦 Yearly: ${product.state} (valid: ${product.valid})`;
+        setProductStatus(status);
+        addDebugDetail(status);
+      });
+
+      // Initialize store
+      addDebugDetail("🎯 Initializing StoreKit...");
       await store.initialize();
       
-    } catch (error) {
-      setDebugStatus(`Init failed: ${error.message}`);
-      setStoreKitStatus("❌ Initialization error");
+      setDebugStatus("StoreKit initialized");
       setInitialized(true);
+      addDebugDetail("✅ StoreKit initialized successfully!");
+      addDebugDetail("🎉 IAP system ready for purchases");
+
+    } catch (error) {
+      console.error('IAP Initialization failed:', error);
+      const errorMsg = `❌ Init failed: ${error.message}`;
+      setDebugStatus(errorMsg);
+      setStoreKitStatus("❌ Initialization error");
+      setInitialized(false);
+      addDebugDetail(errorMsg);
     }
   }, []);
 
   useEffect(() => {
     if (show && !initialized) {
+      // Reset debug when modal opens
+      setDebugDetails("");
+      addDebugDetail("🔔 Subscription modal opened");
+      
       // Give components time to mount before initializing StoreKit
       const timer = setTimeout(() => {
         initializeIAP();
@@ -113,17 +181,19 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
   const finishPurchase = async (product) => {
     setDebugStatus("Completing purchase...");
+    addDebugDetail("💰 Completing purchase...");
     
     try {
       if (product.finish) {
         await product.finish();
-        setDebugStatus("Purchase finished in StoreKit");
+        addDebugDetail("✅ Purchase finished in StoreKit");
       }
       
       // Simple receipt verification
       const userToken = localStorage.getItem("auth_token");
       if (userToken) {
         setDebugStatus("Verifying receipt...");
+        addDebugDetail("📋 Verifying receipt with backend...");
         
         const BASE_URL = "https://kithia.com/website_b5d91c8e/api";
         let receiptData = product.transaction?.appStoreReceipt || 
@@ -143,102 +213,135 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
               platform: 'ios',
             }),
           });
-          setDebugStatus("Receipt verified successfully");
+          addDebugDetail("✅ Receipt verified successfully");
         }
       }
       
       setDebugStatus("Purchase completed successfully!");
+      addDebugDetail("🎉 Purchase completed successfully!");
       onPaymentSuccess();
       onClose();
     } catch (err) {
-      setDebugStatus("Purchase completed with minor verification issues");
+      addDebugDetail(`⚠️ Purchase completed with minor verification issues: ${err.message}`);
       setError("Purchase completed! Please check your subscription status.");
       onPaymentSuccess();
       onClose();
     }
   };
 
-  // FIXED: Purchase handler with VISUAL DEBUGGING
+  // ENHANCED: Purchase handler with detailed visual debugging
   const handleSubscribe = async () => {
     if (!initialized) {
-      setError('Payment system initializing...');
-      setDebugStatus("System not ready yet");
+      setError('Payment system still initializing. Please wait...');
+      setDebugStatus("System not ready");
+      addDebugDetail("❌ Purchase blocked: System not initialized");
       return;
     }
 
-    if (!networkStatus) {
-      setError('No internet connection. Please check your network.');
-      setDebugStatus("No internet connection");
-      return;
-    }
-
-    if (!selectedPlan) {
-      setError('Please select a subscription plan.');
-      setDebugStatus("No plan selected");
+    if (!window.store || typeof window.store.get !== 'function') {
+      setError('Payment system unavailable. Please restart the app.');
+      setDebugStatus("Store methods missing");
+      addDebugDetail("❌ Purchase blocked: Store methods missing");
       return;
     }
 
     setLoading(true);
     setError(null);
     setPurchaseInProgress(true);
-    setDebugStatus("Starting purchase process...");
+    setDebugStatus("Starting purchase...");
+    addDebugDetail("🛒 Starting purchase process...");
 
     const productId = selectedPlan === 'monthly' ? PRODUCT_IDS.monthly : PRODUCT_IDS.yearly;
 
     try {
-      if (window.store) {
-        setDebugStatus(`Attempting to purchase: ${productId}`);
-        
-        // Check product status before purchase
-        const product = window.store.get(productId);
-        if (product) {
-          setDebugStatus(`Product found: ${product.state}, valid: ${product.valid}`);
-        } else {
-          setDebugStatus("Product not found in StoreKit");
-        }
-        
-        setDebugStatus("Calling store.order()...");
-        await window.store.order(productId);
-        
-        setDebugStatus("Purchase initiated successfully - waiting for Apple...");
-        // Loading state continues until finishPurchase is called
-        
-      } else {
-        setDebugStatus("StoreKit not available - IAP disabled");
-        setError('In-app purchases not available on this device.');
-        setLoading(false);
-        setPurchaseInProgress(false);
+      // Verify product exists and is valid
+      addDebugDetail(`🔍 Looking up product: ${productId}`);
+      const product = window.store.get(productId);
+      
+      if (!product) {
+        const errorMsg = `❌ Product ${productId} not found in store`;
+        addDebugDetail(errorMsg);
+        throw new Error(errorMsg);
       }
+
+      if (!product.valid) {
+        const errorMsg = `❌ Product ${productId} is invalid: ${product.state}`;
+        addDebugDetail(errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      const productStatus = `✅ Product found: ${product.state}, title: ${product.title}, price: ${product.price}`;
+      setDebugStatus(`Product state: ${product.state}`);
+      addDebugDetail(productStatus);
+
+      // Initiate purchase
+      addDebugDetail("🎯 Calling store.order()...");
+      await window.store.order(productId);
+      addDebugDetail("✅ Purchase initiated - waiting for Apple purchase sheet...");
+
     } catch (err) {
-      setDebugStatus(`Purchase failed: ${err.message}`);
-      setError(`Failed to start purchase: ${err.message}`);
+      console.error('Purchase error:', err);
+      const errorMsg = `❌ Purchase failed: ${err.message}`;
+      setDebugStatus(errorMsg);
+      setError(`Purchase failed: ${err.message}`);
+      addDebugDetail(errorMsg);
       setLoading(false);
       setPurchaseInProgress(false);
     }
   };
 
-  // Simple restore purchases with debugging
+  // ENHANCED: Restore purchases with debugging
   const restorePurchases = async () => {
     if (!window.store) {
       setError('In-app purchases not available');
       setDebugStatus("StoreKit not available for restore");
+      addDebugDetail("❌ Restore failed: Store not available");
       return;
     }
 
     setRestoring(true);
     setError(null);
     setDebugStatus("Restoring purchases...");
+    addDebugDetail("🔄 Restoring purchases...");
 
     try {
       await window.store.restore();
       setDebugStatus("Restore completed");
       setError('Purchases restored successfully.');
+      addDebugDetail("✅ Restore completed successfully");
     } catch (err) {
       setDebugStatus(`Restore failed: ${err.message}`);
       setError('Could not restore purchases. Please try again.');
+      addDebugDetail(`❌ Restore failed: ${err.message}`);
     } finally {
       setRestoring(false);
     }
+  };
+
+  // ENHANCED: Test IAP setup with visual output
+  const testIAPSetup = async () => {
+    addDebugDetail("🧪 Running IAP setup test...");
+    
+    const cordovaAvailable = !!window.cordova;
+    const storeAvailable = !!window.store;
+    
+    addDebugDetail(`📱 Cordova: ${cordovaAvailable ? '✅ Available' : '❌ Missing'}`);
+    addDebugDetail(`🏪 Store object: ${storeAvailable ? '✅ Available' : '❌ Missing'}`);
+    
+    if (window.store) {
+      const methods = Object.getOwnPropertyNames(window.store).filter(k => typeof window.store[k] === 'function');
+      addDebugDetail(`🔧 Store methods: ${methods.join(', ')}`);
+      
+      // Test product retrieval
+      if (typeof window.store.get === 'function') {
+        const monthly = window.store.get(PRODUCT_IDS.monthly);
+        const yearly = window.store.get(PRODUCT_IDS.yearly);
+        addDebugDetail(`📦 Monthly product: ${monthly ? `found (${monthly.state})` : 'not found'}`);
+        addDebugDetail(`📦 Yearly product: ${yearly ? `found (${yearly.state})` : 'not found'}`);
+      }
+    }
+    
+    addDebugDetail("✅ IAP setup test completed");
   };
 
   const getButtonText = () => {
@@ -263,22 +366,23 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     }
   }, [show]);
 
-  const testCordovaAvailability = () => {
-    console.log('=== CORDOVA DEBUG ===');
-    console.log('window.cordova:', window.cordova);
-    console.log('window.store:', window.store);
-    console.log('store methods:', window.store ? Object.getOwnPropertyNames(window.store) : 'none');
-    console.log('deviceReady:', !!window.cordova?.platformId);
-    
-    setDebugStatus(`Cordova: ${!!window.cordova}, Store: ${!!window.store}`);
-  };
-
-  // Call this in useEffect or add a debug button
+  // Call test when modal opens and after initialization
   useEffect(() => {
     if (show) {
-      setTimeout(testCordovaAvailability, 1000);
+      // Initial test after modal opens
+      setTimeout(() => {
+        addDebugDetail("🔔 Modal opened - starting diagnostics...");
+        testIAPSetup();
+      }, 1000);
     }
   }, [show]);
+
+  useEffect(() => {
+    if (initialized) {
+      addDebugDetail("🎉 System initialized - running final checks...");
+      testIAPSetup();
+    }
+  }, [initialized]);
 
   return (
     <>
@@ -310,13 +414,33 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
               <Col xs={12} md={8} lg={6}>
                 <h5 className="mb-4 text-white text-center">Select Plan</h5>
 
-                {/* VISUAL DEBUG PANEL - Users can see this on device */}
-                <div className="mb-3 p-2 rounded text-center" style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)' }}>
-                  <small className="text-white-50">
-                    <strong>Status:</strong> {debugStatus}<br/>
-                    <strong>StoreKit:</strong> {storeKitStatus}<br/>
-                    <strong>Products:</strong> {productStatus}
-                  </small>
+                {/* ENHANCED VISUAL DEBUG PANEL */}
+                <div className="mb-3 p-2 rounded text-center" style={{ 
+                  background: 'rgba(255,255,255,0.1)', 
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  maxHeight: '150px',
+                  overflowY: 'auto',
+                  fontSize: '15px',
+                  textAlign: 'left',
+                  padding: '8px'
+                }}>
+                  <div className="text-center mb-1">
+                    <small className="text-white-50">
+                      <strong>Status:</strong> {debugStatus} | 
+                      <strong> StoreKit:</strong> {storeKitStatus} | 
+                      <strong> Products:</strong> {productStatus}
+                    </small>
+                  </div>
+                  <hr className="my-1" style={{ borderColor: 'rgba(255,255,255,0.2)' }} />
+                  <pre className="text-white-50 mb-0" style={{ 
+                    fontSize: '12px', 
+                    lineHeight: '1.2',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-all',
+                    margin: 0
+                  }}>
+                    {debugDetails || "Debug information will appear here..."}
+                  </pre>
                 </div>
 
                 {/* Monthly Plan */}
