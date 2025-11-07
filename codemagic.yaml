@@ -64,6 +64,23 @@ workflows:
             exit 1
           fi
 
+      # NEW PHASE: FIX CAPACITOR VERSION MISMATCH
+      - name: Fix Capacitor Version Compatibility
+        script: |
+          set -ex
+          echo "=== FIXING CAPACITOR VERSION MISMATCH ==="
+          
+          # Force compatible versions
+          npm install @capacitor/core@7.0.1 @capacitor/ios@7.0.1 @capacitor/cli@7.0.1
+          npm install cordova-ios@6.3.0 cordova-plugin-purchase@13.12.1
+          
+          # Verify versions
+          echo "=== VERIFYING VERSIONS ==="
+          npm list @capacitor/core @capacitor/ios @capacitor/cli cordova-ios cordova-plugin-purchase
+          
+          # Clean sync
+          npx cap sync ios
+
       # 🆕 NEW PHASE 1: COMPREHENSIVE IAP DIAGNOSTIC (ADD THIS FIRST)
       - name: Comprehensive IAP Diagnostic
         script: |
@@ -116,67 +133,75 @@ workflows:
           
           echo "✅ React build completed successfully"
 
-      # PHASE 4: FIXED CAPACITOR SYNC WITH PROPER CORDOVA IAP INTEGRATION
-      - name: Sync Capacitor with PROPER IAP Integration
+      # PHASE 4: FIXED - FOCUS ON STOREKIT BRIDGE, NOT PLUGIN INSTALLATION
+      - name: Fix StoreKit Bridge Integration
         script: |
           set -ex
-          echo "=== PROPER IAP Integration with Capacitor ==="
+          echo "=== FIXING STOREKIT BRIDGE INTEGRATION ==="
           
-          # Remove only the ios platform directory, NOT the node_modules package
-          echo "=== Clean iOS platform setup ==="
-          rm -rf ios  # Only remove the platform directory
-          
-          # Re-add iOS platform (package still exists in node_modules)
-          echo "=== Re-adding iOS platform ==="
+          # Clean iOS platform to reset any corrupted bridge
+          echo "=== Resetting iOS platform to fix bridge ==="
+          npx cap rm ios
           npx cap add ios
           
-          # Install Cordova IAP plugin
-          echo "=== Installing IAP Plugin ==="
-          npm install cordova-plugin-purchase@13.12.1
+          # The plugin should already be installed from node_modules
+          echo "=== Verifying plugin in node_modules ==="
+          if [ -d "node_modules/cordova-plugin-purchase" ]; then
+            echo "✅ cordova-plugin-purchase found in node_modules"
+            ls -la node_modules/cordova-plugin-purchase/src/ios/
+          else
+            echo "❌ Plugin missing from node_modules - reinstalling"
+            npm install cordova-plugin-purchase@13.12.1
+          fi
           
-          # Sync with Capacitor
-          echo "=== Syncing Capacitor ==="
+          # Sync with focus on native bridge
+          echo "=== Syncing with native bridge focus ==="
           npx cap sync ios
           
-          # CRITICAL: Verify the plugin is properly integrated
-          echo "=== COMPREHENSIVE PLUGIN VERIFICATION ==="
+          # CRITICAL: Check if native methods are being registered
+          echo "=== CHECKING NATIVE BRIDGE INTEGRATION ==="
           
-          # 1. Check if plugin files made it to iOS project
-          PLUGIN_FOUND=false
-          if find ios/App -name "*Purchase*" -o -name "*purchase*" | grep -q .; then
-            echo "✅ Purchase plugin files found in iOS project:"
-            find ios/App -name "*Purchase*" -o -name "*purchase*" | head -10
-            PLUGIN_FOUND=true
-          fi
-          
-          # 2. Check for StoreKit framework
-          if [ -d "ios/App/Pods/StoreKit" ] || find ios/App -name "StoreKit.framework" | grep -q .; then
-            echo "✅ StoreKit framework found"
-          else
-            echo "⚠️ StoreKit framework not found - will be added by CocoaPods"
-          fi
-          
-          # 3. Check Capacitor's Cordova bridge
-          if [ -f "ios/App/App/App/cordova.js" ] || [ -f "ios/App/App/public/cordova.js" ]; then
-            echo "✅ Cordova.js found"
-          else
-            echo "ℹ️ Cordova.js will be provided by Capacitor at runtime"
-          fi
-          
-          # 4. Verify plugin registration
-          echo "=== Plugin Registration Check ==="
+          # 1. Verify plugin is in Capacitor's registry
+          echo "--- Capacitor Plugin Registry ---"
           npx cap ls ios
           
-          if [ "$PLUGIN_FOUND" = true ]; then
-            echo "✅✅ IAP plugin integration appears successful"
+          # 2. Check if native iOS files are properly integrated
+          echo "--- Native iOS Integration Check ---"
+          if find ios/App/App/Plugins -name "*Purchase*" -o -name "*purchase*" | grep -q .; then
+            echo "✅ Native plugin files in Plugins directory:"
+            find ios/App/App/Plugins -name "*Purchase*" -o -name "*purchase*"
           else
-            echo "❌ IAP plugin integration may have failed"
-            echo "=== FALLBACK: Manual integration ==="
-            npx cap update ios
+            echo "⚠️ Native plugin files not in Plugins directory"
+            echo "Checking alternative locations:"
+            find ios/App -name "*Purchase*" -o -name "*purchase*" -type f | head -10
           fi
           
-          echo "✅ IAP integration complete"
+          # 3. Check for StoreKit framework in Pods (CRITICAL)
+          echo "--- StoreKit Framework Check ---"
+          if [ -d "ios/App/Pods/StoreKit" ]; then
+            echo "✅ StoreKit framework found in Pods"
+          else
+            echo "❌ StoreKit framework MISSING from Pods - this breaks the bridge!"
+            echo "Adding StoreKit to Podfile..."
+            cd ios/App
+            echo "
+            # StoreKit required for IAP functionality
+            pod 'StoreKit'" >> Podfile
+            pod install --repo-update
+            cd ../..
+          fi
+          
+          # 4. Verify the bridge configuration
+          echo "--- Bridge Configuration Check ---"
+          if [ -f "ios/App/App/App/cordova.js" ]; then
+            echo "✅ Cordova.js in native app directory"
+          else
+            echo "⚠️ Cordova.js not in native directory (may be loaded dynamically)"
+          fi
+          
+          echo "=== Bridge integration complete ==="
 
+          # Continue with orientation configuration...
           echo "=== Configuring Proper iOS Orientations ==="
           cd ios/App/App
           PLIST_PATH="Info.plist"
@@ -199,6 +224,41 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:3 string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
           
           echo "✅ Orientation configuration fixed"
+
+      - name: Verify StoreKit Bridge in Final Build
+        script: |
+          set -ex
+          echo "=== VERIFYING STOREKIT BRIDGE IN FINAL BUILD ==="
+          cd ios/App
+          
+          # Build a test binary to verify StoreKit linking
+          echo "--- Building Test Binary ---"
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -derivedDataPath ./build-test \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+          
+          # Check if StoreKit is linked in the final binary
+          echo "--- Checking StoreKit Linking ---"
+          if find ./build-test -name "App.app" -exec otool -L {} \; | grep -i storekit; then
+            echo "✅ StoreKit SUCCESSFULLY linked in final binary"
+          else
+            echo "❌ StoreKit NOT linked in final binary - this explains missing methods!"
+            echo "The Cordova plugin can't communicate with StoreKit without this link"
+          fi
+          
+          # Check for Cordova plugin symbols
+          echo "--- Checking Cordova Plugin Symbols ---"
+          if find ./build-test -name "App.app" -exec nm {} \; | grep -i "InAppPurchase\|storekit"; then
+            echo "✅ Cordova IAP symbols found in binary"
+          else
+            echo "⚠️ Cordova IAP symbols not found in binary"
+          fi
 
       # NEW PHASE: VERIFY STOREKIT FRAMEWORK IN XCODE PROJECT
       - name: Verify StoreKit Framework
@@ -247,6 +307,34 @@ workflows:
           else
             echo "❌ CocoaPods installation failed!"
             exit 1
+          fi
+
+      # NEW PHASE: ENSURE STOREKIT FRAMEWORK
+      - name: Ensure StoreKit Framework
+        script: |
+          set -ex
+          echo "=== ENSURING STOREKIT FRAMEWORK ==="
+          cd ios/App
+          
+          # Add StoreKit to Podfile if missing
+          if ! grep -q "StoreKit" Podfile; then
+            echo "Adding StoreKit to Podfile..."
+            echo "
+            # StoreKit for IAP
+            pod 'StoreKit'" >> Podfile
+          fi
+          
+          # Update pods
+          pod install --repo-update
+          
+          # Verify StoreKit is installed
+          echo "=== VERIFYING STOREKIT INSTALLATION ==="
+          if [ -d "Pods/StoreKit" ]; then
+            echo "✅ StoreKit installed via CocoaPods"
+          else
+            echo "❌ StoreKit still missing - manual intervention required"
+            # Manual framework addition
+            xcodebuild -workspace App.xcworkspace -scheme App -configuration Release OTHER_LDFLAGS="-framework StoreKit"
           fi
 
       # PHASE 6: CREATE XCODE SCHEME
