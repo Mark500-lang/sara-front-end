@@ -629,6 +629,48 @@ workflows:
           
           echo "✅ Now using Apple's system StoreKit framework (not third-party pod)"
 
+      - name: Fix Plugin Location and Native Integration
+        script: |
+          set -ex
+          echo "=== FIXING PLUGIN LOCATION AND NATIVE INTEGRATION ==="
+          
+          # Remove plugin from wrong location
+          rm -rf ios/App/App/public/plugins/cordova-plugin-purchase
+          
+          # Reinstall plugin properly through Cordova
+          npx cordova plugin remove cordova-plugin-purchase
+          npx cordova plugin add cordova-plugin-purchase@13.12.1
+          
+          # Ensure native integration
+          npx cap sync ios
+          
+          # Verify plugin is in correct location
+          echo "=== VERIFYING CORRECT PLUGIN LOCATION ==="
+          if [ -d "ios/App/App/Plugins/cordova-plugin-purchase" ]; then
+            echo "✅ Plugin in CORRECT location: Plugins/cordova-plugin-purchase"
+          else
+            echo "❌ Plugin still in wrong location - checking:"
+            find ios/App -name "*purchase*" -type d
+          fi
+
+      - name: Verify Native IAP Framework
+        script: |
+          set -ex
+          echo "=== VERIFYING NATIVE IAP FRAMEWORK ==="
+          cd ios/App
+          
+          # Check if native plugin framework is being built
+          if find Pods -name "*purchase*" -o -name "*Purchase*" | grep -q .; then
+            echo "✅ Native IAP plugin found in Pods"
+            find Pods -name "*purchase*" -o -name "*Purchase*"
+          else
+            echo "❌ Native IAP plugin MISSING from Pods"
+            echo "This explains why methods are missing!"
+          fi
+          
+          # Check build settings for IAP
+          xcodebuild -workspace App.xcworkspace -scheme App -showBuildSettings | grep -i "framework" | head -10
+
       # PHASE 13: BUILD UNSIGNED ARCHIVE
       - name: Build Unsigned Archive
         script: |

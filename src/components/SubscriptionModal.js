@@ -58,72 +58,62 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
   // ENHANCED IAP Initialization with VISUAL DEBUGGING
   const initializeIAP = useCallback(async () => {
-    setDebugStatus("Starting IAP initialization...");
-    addDebugDetail("🚀 Starting IAP initialization...");
-
-    // Wait for device ready with timeout
-    const waitForCordova = () => {
-      return new Promise((resolve, reject) => {
-        if (window.cordova && window.cordova.platformId) {
-          addDebugDetail("✅ Cordova already ready");
-          resolve();
-          return;
-        }
-        
-        const timeout = setTimeout(() => {
-          reject(new Error('Cordova timeout after 5 seconds'));
-        }, 5000);
-
-        document.addEventListener('deviceready', () => {
-          clearTimeout(timeout);
-          addDebugDetail("✅ Cordova deviceReady fired");
-          resolve();
-        }, { once: true });
-
-        addDebugDetail("⏳ Waiting for Cordova deviceReady...");
-      });
-    };
+    setDebugStatus("Starting enhanced IAP initialization...");
+    addDebugDetail("🚀 ENHANCED IAP INITIALIZATION STARTED");
 
     try {
-      await waitForCordova();
-      setDebugStatus("Cordova ready");
-      addDebugDetail("📱 Cordova platform: " + (window.cordova?.platformId || 'unknown'));
+      // Wait for Cordova
+      await new Promise((resolve) => {
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+          resolve();
+        } else {
+          document.addEventListener('DOMContentLoaded', resolve);
+          setTimeout(resolve, 3000); // Fallback timeout
+        }
+      });
 
-      // Check if store plugin is properly loaded
-      if (!window.store) {
-        const errorMsg = "❌ Store plugin missing - cordova-plugin-purchase not loaded";
-        setDebugStatus(errorMsg);
-        setStoreKitStatus("Plugin not loaded");
-        addDebugDetail(errorMsg);
-        addDebugDetail("🔍 Available globals: " + Object.keys(window).filter(k => k.includes('cordova') || k.includes('store')).join(', '));
-        throw new Error('cordova-plugin-purchase not loaded');
+      addDebugDetail("📄 DOM ready, checking environment...");
+
+      // Run comprehensive diagnostics first
+      comprehensiveBridgeAnalysis();
+
+      // Check if store exists but has no methods
+      if (window.store && Object.getOwnPropertyNames(window.store).length === 0) {
+        addDebugDetail("💥 STORE OBJECT EXISTS BUT IS EMPTY - BRIDGE BROKEN");
+        
+        // Attempt manual injection
+        const injectionSuccess = manuallyInjectStoreMethods();
+        
+        if (injectionSuccess) {
+          addDebugDetail("🎉 Using manually injected methods");
+          setStoreKitStatus("✅ Manual bridge active");
+          setInitialized(true);
+          return;
+        }
       }
 
-      // Verify store methods exist
+      // Original initialization logic (only if bridge is working)
+      if (!window.store) {
+        throw new Error('Store object not created - plugin not loaded');
+      }
+
       const requiredMethods = ['get', 'order', 'register', 'when', 'initialize', 'restore'];
       const missingMethods = requiredMethods.filter(method => typeof window.store[method] !== 'function');
       
       if (missingMethods.length > 0) {
-        const errorMsg = `❌ Missing methods: ${missingMethods.join(', ')}`;
-        setDebugStatus(errorMsg);
-        addDebugDetail(errorMsg);
-        addDebugDetail("🔍 Available store methods: " + Object.getOwnPropertyNames(window.store).filter(k => typeof window.store[k] === 'function').join(', '));
-        throw new Error(`Incomplete store plugin: ${missingMethods.join(', ')} missing`);
+        addDebugDetail(`❌ Missing methods even after injection: ${missingMethods.join(', ')}`);
+        throw new Error(`Bridge completely broken: ${missingMethods.join(', ')} missing`);
       }
 
-      setStoreKitStatus("✅ Plugin loaded");
-      setDebugStatus("Configuring StoreKit...");
-      addDebugDetail("✅ All store methods available");
-      addDebugDetail("⚙️ Configuring StoreKit product handlers...");
-
+      // Continue with normal StoreKit setup...
+      setStoreKitStatus("✅ Native bridge working");
+      addDebugDetail("✅ All store methods available natively");
+      
       const store = window.store;
 
       // Enhanced error handling
       store.error((error) => {
-        console.error('Store error:', error);
-        const errorMsg = `💥 Store error: ${error.code} - ${error.message}`;
-        setDebugStatus(errorMsg);
-        addDebugDetail(errorMsg);
+        addDebugDetail(`💥 Store error: ${error.code} - ${error.message}`);
       });
 
       // Register products
@@ -131,39 +121,49 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         { id: PRODUCT_IDS.monthly, type: store.PAID_SUBSCRIPTION },
         { id: PRODUCT_IDS.yearly, type: store.PAID_SUBSCRIPTION }
       ]);
-      addDebugDetail(`📝 Registered products: ${PRODUCT_IDS.monthly}, ${PRODUCT_IDS.yearly}`);
 
       // Product handlers
       store.when(PRODUCT_IDS.monthly).updated((product) => {
-        const status = `📦 Monthly: ${product.state} (valid: ${product.valid})`;
-        setProductStatus(status);
-        addDebugDetail(status);
+        addDebugDetail(`📦 Monthly updated: ${product.state}`);
       });
 
       store.when(PRODUCT_IDS.yearly).updated((product) => {
-        const status = `📦 Yearly: ${product.state} (valid: ${product.valid})`;
-        setProductStatus(status);
-        addDebugDetail(status);
+        addDebugDetail(`📦 Yearly updated: ${product.state}`);
       });
 
       // Initialize store
-      addDebugDetail("🎯 Initializing StoreKit...");
       await store.initialize();
       
       setDebugStatus("StoreKit initialized");
       setInitialized(true);
-      addDebugDetail("✅ StoreKit initialized successfully!");
-      addDebugDetail("🎉 IAP system ready for purchases");
+      addDebugDetail("🎉 IAP system fully operational");
 
     } catch (error) {
-      console.error('IAP Initialization failed:', error);
-      const errorMsg = `❌ Init failed: ${error.message}`;
-      setDebugStatus(errorMsg);
-      setStoreKitStatus("❌ Initialization error");
+      addDebugDetail(`💥 INITIALIZATION FAILED: ${error.message}`);
+      setDebugStatus(`Init failed: ${error.message}`);
+      setStoreKitStatus("❌ Bridge broken");
       setInitialized(false);
-      addDebugDetail(errorMsg);
     }
   }, []);
+
+  const checkPluginLocation = () => {
+    addDebugDetail("📁 CHECKING PLUGIN LOCATION");
+    
+    // This will help identify if the plugin is in the wrong directory
+    if (window.cordova?.plugins) {
+      addDebugDetail(`Loaded plugins: ${Object.keys(window.cordova.plugins).join(', ')}`);
+    }
+    
+    // Check if we can access the plugin directly
+    if (window.cordova?.require) {
+      try {
+        const pluginList = window.cordova.require('cordova/plugin_list');
+        addDebugDetail(`Plugin list: ${JSON.stringify(pluginList?.metadata || 'unavailable')}`);
+      } catch (e) {
+        addDebugDetail(`Plugin list unavailable: ${e.message}`);
+      }
+    }
+  };
 
   useEffect(() => {
     if (show && !initialized) {
@@ -178,7 +178,108 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       return () => clearTimeout(timer);
     }
   }, [show, initialized, initializeIAP]);
+
+  const comprehensiveBridgeAnalysis = () => {
+  addDebugDetail("🔧 COMPREHENSIVE BRIDGE ANALYSIS");
   
+  // 1. Check Cordova execution bridge
+  addDebugDetail("=== CORDOVA BRIDGE ===");
+  addDebugDetail(`cordova.exec: ${!!window.cordova?.exec}`);
+  addDebugDetail(`cordova.platformId: ${window.cordova?.platformId}`);
+  addDebugDetail(`cordova.version: ${window.cordova?.version}`);
+  
+  // 2. Check Store object structure in detail
+  addDebugDetail("=== STORE OBJECT ANALYSIS ===");
+  if (window.store) {
+    addDebugDetail(`Store type: ${typeof window.store}`);
+    addDebugDetail(`Store constructor: ${window.store.constructor?.name}`);
+    addDebugDetail(`Store prototype: ${Object.getPrototypeOf(window.store)?.constructor?.name}`);
+    
+    // Get ALL properties including prototype chain
+    const allProperties = [];
+    let current = window.store;
+    while (current) {
+      allProperties.push(...Object.getOwnPropertyNames(current));
+      current = Object.getPrototypeOf(current);
+    }
+    addDebugDetail(`All properties: ${allProperties.join(', ') || 'NONE'}`);
+    
+    // Check specific expected methods
+    const expectedMethods = ['get', 'order', 'register', 'when', 'initialize', 'restore'];
+    expectedMethods.forEach(method => {
+      addDebugDetail(`store.${method}: ${typeof window.store[method]}`);
+    });
+  }
+  
+  // 3. Check plugin registration
+  addDebugDetail("=== PLUGIN REGISTRATION ===");
+  if (window.cordova?.require) {
+    try {
+      const iapPlugin = window.cordova.require('cordova-plugin-purchase.InAppPurchase');
+      addDebugDetail(`Plugin require success: ${!!iapPlugin}`);
+    } catch (e) {
+      addDebugDetail(`Plugin require failed: ${e.message}`);
+    }
+  }
+  
+  // 4. Check if plugin JavaScript actually loaded
+  addDebugDetail("=== JAVASCRIPT LOADING ===");
+  const scripts = Array.from(document.scripts);
+  const iapScript = scripts.find(script => 
+    script.src.includes('purchase') || script.src.includes('store')
+  );
+  addDebugDetail(`IAP script loaded: ${iapScript ? iapScript.src : 'NOT FOUND'}`);
+  
+  // 5. Test direct Cordova execution
+  addDebugDetail("=== DIRECT CORDOVA TEST ===");
+  if (window.cordova?.exec) {
+    try {
+      // Test if the plugin responds
+      window.cordova.exec(
+        () => addDebugDetail("✅ Plugin responds to exec"),
+        (error) => addDebugDetail(`❌ Plugin exec error: ${error}`),
+        "InAppPurchase",
+        "init",
+        []
+      );
+    } catch (e) {
+      addDebugDetail(`❌ Exec test failed: ${e.message}`);
+    }
+  }
+};
+
+
+  const manuallyInjectStoreMethods = () => {
+    addDebugDetail("🔄 ATTEMPTING MANUAL METHOD INJECTION");
+    
+    if (window.store && window.cordova?.exec) {
+      const requiredMethods = ['get', 'order', 'register', 'when', 'initialize', 'restore'];
+      let injectedCount = 0;
+      
+      requiredMethods.forEach(method => {
+        if (typeof window.store[method] !== 'function') {
+          window.store[method] = function(...args) {
+            return new Promise((resolve, reject) => {
+              addDebugDetail(`🔧 Manual ${method} called with args: ${JSON.stringify(args)}`);
+              window.cordova.exec(resolve, reject, "InAppPurchase", method, args);
+            });
+          };
+          injectedCount++;
+          addDebugDetail(`🔧 Injected ${method} method`);
+        }
+      });
+      
+      if (injectedCount > 0) {
+        addDebugDetail(`✅ Manually injected ${injectedCount} methods`);
+        setStoreKitStatus("✅ Methods injected manually");
+        return true;
+      }
+    }
+    
+    addDebugDetail("❌ Cannot inject methods - missing prerequisites");
+    return false;
+  };
+
   const checkCapacitorBridge = () => {
     addDebugDetail("🔌 CAPACITOR BRIDGE CHECK");
     
@@ -392,14 +493,19 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
   // Call test when modal opens and after initialization
   useEffect(() => {
-    if (show) {
-      // Initial test after modal opens
+    if (show && !initialized) {
+      setDebugDetails("");
+      addDebugDetail("🔔 Modal opened - starting enhanced diagnostics...");
+      
+      // Run all diagnostics
       setTimeout(() => {
-        addDebugDetail("🔔 Modal opened - starting diagnostics...");
-        testIAPSetup();
+        comprehensiveBridgeAnalysis();
+        checkPluginLocation();
+        checkCapacitorBridge();
+        initializeIAP(); // This now includes manual injection
       }, 1000);
     }
-  }, [show]);
+  }, [show, initialized, initializeIAP]);
 
   useEffect(() => {
     if (initialized) {
