@@ -240,41 +240,6 @@ workflows:
           
           echo "✅ Orientation configuration fixed"
 
-      - name: Verify StoreKit Bridge in Final Build
-        script: |
-          set -ex
-          echo "=== VERIFYING STOREKIT BRIDGE IN FINAL BUILD ==="
-          cd ios/App
-          
-          # Build a test binary to verify StoreKit linking
-          echo "--- Building Test Binary ---"
-          xcodebuild \
-            -workspace App.xcworkspace \
-            -scheme App \
-            -configuration Debug \
-            -derivedDataPath ./build-test \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            build
-          
-          # Check if StoreKit is linked in the final binary
-          echo "--- Checking StoreKit Linking ---"
-          if find ./build-test -name "App.app" -exec otool -L {} \; | grep -i storekit; then
-            echo "✅ StoreKit SUCCESSFULLY linked in final binary"
-          else
-            echo "❌ StoreKit NOT linked in final binary - this explains missing methods!"
-            echo "The Cordova plugin can't communicate with StoreKit without this link"
-          fi
-          
-          # Check for Cordova plugin symbols
-          echo "--- Checking Cordova Plugin Symbols ---"
-          if find ./build-test -name "App.app" -exec nm {} \; | grep -i "InAppPurchase\|storekit"; then
-            echo "✅ Cordova IAP symbols found in binary"
-          else
-            echo "⚠️ Cordova IAP symbols not found in binary"
-          fi
-
       # NEW PHASE: VERIFY STOREKIT FRAMEWORK IN XCODE PROJECT
       - name: Verify StoreKit Framework
         script: |
