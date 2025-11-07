@@ -608,6 +608,27 @@ workflows:
           
           echo "✅ Added ITSAppUsesNonExemptEncryption = false to Info.plist"
 
+      # ADD THIS PHASE BEFORE "Build Unsigned Archive"
+      - name: Fix StoreKit Framework Conflict
+        script: |
+          set -ex
+          echo "=== FIXING STOREKIT FRAMEWORK CONFLICT ==="
+          cd ios/App
+          
+          # Remove the wrong StoreKit pod from Podfile
+          echo "=== Removing third-party StoreKit pod ==="
+          sed -i '' '/pod '\''StoreKit'\''/d' Podfile
+          
+          # Verify StoreKit is removed
+          echo "=== Updated Podfile Contents ==="
+          grep -i storekit Podfile || echo "✅ StoreKit removed from Podfile"
+          
+          # Reinstall pods without the conflicting StoreKit
+          echo "=== Reinstalling Pods without StoreKit conflict ==="
+          pod install --repo-update
+          
+          echo "✅ Now using Apple's system StoreKit framework (not third-party pod)"
+
       # PHASE 13: BUILD UNSIGNED ARCHIVE
       - name: Build Unsigned Archive
         script: |
