@@ -661,6 +661,50 @@ workflows:
             find ios/App -name "*purchase*" -type d
           fi
           
+          echo "=== Plugin location fix complete ==="# CORRECTED: UNIVERSAL PLUGIN LOCATION FIX
+          
+      - name: Fix Plugin Location Universal
+        script: |
+          set -ex
+          echo "=== UNIVERSAL PLUGIN LOCATION FIX ==="
+          
+          # Remove plugin from wrong location
+          echo "=== Removing plugin from wrong location ==="
+          rm -rf ios/App/App/public/plugins/cordova-plugin-purchase
+          
+          # Use universal Capacitor commands
+          echo "=== Reinstalling plugin properly ==="
+          rm -rf ios
+          npx cap add ios
+          
+          # Ensure plugin is installed
+          if [ ! -d "node_modules/cordova-plugin-purchase" ]; then
+            echo "Installing cordova-plugin-purchase..."
+            npm install cordova-plugin-purchase@13.12.1
+          fi
+          
+          npx cap sync ios
+          
+          # CRITICAL: Check and fix plugin location
+          echo "=== CHECKING AND FIXING PLUGIN LOCATION ==="
+          
+          if [ -d "ios/App/App/public/plugins/cordova-plugin-purchase" ]; then
+            echo "❌ Plugin STILL in wrong location: public/plugins/"
+            echo "Attempting manual fix..."
+            mkdir -p ios/App/App/Plugins/
+            mv ios/App/App/public/plugins/cordova-plugin-purchase ios/App/App/Plugins/
+            echo "✅ Manually moved to Plugins directory"
+          fi
+          
+          if [ -d "ios/App/App/Plugins/cordova-plugin-purchase" ]; then
+            echo "✅✅ SUCCESS: Plugin in CORRECT location: Plugins/cordova-plugin-purchase"
+            echo "Contents:"
+            find ios/App/App/Plugins/cordova-plugin-purchase -type f | head -10
+          else
+            echo "⚠️ Plugin location unknown - checking all locations:"
+            find ios/App -name "*purchase*" -type d
+          fi
+          
           echo "=== Plugin location fix complete ==="
 
       - name: Verify Native IAP Framework
