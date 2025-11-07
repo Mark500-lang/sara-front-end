@@ -178,6 +178,30 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       return () => clearTimeout(timer);
     }
   }, [show, initialized, initializeIAP]);
+  
+  const checkCapacitorBridge = () => {
+    addDebugDetail("🔌 CAPACITOR BRIDGE CHECK");
+    
+    // Check Capacitor's bridge
+    if (window.Capacitor) {
+      addDebugDetail(`✅ Capacitor: ${window.Capacitor.getPlatform()}`);
+      addDebugDetail(`✅ Capacitor version: ${window.Capacitor.getVersion()}`);
+      
+      // Check if Cordova is available to Capacitor
+      if (window.Capacitor.isNative) {
+        addDebugDetail("✅ Running in native context");
+      } else {
+        addDebugDetail("❌ Not in native context - Cordova plugins won't work");
+      }
+    }
+    
+    // Check for Capacitor's Cordova compatibility
+    if (window.Capacitor?.Plugins?.Cordova) {
+      addDebugDetail("✅ Capacitor Cordova compatibility layer active");
+    } else {
+      addDebugDetail("❌ Capacitor Cordova compatibility missing");
+    }
+  };
 
   const finishPurchase = async (product) => {
     setDebugStatus("Completing purchase...");
