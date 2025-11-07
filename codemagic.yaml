@@ -64,22 +64,29 @@ workflows:
             exit 1
           fi
 
-      # NEW PHASE: FIX CAPACITOR VERSION MISMATCH
+      # CORRECTED VERSION FIX - Use consistent versions
       - name: Fix Capacitor Version Compatibility
         script: |
           set -ex
-          echo "=== FIXING CAPACITOR VERSION MISMATCH ==="
+          echo "=== FIXING CAPACITOR VERSION COMPATIBILITY ==="
           
-          # Force compatible versions
-          npm install @capacitor/core@7.0.1 @capacitor/ios@7.0.1 @capacitor/cli@7.0.1
-          npm install cordova-ios@6.3.0 cordova-plugin-purchase@13.12.1
+          # Check current versions first
+          echo "=== CURRENT VERSIONS ==="
+          npm list @capacitor/core @capacitor/ios @capacitor/cli @capacitor/android
           
-          # Verify versions
-          echo "=== VERIFYING VERSIONS ==="
-          npm list @capacitor/core @capacitor/ios @capacitor/cli cordova-ios cordova-plugin-purchase
+          # Update ALL Capacitor packages to consistent versions
+          echo "=== UPDATING TO CONSISTENT VERSIONS ==="
+          npm install @capacitor/core@7.4.3 @capacitor/ios@7.4.3 @capacitor/cli@7.4.3 @capacitor/android@7.4.3
           
-          # Clean sync
-          npx cap sync ios
+          # Update other Capacitor plugins to compatible versions
+          echo "=== UPDATING CAPACITOR PLUGINS ==="
+          npm install @capacitor/app@7.1.0 @capacitor/browser@7.0.2 @capacitor/device@7.0.2 @capacitor/filesystem@7.1.4 @capacitor/preferences@7.0.2
+          
+          # Verify consistent versions
+          echo "=== VERIFYING CONSISTENT VERSIONS ==="
+          npm list @capacitor/core @capacitor/ios @capacitor/cli @capacitor/android
+          
+          echo "✅ All Capacitor packages now at consistent versions"
 
       # 🆕 NEW PHASE 1: COMPREHENSIVE IAP DIAGNOSTIC (ADD THIS FIRST)
       - name: Comprehensive IAP Diagnostic
