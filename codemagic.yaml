@@ -124,7 +124,7 @@ workflows:
           
           # Remove and re-add iOS platform to ensure clean state
           echo "=== Clean iOS platform setup ==="
-          npx cap remove ios
+          npx cap remove ios  # ✅ FIXED: Changed from 'rm' to 'remove'
           npx cap add ios
           
           # CRITICAL: Use Cordova to properly install the plugin
