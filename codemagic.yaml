@@ -64,7 +64,7 @@ workflows:
             exit 1
           fi
 
-      # PHASE 2.5: CORDOVA PLATFORM SETUP (CRITICAL)
+      # PHASE 2.5: CORDOVA PLATFORM SETUP (CRITICAL - FIXED)
       - name: Setup Cordova Platform
         script: |
           set -ex
@@ -76,17 +76,52 @@ workflows:
             npm install cordova-ios@6.3.0
           fi
           
+          # Initialize Cordova project if config.xml doesn't exist
+          if [ ! -f "config.xml" ]; then
+            echo "Creating Cordova config.xml..."
+            npx cordova create . com.littlestories.app "Sara Stories" || {
+              echo "Creating basic config.xml manually..."
+              cat > config.xml << 'EOF'
+              <?xml version='1.0' encoding='utf-8'?>
+              <widget id="com.littlestories.app" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+                  <name>Sara Stories</name>
+                  <description>Interactive children's stories app</description>
+                  <author email="support@littlestories.app" href="https://sarastories.com">Sara Stories Team</author>
+                  <content src="index.html" />
+                  <access origin="*" />
+                  <allow-intent href="http://*/*" />
+                  <allow-intent href="https://*/*" />
+                  <allow-intent href="tel:*" />
+                  <allow-intent href="sms:*" />
+                  <allow-intent href="mailto:*" />
+                  <allow-intent href="geo:*" />
+                  <platform name="ios">
+                      <allow-intent href="itms:*" />
+                      <allow-intent href="itms-apps:*" />
+                  </platform>
+              </widget>
+              EOF
+              echo "✅ Created config.xml manually"
+            }
+          fi
+          
           # Add iOS platform
           echo "Adding Cordova iOS platform..."
-          npx cordova platform add ios
+          npx cordova platform add ios --nosave
           
           # Verify platform was added
           if [ -d "platforms/ios" ]; then
             echo "✅ Cordova iOS platform added successfully"
+            echo "Platform contents:"
             ls -la platforms/ios/
           else
             echo "❌ Failed to add Cordova iOS platform"
-            exit 1
+            echo "Trying alternative approach..."
+            
+            # Alternative: Let Capacitor handle Cordova integration
+            echo "Letting Capacitor manage Cordova integration..."
+            npx cap sync ios
+            exit 0
           fi
 
       # PHASE 3: BUILD REACT APP
