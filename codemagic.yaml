@@ -64,31 +64,6 @@ workflows:
             exit 1
           fi
 
-      # PHASE 2.5: CAPACITOR-ONLY IAP SETUP (RECOMMENDED)
-      - name: Ensure IAP Plugin Integration
-        script: |
-          set -ex
-          echo "=== Ensuring IAP Plugin Integration ==="
-          
-          # Just ensure the plugin is installed and let Capacitor handle it
-          if [ -d "node_modules/cordova-plugin-purchase" ]; then
-            echo "✅ cordova-plugin-purchase installed in node_modules"
-          else
-            echo "❌ cordova-plugin-purchase missing - reinstalling"
-            npm install cordova-plugin-purchase@13.12.1
-          fi
-          
-          # Force Capacitor to sync and include the plugin
-          echo "Syncing Capacitor with IAP plugin..."
-          npx cap sync ios
-          npx cap update ios
-          
-          # Verify the plugin was included
-          echo "Checking plugin inclusion..."
-          npx cap ls ios
-          
-          echo "✅ IAP plugin integration completed"
-
       # PHASE 3: BUILD REACT APP
       - name: Build React App
         script: |
