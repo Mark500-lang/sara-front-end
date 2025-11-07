@@ -146,16 +146,15 @@ workflows:
           set -ex
           echo "=== FIXING STOREKIT BRIDGE INTEGRATION ==="
           
-          # Clean iOS platform to reset any corrupted bridge
+          # Use correct Capacitor commands for version compatibility
           echo "=== Resetting iOS platform to fix bridge ==="
-          npx cap rm ios
+          rm -rf ios
           npx cap add ios
           
           # The plugin should already be installed from node_modules
           echo "=== Verifying plugin in node_modules ==="
           if [ -d "node_modules/cordova-plugin-purchase" ]; then
             echo "✅ cordova-plugin-purchase found in node_modules"
-            ls -la node_modules/cordova-plugin-purchase/src/ios/
           else
             echo "❌ Plugin missing from node_modules - reinstalling"
             npm install cordova-plugin-purchase@13.12.1
@@ -165,48 +164,57 @@ workflows:
           echo "=== Syncing with native bridge focus ==="
           npx cap sync ios
           
-          # CRITICAL: Check if native methods are being registered
-          echo "=== CHECKING NATIVE BRIDGE INTEGRATION ==="
+          # CRITICAL: Ensure StoreKit is in Podfile
+          echo "=== ENSURING STOREKIT IN PODFILE ==="
+          cd ios/App
           
-          # 1. Verify plugin is in Capacitor's registry
-          echo "--- Capacitor Plugin Registry ---"
-          npx cap ls ios
-          
-          # 2. Check if native iOS files are properly integrated
-          echo "--- Native iOS Integration Check ---"
-          if find ios/App/App/Plugins -name "*Purchase*" -o -name "*purchase*" | grep -q .; then
-            echo "✅ Native plugin files in Plugins directory:"
-            find ios/App/App/Plugins -name "*Purchase*" -o -name "*purchase*"
-          else
-            echo "⚠️ Native plugin files not in Plugins directory"
-            echo "Checking alternative locations:"
-            find ios/App -name "*Purchase*" -o -name "*purchase*" -type f | head -10
-          fi
-          
-          # 3. Check for StoreKit framework in Pods (CRITICAL)
-          echo "--- StoreKit Framework Check ---"
-          if [ -d "ios/App/Pods/StoreKit" ]; then
-            echo "✅ StoreKit framework found in Pods"
-          else
-            echo "❌ StoreKit framework MISSING from Pods - this breaks the bridge!"
+          # Check if StoreKit is already in Podfile, add if missing
+          if ! grep -q "StoreKit" Podfile; then
             echo "Adding StoreKit to Podfile..."
-            cd ios/App
             echo "
             # StoreKit required for IAP functionality
             pod 'StoreKit'" >> Podfile
-            pod install --repo-update
-            cd ../..
-          fi
-          
-          # 4. Verify the bridge configuration
-          echo "--- Bridge Configuration Check ---"
-          if [ -f "ios/App/App/App/cordova.js" ]; then
-            echo "✅ Cordova.js in native app directory"
+            
+            echo "✅ StoreKit added to Podfile"
           else
-            echo "⚠️ Cordova.js not in native directory (may be loaded dynamically)"
+            echo "✅ StoreKit already in Podfile"
           fi
           
-          echo "=== Bridge integration complete ==="
+          # Show Podfile contents for verification
+          echo "=== Podfile Contents ==="
+          cat Podfile | grep -A 5 -B 5 "StoreKit" || echo "StoreKit section not found"
+          
+          cd ../..
+          
+          # Update pods with StoreKit
+          echo "=== Updating CocoaPods with StoreKit ==="
+          cd ios/App
+          pod install --repo-update
+          cd ../..
+          
+          # Final sync
+          npx cap sync ios
+          
+          # CRITICAL: Verify StoreKit framework is actually installed
+          echo "=== VERIFYING STOREKIT FRAMEWORK INSTALLATION ==="
+          if [ -d "ios/App/Pods/StoreKit" ]; then
+            echo "✅✅ SUCCESS: StoreKit framework found in Pods directory"
+            ls -la ios/App/Pods/StoreKit/
+          else
+            echo "❌ CRITICAL: StoreKit framework NOT found in Pods"
+            echo "This will cause the missing methods issue!"
+            echo "Available Pods:"
+            ls -la ios/App/Pods/ | head -10
+          fi
+          
+          # Check plugin integration
+          echo "=== PLUGIN INTEGRATION CHECK ==="
+          if find ios/App -name "*purchase*" -type d | grep -q .; then
+            echo "✅ IAP plugin integrated"
+            find ios/App -name "*purchase*" -type d | head -5
+          else
+            echo "⚠️ IAP plugin not found in expected locations"
+          fi
 
           # Continue with orientation configuration...
           echo "=== Configuring Proper iOS Orientations ==="
