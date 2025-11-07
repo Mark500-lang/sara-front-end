@@ -43,49 +43,59 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
   // SIMPLIFIED IAP Initialization with VISUAL DEBUGGING
   const initializeIAP = useCallback(async () => {
-    setDebugStatus("Initializing StoreKit...");
-    setStoreKitStatus("Checking availability");
+    setDebugStatus("Checking Cordova runtime...");
     
-    if (!window.store) {
-      setDebugStatus("StoreKit NOT available");
-      setStoreKitStatus("❌ Missing - Check cordova plugin");
-      setInitialized(true);
-      return;
-    }
+    // Wait for Cordova to be ready
+    const waitForCordova = () => {
+      return new Promise((resolve) => {
+        if (window.cordova) {
+          resolve();
+        } else {
+          document.addEventListener('deviceready', resolve, { once: true });
+          // Fallback timeout
+          setTimeout(resolve, 3000);
+        }
+      });
+    };
 
     try {
-      setStoreKitStatus("✅ Available");
-      setDebugStatus("Registering products...");
+      await waitForCordova();
       
+      if (!window.cordova) {
+        setDebugStatus("Cordova runtime not available");
+        setStoreKitStatus("❌ Cordova.js not loaded");
+        setInitialized(true);
+        return;
+      }
+
+      setDebugStatus("Cordova ready, checking StoreKit...");
+      
+      if (!window.store) {
+        setDebugStatus("StoreKit plugin not registered");
+        setStoreKitStatus("❌ Plugin not in Cordova");
+        setInitialized(true);
+        return;
+      }
+
+      setStoreKitStatus("✅ Available");
+      setDebugStatus("Initializing StoreKit...");
+
       const store = window.store;
       
-      // Minimal product registration
+      // Minimal setup
       store.register([PRODUCT_IDS.monthly, PRODUCT_IDS.yearly]);
-      
-      // Essential event handlers only
       store.when(PRODUCT_IDS.monthly).approved(finishPurchase);
       store.when(PRODUCT_IDS.yearly).approved(finishPurchase);
       
       store.ready(() => {
-        setDebugStatus("StoreKit ready - products loaded");
+        setDebugStatus("StoreKit ready");
         setInitialized(true);
-        
-        // Check product status for debugging
-        const monthly = store.get(PRODUCT_IDS.monthly);
-        const yearly = store.get(PRODUCT_IDS.yearly);
-        
-        if (monthly && yearly) {
-          setProductStatus(`Monthly: ${monthly.state}, Yearly: ${yearly.state}`);
-        } else {
-          setProductStatus("Products not found in StoreKit");
-        }
       });
-      
+
       await store.initialize();
-      setDebugStatus("StoreKit initialized successfully");
       
     } catch (error) {
-      setDebugStatus("StoreKit initialization failed");
+      setDebugStatus(`Init failed: ${error.message}`);
       setStoreKitStatus("❌ Initialization error");
       setInitialized(true);
     }
@@ -250,6 +260,23 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       setPurchaseInProgress(false);
       setRestoring(false);
       setDebugStatus("Ready");
+    }
+  }, [show]);
+
+  const testCordovaAvailability = () => {
+    console.log('=== CORDOVA DEBUG ===');
+    console.log('window.cordova:', window.cordova);
+    console.log('window.store:', window.store);
+    console.log('store methods:', window.store ? Object.getOwnPropertyNames(window.store) : 'none');
+    console.log('deviceReady:', !!window.cordova?.platformId);
+    
+    setDebugStatus(`Cordova: ${!!window.cordova}, Store: ${!!window.store}`);
+  };
+
+  // Call this in useEffect or add a debug button
+  useEffect(() => {
+    if (show) {
+      setTimeout(testCordovaAvailability, 1000);
     }
   }, [show]);
 
