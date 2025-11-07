@@ -34,6 +34,36 @@ workflows:
           include: true
 
     scripts:
+      # PHASE 1: CLEAN AND SETUP
+      - name: Clean Workspace
+        script: |
+          echo "=== Cleaning Workspace ==="
+          rm -rf node_modules ios/Pods ios/App/Pods
+          rm -rf ~/Library/Developer/Xcode/DerivedData/*
+          rm -rf ios/Pods ios/Podfile.lock
+          npm cache clean --force
+
+      # PHASE 2: DEPENDENCY INSTALLATION
+      - name: Install Dependencies
+        script: |
+          set -ex
+          echo "=== Installing Node Modules ==="
+          npm ci
+          
+          echo "=== Installing missing Babel plugin ==="
+          npm install --save-dev @babel/plugin-proposal-private-property-in-object
+          
+          echo "=== Updating browserslist ==="
+          npx update-browserslist-db@latest
+
+          echo "=== Verifying IAP plugin installation ==="
+          if [ -d "node_modules/cordova-plugin-purchase" ]; then
+            echo "✅ cordova-plugin-purchase installed successfully"
+          else
+            echo "❌ cordova-plugin-purchase not found in node_modules"
+            exit 1
+          fi
+          
       # 🆕 NEW PHASE 1: COMPREHENSIVE IAP DIAGNOSTIC (ADD THIS FIRST)
       - name: Comprehensive IAP Diagnostic
         script: |
@@ -68,36 +98,6 @@ workflows:
           ls -la node_modules/cordova-plugin-purchase/src/ios/
           
           echo "=== DIAGNOSTIC COMPLETE ==="
-          
-      # PHASE 1: CLEAN AND SETUP
-      - name: Clean Workspace
-        script: |
-          echo "=== Cleaning Workspace ==="
-          rm -rf node_modules ios/Pods ios/App/Pods
-          rm -rf ~/Library/Developer/Xcode/DerivedData/*
-          rm -rf ios/Pods ios/Podfile.lock
-          npm cache clean --force
-
-      # PHASE 2: DEPENDENCY INSTALLATION
-      - name: Install Dependencies
-        script: |
-          set -ex
-          echo "=== Installing Node Modules ==="
-          npm ci
-          
-          echo "=== Installing missing Babel plugin ==="
-          npm install --save-dev @babel/plugin-proposal-private-property-in-object
-          
-          echo "=== Updating browserslist ==="
-          npx update-browserslist-db@latest
-
-          echo "=== Verifying IAP plugin installation ==="
-          if [ -d "node_modules/cordova-plugin-purchase" ]; then
-            echo "✅ cordova-plugin-purchase installed successfully"
-          else
-            echo "❌ cordova-plugin-purchase not found in node_modules"
-            exit 1
-          fi
 
       # PHASE 3: BUILD REACT APP
       - name: Build React App
