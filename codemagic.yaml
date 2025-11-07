@@ -124,7 +124,12 @@ workflows:
           
           # Remove and re-add iOS platform to ensure clean state
           echo "=== Clean iOS platform setup ==="
-          npx cap remove ios  # ✅ FIXED: Changed from 'rm' to 'remove'
+          echo "=== Manual iOS platform cleanup ==="
+          rm -rf ios
+          rm -rf node_modules/@capacitor/ios
+          
+          # Re-add iOS platform
+          echo "=== Re-adding iOS platform ==="
           npx cap add ios
           
           # CRITICAL: Use Cordova to properly install the plugin
