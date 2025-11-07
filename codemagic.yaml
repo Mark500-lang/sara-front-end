@@ -122,34 +122,17 @@ workflows:
           set -ex
           echo "=== PROPER IAP Integration with Capacitor ==="
           
-          # Remove and re-add iOS platform to ensure clean state
+          # Remove only the ios platform directory, NOT the node_modules package
           echo "=== Clean iOS platform setup ==="
-          echo "=== Manual iOS platform cleanup ==="
-          rm -rf ios
-          rm -rf node_modules/@capacitor/ios
+          rm -rf ios  # Only remove the platform directory
           
-          # Re-add iOS platform
+          # Re-add iOS platform (package still exists in node_modules)
           echo "=== Re-adding iOS platform ==="
           npx cap add ios
           
-          # CRITICAL: Use Cordova to properly install the plugin
-          echo "=== Installing Cordova properly ==="
-          npm install -g cordova@latest
-          npx cordova platform add ios --save
-          npx cordova plugin add cordova-plugin-purchase@13.12.1 --save
-          
-          # CRITICAL: Manually ensure plugin files are copied
-          echo "=== Manual plugin verification ==="
-          
-          # Check if plugin files exist in node_modules
-          if [ -d "node_modules/cordova-plugin-purchase" ]; then
-            echo "✅ cordova-plugin-purchase found in node_modules"
-            
-            # Copy plugin files manually if needed
-            mkdir -p ios/App/App/Plugins/cordova-plugin-purchase
-            cp -R node_modules/cordova-plugin-purchase/src/ios/* ios/App/App/Plugins/cordova-plugin-purchase/ 2>/dev/null || true
-            cp -R node_modules/cordova-plugin-purchase/www/* ios/App/App/Plugins/cordova-plugin-purchase/ 2>/dev/null || true
-          fi
+          # Install Cordova IAP plugin
+          echo "=== Installing IAP Plugin ==="
+          npm install cordova-plugin-purchase@13.12.1
           
           # Sync with Capacitor
           echo "=== Syncing Capacitor ==="
@@ -189,12 +172,10 @@ workflows:
           else
             echo "❌ IAP plugin integration may have failed"
             echo "=== FALLBACK: Manual integration ==="
-            # Manual fallback - ensure the plugin is referenced
             npx cap update ios
           fi
           
-          echo "=== Final Capacitor update ==="
-          npx cap update ios
+          echo "✅ IAP integration complete"
 
           echo "=== Configuring Proper iOS Orientations ==="
           cd ios/App/App
