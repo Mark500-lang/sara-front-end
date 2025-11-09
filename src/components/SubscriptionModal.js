@@ -3,6 +3,7 @@ import "./SubscriptionModal.css";
 import { BsMoonStarsFill } from "react-icons/bs";
 import { Modal, Button, Form, Spinner, Row, Col } from "react-bootstrap";
 import ParentalGateModal from "./ParentalGateModal";
+import { Purchases } from '@revenuecat/purchases-capacitor';
 
 const PRODUCT_IDS = {
   monthly: 'com.littlestories.app.monthlyrenewable',
@@ -56,424 +57,53 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     });
   };
 
-  // ENHANCED IAP Initialization with VISUAL DEBUGGING
+  // REVENUECAT IAP Initialization with VISUAL DEBUGGING
   const initializeIAP = useCallback(async () => {
-    setDebugStatus("Starting proven IAP initialization...");
-    addDebugDetail("🚀 PROVEN INITIALIZATION FROM STACK OVERFLOW");
+    setDebugStatus("Initializing RevenueCat Purchases...");
+    addDebugDetail("🚀 Initializing @revenuecat/purchases-capacitor");
 
     try {
-      // Wait for BOTH events (critical fix)
-      await new Promise((resolve) => {
-        const checkReady = () => {
-          if (window.cordova && window.cordova.platformId) {
-            addDebugDetail("✅ Cordova fully ready");
-            resolve();
-          }
-        };
-
-        if (document.readyState === 'complete') {
-          checkReady();
-        } else {
-          document.addEventListener('deviceready', checkReady, false);
-          document.addEventListener('DOMContentLoaded', checkReady, false);
-          // Fallback timeout
-          setTimeout(checkReady, 5000);
-        }
+      // Configure RevenueCat
+      await Purchases.configure({
+        apiKey: "appl_xxx" // Replace with your RevenueCat API key
       });
-
-      addDebugDetail("📱 Platform: " + (window.cordova?.platformId || 'unknown'));
-
-      // CRITICAL: Check if store methods exist after delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      if (!window.store) {
-        throw new Error('Store object not created - plugin registration failed');
-      }
-
-      // Enhanced method checking
-      const requiredMethods = ['get', 'order', 'register', 'when', 'initialize', 'restore'];
-      const availableMethods = Object.getOwnPropertyNames(window.store)
-        .filter(key => typeof window.store[key] === 'function');
+      addDebugDetail("✅ RevenueCat configured");
       
-      addDebugDetail(`🔍 Available methods: ${availableMethods.join(', ') || 'NONE'}`);
+      // Load offerings (products)
+      const offerings = await Purchases.getOfferings();
       
-      const missingMethods = requiredMethods.filter(method => 
-        !availableMethods.includes(method)
-      );
-
-      if (missingMethods.length > 0) {
-        // CRITICAL FIX: Try to access the plugin directly via Cordova
-        if (window.cordova?.require) {
-          try {
-            addDebugDetail("🔄 Attempting direct plugin access...");
-            const InAppPurchase = window.cordova.require('cordova-plugin-purchase.InAppPurchase');
-            if (InAppPurchase) {
-              addDebugDetail("✅ Plugin accessible via cordova.require");
-              // Try to manually attach methods
-              requiredMethods.forEach(method => {
-                if (InAppPurchase[method]) {
-                  window.store[method] = InAppPurchase[method].bind(window.store);
-                  addDebugDetail(`🔧 Manually attached ${method}`);
-                }
-              });
-            }
-          } catch (e) {
-            addDebugDetail(`❌ Direct access failed: ${e.message}`);
-          }
-        }
+      if (offerings.current) {
+        addDebugDetail(`✅ Offerings loaded: ${Object.keys(offerings.current.availablePackages).length} packages`);
         
-        // Re-check after manual attachment
-        const newAvailableMethods = Object.getOwnPropertyNames(window.store)
-          .filter(key => typeof window.store[key] === 'function');
-        const stillMissing = requiredMethods.filter(method => 
-          !newAvailableMethods.includes(method)
-        );
+        // Log available products for debugging
+        Object.values(offerings.current.availablePackages).forEach(pkg => {
+          addDebugDetail(`📦 ${pkg.product.identifier}: ${pkg.product.title} - ${pkg.product.priceString}`);
+        });
         
-        if (stillMissing.length > 0) {
-          throw new Error(`Methods missing after fixes: ${stillMissing.join(', ')}`);
-        }
+        setProductStatus("Products loaded");
+      } else {
+        addDebugDetail("⚠️ No current offerings available");
       }
-
-      // Continue with normal initialization...
-      addDebugDetail("✅ All methods available, configuring StoreKit...");
-      
-      const store = window.store;
-      
-      // CRITICAL: Register error handler FIRST
-      store.error((error) => {
-        addDebugDetail(`💥 Store error: ${error.code} - ${error.message}`);
-      });
-
-      // Register products
-      store.register([
-        { id: PRODUCT_IDS.monthly, type: store.PAID_SUBSCRIPTION },
-        { id: PRODUCT_IDS.yearly, type: store.PAID_SUBSCRIPTION }
-      ]);
-
-      // Initialize
-      await store.initialize();
       
       setInitialized(true);
-      addDebugDetail("🎉 IAP initialized successfully");
+      setStoreKitStatus("✅ Ready");
+      setDebugStatus("Purchases ready");
+      addDebugDetail("🎉 RevenueCat Purchases initialized successfully");
 
     } catch (error) {
-      addDebugDetail(`💥 INIT FAILED: ${error.message}`);
+      addDebugDetail(`❌ RevenueCat init failed: ${error.message}`);
       setDebugStatus(`Init failed: ${error.message}`);
-      setStoreKitStatus("❌ Bridge broken");
-    }
-    const emergencyFallback = () => {
-      addDebugDetail("🆘 EMERGENCY FALLBACK ACTIVATED");
-      
-      // Create a completely mock store object if everything else fails
-      if (!window.store || Object.keys(window.store).length === 0) {
-        window.store = {
-          get: () => ({ state: 'loaded', valid: true, title: 'Mock Product', price: '$4.99' }),
-          order: () => Promise.resolve(),
-          register: () => {},
-          when: () => ({ updated: (cb) => cb({ state: 'valid' }) }),
-          initialize: () => Promise.resolve(),
-          restore: () => Promise.resolve(),
-          error: (cb) => {}
-        };
-        addDebugDetail("🔧 Created mock store object for testing");
-        return true;
-      }
-      return false;
-    };
-
-    // Call it if initialization is about to fail
-    if (error && !initialized) {
-      emergencyFallback();
+      setStoreKitStatus("❌ Failed");
     }
   }, []);
 
-  const checkPluginLocation = () => {
-    addDebugDetail("📁 CHECKING PLUGIN LOCATION");
-    
-    // This will help identify if the plugin is in the wrong directory
-    if (window.cordova?.plugins) {
-      addDebugDetail(`Loaded plugins: ${Object.keys(window.cordova.plugins).join(', ')}`);
-    }
-    
-    // Check if we can access the plugin directly
-    if (window.cordova?.require) {
-      try {
-        const pluginList = window.cordova.require('cordova/plugin_list');
-        addDebugDetail(`Plugin list: ${JSON.stringify(pluginList?.metadata || 'unavailable')}`);
-      } catch (e) {
-        addDebugDetail(`Plugin list unavailable: ${e.message}`);
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (show && !initialized) {
-      // Reset debug when modal opens
-      setDebugDetails("");
-      addDebugDetail("🔔 Subscription modal opened");
-      
-      // Give components time to mount before initializing StoreKit
-      const timer = setTimeout(() => {
-        initializeIAP();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [show, initialized, initializeIAP]);
-
-  const comprehensiveBridgeAnalysis = () => {
-  addDebugDetail("🔧 COMPREHENSIVE BRIDGE ANALYSIS");
-  
-  // 1. Check Cordova execution bridge
-  addDebugDetail("=== CORDOVA BRIDGE ===");
-  addDebugDetail(`cordova.exec: ${!!window.cordova?.exec}`);
-  addDebugDetail(`cordova.platformId: ${window.cordova?.platformId}`);
-  addDebugDetail(`cordova.version: ${window.cordova?.version}`);
-  
-  // 2. Check Store object structure in detail
-  addDebugDetail("=== STORE OBJECT ANALYSIS ===");
-  if (window.store) {
-    addDebugDetail(`Store type: ${typeof window.store}`);
-    addDebugDetail(`Store constructor: ${window.store.constructor?.name}`);
-    addDebugDetail(`Store prototype: ${Object.getPrototypeOf(window.store)?.constructor?.name}`);
-    
-    // Get ALL properties including prototype chain
-    const allProperties = [];
-    let current = window.store;
-    while (current) {
-      allProperties.push(...Object.getOwnPropertyNames(current));
-      current = Object.getPrototypeOf(current);
-    }
-    addDebugDetail(`All properties: ${allProperties.join(', ') || 'NONE'}`);
-    
-    // Check specific expected methods
-    const expectedMethods = ['get', 'order', 'register', 'when', 'initialize', 'restore'];
-    expectedMethods.forEach(method => {
-      addDebugDetail(`store.${method}: ${typeof window.store[method]}`);
-    });
-  }
-  
-  // 3. Check plugin registration
-  addDebugDetail("=== PLUGIN REGISTRATION ===");
-  if (window.cordova?.require) {
-    try {
-      const iapPlugin = window.cordova.require('cordova-plugin-purchase.InAppPurchase');
-      addDebugDetail(`Plugin require success: ${!!iapPlugin}`);
-    } catch (e) {
-      addDebugDetail(`Plugin require failed: ${e.message}`);
-    }
-  }
-  
-  // 4. Check if plugin JavaScript actually loaded
-  addDebugDetail("=== JAVASCRIPT LOADING ===");
-  const scripts = Array.from(document.scripts);
-  const iapScript = scripts.find(script => 
-    script.src.includes('purchase') || script.src.includes('store')
-  );
-  addDebugDetail(`IAP script loaded: ${iapScript ? iapScript.src : 'NOT FOUND'}`);
-  
-  // 5. Test direct Cordova execution
-  addDebugDetail("=== DIRECT CORDOVA TEST ===");
-  if (window.cordova?.exec) {
-    try {
-      // Test if the plugin responds
-      window.cordova.exec(
-        () => addDebugDetail("✅ Plugin responds to exec"),
-        (error) => addDebugDetail(`❌ Plugin exec error: ${error}`),
-        "InAppPurchase",
-        "init",
-        []
-      );
-    } catch (e) {
-      addDebugDetail(`❌ Exec test failed: ${e.message}`);
-    }
-  }
-};
-
-
-  const manuallyInjectStoreMethods = () => {
-    addDebugDetail("🔄 ATTEMPTING MANUAL METHOD INJECTION");
-    
-    if (window.store && window.cordova?.exec) {
-      const requiredMethods = ['get', 'order', 'register', 'when', 'initialize', 'restore'];
-      let injectedCount = 0;
-      
-      requiredMethods.forEach(method => {
-        if (typeof window.store[method] !== 'function') {
-          window.store[method] = function(...args) {
-            return new Promise((resolve, reject) => {
-              addDebugDetail(`🔧 Manual ${method} called with args: ${JSON.stringify(args)}`);
-              window.cordova.exec(resolve, reject, "InAppPurchase", method, args);
-            });
-          };
-          injectedCount++;
-          addDebugDetail(`🔧 Injected ${method} method`);
-        }
-      });
-      
-      if (injectedCount > 0) {
-        addDebugDetail(`✅ Manually injected ${injectedCount} methods`);
-        setStoreKitStatus("✅ Methods injected manually");
-        return true;
-      }
-    }
-    
-    addDebugDetail("❌ Cannot inject methods - missing prerequisites");
-    return false;
-  };
-
-  const manualPluginAccess = () => {
-    addDebugDetail("🛠️ MANUAL PLUGIN ACCESS ATTEMPT");
-    
-    if (window.cordova?.require) {
-      try {
-        // Try different plugin access methods
-        const pluginNames = [
-          'cordova-plugin-purchase.InAppPurchase',
-          'cordova-plugin-purchase.store',
-          'cc.fovea.plugins.inapppurchase.InAppPurchase'
-        ];
-        
-        pluginNames.forEach(name => {
-          try {
-            const plugin = window.cordova.require(name);
-            addDebugDetail(`✅ Plugin found: ${name}`);
-            addDebugDetail(`   Methods: ${Object.keys(plugin).join(', ')}`);
-            
-            // Try to attach methods to window.store
-            if (plugin.get && !window.store.get) {
-              window.store.get = plugin.get;
-              addDebugDetail("🔧 Attached get method");
-            }
-          } catch (e) {
-            addDebugDetail(`❌ ${name}: ${e.message}`);
-          }
-        });
-      } catch (e) {
-        addDebugDetail(`💥 Plugin access failed: ${e.message}`);
-      }
-    } else {
-      addDebugDetail("❌ cordova.require not available");
-    }
-  };
-
-  const checkPluginMetadata = () => {
-    addDebugDetail("📋 PLUGIN METADATA CHECK");
-    
-    // Check cordova_plugins.js
-    if (window.cordova && window.cordova.require) {
-      try {
-        const pluginList = window.cordova.require('cordova/plugin_list');
-        if (pluginList && pluginList.metadata) {
-          addDebugDetail("Plugin metadata:");
-          Object.keys(pluginList.metadata).forEach(key => {
-            if (key.includes('purchase')) {
-              addDebugDetail(`✅ ${key}: ${pluginList.metadata[key]}`);
-            }
-          });
-        }
-      } catch (e) {
-        addDebugDetail(`Metadata unavailable: ${e.message}`);
-      }
-    }
-    
-    // Check if plugin files are actually loaded
-    const scripts = Array.from(document.scripts);
-    const iapScripts = scripts.filter(script => 
-      script.src && script.src.includes('purchase')
-    );
-    addDebugDetail(`IAP scripts loaded: ${iapScripts.length}`);
-    iapScripts.forEach(script => {
-      addDebugDetail(`   📜 ${script.src}`);
-    });
-  };
-
-  const checkCapacitorBridge = () => {
-    addDebugDetail("🔌 CAPACITOR BRIDGE CHECK");
-    
-    // Check Capacitor's bridge
-    if (window.Capacitor) {
-      addDebugDetail(`✅ Capacitor: ${window.Capacitor.getPlatform()}`);
-      addDebugDetail(`✅ Capacitor version: ${window.Capacitor.getVersion()}`);
-      
-      // Check if Cordova is available to Capacitor
-      if (window.Capacitor.isNative) {
-        addDebugDetail("✅ Running in native context");
-      } else {
-        addDebugDetail("❌ Not in native context - Cordova plugins won't work");
-      }
-    }
-    
-    // Check for Capacitor's Cordova compatibility
-    if (window.Capacitor?.Plugins?.Cordova) {
-      addDebugDetail("✅ Capacitor Cordova compatibility layer active");
-    } else {
-      addDebugDetail("❌ Capacitor Cordova compatibility missing");
-    }
-  };
-
-  const finishPurchase = async (product) => {
-    setDebugStatus("Completing purchase...");
-    addDebugDetail("💰 Completing purchase...");
-    
-    try {
-      if (product.finish) {
-        await product.finish();
-        addDebugDetail("✅ Purchase finished in StoreKit");
-      }
-      
-      // Simple receipt verification
-      const userToken = localStorage.getItem("auth_token");
-      if (userToken) {
-        setDebugStatus("Verifying receipt...");
-        addDebugDetail("📋 Verifying receipt with backend...");
-        
-        const BASE_URL = "https://kithia.com/website_b5d91c8e/api";
-        let receiptData = product.transaction?.appStoreReceipt || 
-                         product.transaction?.receipt || 
-                         await window.store.getReceipt();
-        
-        if (receiptData) {
-          await fetch(`${BASE_URL}/subscription/verify-apple`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${userToken}`,
-            },
-            body: JSON.stringify({
-              receipt_data: receiptData,
-              product_id: product.id,
-              platform: 'ios',
-            }),
-          });
-          addDebugDetail("✅ Receipt verified successfully");
-        }
-      }
-      
-      setDebugStatus("Purchase completed successfully!");
-      addDebugDetail("🎉 Purchase completed successfully!");
-      onPaymentSuccess();
-      onClose();
-    } catch (err) {
-      addDebugDetail(`⚠️ Purchase completed with minor verification issues: ${err.message}`);
-      setError("Purchase completed! Please check your subscription status.");
-      onPaymentSuccess();
-      onClose();
-    }
-  };
-
-  // ENHANCED: Purchase handler with detailed visual debugging
+  // REVENUECAT: Purchase handler with detailed visual debugging
   const handleSubscribe = async () => {
     if (!initialized) {
       setError('Payment system still initializing. Please wait...');
       setDebugStatus("System not ready");
       addDebugDetail("❌ Purchase blocked: System not initialized");
-      return;
-    }
-
-    if (!window.store || typeof window.store.get !== 'function') {
-      setError('Payment system unavailable. Please restart the app.');
-      setDebugStatus("Store methods missing");
-      addDebugDetail("❌ Purchase blocked: Store methods missing");
       return;
     }
 
@@ -486,94 +116,129 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     const productId = selectedPlan === 'monthly' ? PRODUCT_IDS.monthly : PRODUCT_IDS.yearly;
 
     try {
-      // Verify product exists and is valid
-      addDebugDetail(`🔍 Looking up product: ${productId}`);
-      const product = window.store.get(productId);
+      addDebugDetail(`🔍 Looking for product: ${productId}`);
       
-      if (!product) {
-        const errorMsg = `❌ Product ${productId} not found in store`;
-        addDebugDetail(errorMsg);
-        throw new Error(errorMsg);
+      // Get current offerings
+      const offerings = await Purchases.getOfferings();
+      
+      if (!offerings.current) {
+        throw new Error('No products available');
       }
 
-      if (!product.valid) {
-        const errorMsg = `❌ Product ${productId} is invalid: ${product.state}`;
-        addDebugDetail(errorMsg);
-        throw new Error(errorMsg);
+      // Find the package for our product
+      let packageToPurchase = null;
+      
+      // Check all available packages for our product ID
+      for (const packageKey in offerings.current.availablePackages) {
+        const pkg = offerings.current.availablePackages[packageKey];
+        if (pkg.product.identifier === productId) {
+          packageToPurchase = pkg;
+          break;
+        }
       }
 
-      const productStatus = `✅ Product found: ${product.state}, title: ${product.title}, price: ${product.price}`;
-      setDebugStatus(`Product state: ${product.state}`);
-      addDebugDetail(productStatus);
+      if (!packageToPurchase) {
+        // Fallback: use first available package
+        const firstPackageKey = Object.keys(offerings.current.availablePackages)[0];
+        if (firstPackageKey) {
+          packageToPurchase = offerings.current.availablePackages[firstPackageKey];
+          addDebugDetail(`⚠️ Exact product not found, using: ${packageToPurchase.product.identifier}`);
+        } else {
+          throw new Error('No products available for purchase');
+        }
+      }
 
-      // Initiate purchase
-      addDebugDetail("🎯 Calling store.order()...");
-      await window.store.order(productId);
-      addDebugDetail("✅ Purchase initiated - waiting for Apple purchase sheet...");
+      addDebugDetail(`🎯 Purchasing: ${packageToPurchase.product.title} - ${packageToPurchase.product.priceString}`);
 
-    } catch (err) {
-      console.error('Purchase error:', err);
-      const errorMsg = `❌ Purchase failed: ${err.message}`;
-      setDebugStatus(errorMsg);
-      setError(`Purchase failed: ${err.message}`);
-      addDebugDetail(errorMsg);
+      // Make purchase
+      const purchaseResult = await Purchases.purchasePackage(packageToPurchase);
+      
+      addDebugDetail("✅ Purchase completed, checking entitlements...");
+      
+      // Check if purchase was successful
+      if (purchaseResult.customerInfo.entitlements.active.premium) {
+        addDebugDetail("🎉 Purchase successful! Premium access granted");
+        onPaymentSuccess();
+        onClose();
+      } else {
+        // Check for any active entitlement
+        const activeEntitlements = Object.keys(purchaseResult.customerInfo.entitlements.active);
+        if (activeEntitlements.length > 0) {
+          addDebugDetail(`🎉 Purchase successful! Active entitlements: ${activeEntitlements.join(', ')}`);
+          onPaymentSuccess();
+          onClose();
+        } else {
+          throw new Error('Purchase completed but no active entitlements');
+        }
+      }
+      
+    } catch (error) {
+      // Check if user cancelled
+      if (error.message.includes('User cancelled') || error.message.includes('cancelled') || error.code === '1') {
+        addDebugDetail("ℹ️ Purchase cancelled by user");
+        setError('Purchase cancelled');
+      } else {
+        addDebugDetail(`❌ Purchase failed: ${error.message}`);
+        setError(`Purchase failed: ${error.message}`);
+      }
       setLoading(false);
       setPurchaseInProgress(false);
     }
   };
 
-  // ENHANCED: Restore purchases with debugging
+  // REVENUECAT: Restore purchases with debugging
   const restorePurchases = async () => {
-    if (!window.store) {
-      setError('In-app purchases not available');
-      setDebugStatus("StoreKit not available for restore");
-      addDebugDetail("❌ Restore failed: Store not available");
-      return;
-    }
-
     setRestoring(true);
     setError(null);
     setDebugStatus("Restoring purchases...");
     addDebugDetail("🔄 Restoring purchases...");
 
     try {
-      await window.store.restore();
-      setDebugStatus("Restore completed");
-      setError('Purchases restored successfully.');
-      addDebugDetail("✅ Restore completed successfully");
-    } catch (err) {
-      setDebugStatus(`Restore failed: ${err.message}`);
+      const customerInfo = await Purchases.restorePurchases();
+      
+      // Check for any active entitlement
+      const activeEntitlements = Object.keys(customerInfo.entitlements.active);
+      
+      if (activeEntitlements.length > 0) {
+        addDebugDetail(`✅ Purchases restored - active entitlements: ${activeEntitlements.join(', ')}`);
+        setError('Purchases restored successfully!');
+        onPaymentSuccess();
+        onClose();
+      } else {
+        addDebugDetail("ℹ️ No active purchases found");
+        setError('No active purchases found');
+      }
+    } catch (error) {
+      addDebugDetail(`❌ Restore failed: ${error.message}`);
       setError('Could not restore purchases. Please try again.');
-      addDebugDetail(`❌ Restore failed: ${err.message}`);
     } finally {
       setRestoring(false);
     }
   };
 
-  // ENHANCED: Test IAP setup with visual output
+  // REVENUECAT: Test IAP setup with visual output
   const testIAPSetup = async () => {
-    addDebugDetail("🧪 Running IAP setup test...");
+    addDebugDetail("🧪 Running RevenueCat setup test...");
     
-    const cordovaAvailable = !!window.cordova;
-    const storeAvailable = !!window.store;
-    
-    addDebugDetail(`📱 Cordova: ${cordovaAvailable ? '✅ Available' : '❌ Missing'}`);
-    addDebugDetail(`🏪 Store object: ${storeAvailable ? '✅ Available' : '❌ Missing'}`);
-    
-    if (window.store) {
-      const methods = Object.getOwnPropertyNames(window.store).filter(k => typeof window.store[k] === 'function');
-      addDebugDetail(`🔧 Store methods: ${methods.join(', ')}`);
+    try {
+      const offerings = await Purchases.getOfferings();
+      const revenueCatAvailable = !!offerings;
       
-      // Test product retrieval
-      if (typeof window.store.get === 'function') {
-        const monthly = window.store.get(PRODUCT_IDS.monthly);
-        const yearly = window.store.get(PRODUCT_IDS.yearly);
-        addDebugDetail(`📦 Monthly product: ${monthly ? `found (${monthly.state})` : 'not found'}`);
-        addDebugDetail(`📦 Yearly product: ${yearly ? `found (${yearly.state})` : 'not found'}`);
+      addDebugDetail(`💰 RevenueCat: ${revenueCatAvailable ? '✅ Available' : '❌ Missing'}`);
+      
+      if (offerings.current) {
+        const packageCount = Object.keys(offerings.current.availablePackages).length;
+        addDebugDetail(`📦 Available packages: ${packageCount}`);
+        
+        Object.values(offerings.current.availablePackages).forEach(pkg => {
+          addDebugDetail(`   ${pkg.product.identifier}: ${pkg.product.title}`);
+        });
       }
+    } catch (error) {
+      addDebugDetail(`❌ RevenueCat test failed: ${error.message}`);
     }
     
-    addDebugDetail("✅ IAP setup test completed");
+    addDebugDetail("✅ RevenueCat setup test completed");
   };
 
   const getButtonText = () => {
@@ -602,15 +267,8 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   useEffect(() => {
     if (show && !initialized) {
       setDebugDetails("");
-      addDebugDetail("🔔 Modal opened - starting enhanced diagnostics...");
-      
-      // Run all diagnostics
-      setTimeout(() => {
-        comprehensiveBridgeAnalysis();
-        checkPluginLocation();
-        checkCapacitorBridge();
-        initializeIAP(); // This now includes manual injection
-      }, 1000);
+      addDebugDetail("🔔 Modal opened - starting RevenueCat diagnostics...");
+      initializeIAP();
     }
   }, [show, initialized, initializeIAP]);
 
@@ -664,7 +322,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
                   <div className="text-center mb-1">
                     <small className="text-white-50">
                       <strong>Status:</strong> {debugStatus} | 
-                      <strong> StoreKit:</strong> {storeKitStatus} | 
+                      <strong> RevenueCat:</strong> {storeKitStatus} | 
                       <strong> Products:</strong> {productStatus}
                     </small>
                   </div>

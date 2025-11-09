@@ -56,45 +56,31 @@ workflows:
           echo "=== Updating browserslist ==="
           npx update-browserslist-db@latest
 
-          echo "=== Verifying IAP plugin installation ==="
-          if [ -d "node_modules/cordova-plugin-purchase" ]; then
-            echo "✅ cordova-plugin-purchase installed successfully"
+          # 🆕 VERIFY REVENUECAT INSTALLATION INSTEAD OF CORDOVA
+          echo "=== Verifying RevenueCat installation ==="
+          if [ -d "node_modules/@revenuecat/purchases-capacitor" ]; then
+            echo "✅ @revenuecat/purchases-capacitor installed successfully"
           else
-            echo "❌ cordova-plugin-purchase not found in node_modules"
-            exit 1
+            echo "❌ @revenuecat/purchases-capacitor not found in node_modules"
+            echo "Installing RevenueCat..."
+            npm install @revenuecat/purchases-capacitor
           fi
 
-      # 🆕 CORRECTED: SINGLE CAPACITOR VERSION FIX
-      - name: Fix Capacitor Version Compatibility
+      - name: Verify RevenueCat Integration
         script: |
           set -ex
-          echo "=== FIXING CAPACITOR VERSION COMPATIBILITY ==="
+          echo "=== VERIFYING REVENUECAT INTEGRATION ==="
           
-          # Update to consistent versions without forcing conflicts
-          npm install @capacitor/core@^7.4.0 @capacitor/ios@^7.4.0 @capacitor/cli@^7.4.0
+          echo "1. CHECKING REVENUECAT PACKAGE:"
+          ls -la node_modules/@revenuecat/purchases-capacitor || echo "RevenueCat package not found"
           
-          echo "✅ Capacitor versions updated"
-
-      # 🆕 CORRECTED: SINGLE COMPREHENSIVE IAP DIAGNOSTIC
-      - name: Comprehensive IAP Diagnostic
-        script: |
-          set -ex
-          echo "=== COMPREHENSIVE IAP DIAGNOSTIC ==="
+          echo "2. CHECKING CAPACITOR PLUGINS:"
+          npx cap ls ios | grep -i revenuecat || echo "RevenueCat not in plugin list (will be added by sync)"
           
-          echo "1. CHECKING CORDOVA PLUGIN STRUCTURE:"
-          find node_modules/cordova-plugin-purchase -name "*.js" | grep -E "(store-ios|inapppurchase)" | head -10 || echo "No store-ios files found"
+          echo "3. SYNCING CAPACITOR:"
+          npx cap sync ios
           
-          echo "2. CHECKING IOS PLUGIN INTEGRATION:"
-          find ios/App -name "*purchase*" -o -name "*Purchase*" 2>/dev/null | head -10 || echo "No purchase files in iOS project"
-          
-          echo "3. CHECKING CAPACITOR-CORDOVA BRIDGE:"
-          if [ -f "ios/App/App/App/cordova.js" ] || [ -f "ios/App/App/public/cordova.js" ]; then
-            echo "✅ Cordova.js found"
-          else
-            echo "⚠️ Cordova.js will be provided by Capacitor"
-          fi
-          
-          echo "=== DIAGNOSTIC COMPLETE ==="
+          echo "=== RevenueCat verification complete ==="
 
       # PHASE 3: BUILD REACT APP
       - name: Build React App
@@ -114,50 +100,34 @@ workflows:
           echo "✅ React build completed successfully"
 
       # 🆕 CORRECTED: SINGLE STOREKIT BRIDGE FIX (REPLACES ALL OTHERS)
-      - name: Fix StoreKit Bridge Integration
+      - name: Setup RevenueCat IAP
         script: |
           set -ex
-          echo "=== FIXING STOREKIT BRIDGE INTEGRATION ==="
+          echo "=== SETTING UP REVENUECAT IAP ==="
           
-          # Clean iOS platform properly
-          echo "=== Resetting iOS platform ==="
+          # Clean iOS platform
+          echo "=== Clean iOS platform setup ==="
           rm -rf ios
           npx cap add ios
           
-          # Ensure plugin is installed
-          if [ ! -d "node_modules/cordova-plugin-purchase" ]; then
-            npm install cordova-plugin-purchase@13.12.1
+          # Ensure RevenueCat is installed
+          if [ ! -d "node_modules/@revenuecat/purchases-capacitor" ]; then
+            echo "Installing @revenuecat/purchases-capacitor..."
+            npm install @revenuecat/purchases-capacitor
           fi
           
-          # Sync Capacitor
+          # Sync Capacitor (this will integrate RevenueCat properly)
           npx cap sync ios
           
-          # Remove plugin from wrong location if it exists
+          # Remove any old Cordova plugin traces
           rm -rf ios/App/App/public/plugins/cordova-plugin-purchase
           
-          # CRITICAL: Use Apple's system StoreKit, NOT CocoaPods version
-          echo "=== Ensuring Apple System StoreKit ==="
-          cd ios/App
-          
-          # Remove any StoreKit pod references (use system framework)
-          sed -i '' '/pod '\''StoreKit'\''/d' Podfile 2>/dev/null || true
-          
-          # Update pods
-          pod install --repo-update
-          
-          cd ../..
-          
-          # Final sync
-          npx cap sync ios
-          
-          # Verification
-          echo "=== VERIFICATION ==="
-          if [ -d "ios/App/App/Plugins/cordova-plugin-purchase" ]; then
-            echo "✅ Plugin in CORRECT location: Plugins/"
-          elif [ -d "ios/App/App/public/plugins/cordova-plugin-purchase" ]; then
-            echo "❌ Plugin in WRONG location: public/plugins/"
+          echo "=== VERIFYING REVENUECAT INTEGRATION ==="
+          if find ios/App -name "*revenuecat*" -o -name "*RevenueCat*" | grep -q .; then
+            echo "✅ RevenueCat integrated in iOS project"
+            find ios/App -name "*revenuecat*" -o -name "*RevenueCat*" | head -5
           else
-            echo "⚠️ Plugin location unknown"
+            echo "⚠️ RevenueCat files not found (may be in Pods)"
           fi
           
           # Continue with orientation configuration...
@@ -197,26 +167,19 @@ workflows:
           echo "=== Verifying Project Structure ==="
           if [ -d "Pods" ] && [ -d "App.xcworkspace" ]; then
             echo "✅ CocoaPods installation verified"
+            
+            # 🆕 Check if RevenueCat Pod was installed
+            if grep -q "Purchases" Podfile.lock; then
+              echo "✅ RevenueCat Purchases framework in Pods"
+            else
+              echo "⚠️ RevenueCat not in Podfile.lock (may use Capacitor integration)"
+            fi
           else
             echo "❌ CocoaPods installation failed!"
             exit 1
           fi
 
-      # 🆕 CORRECTED: STOREKIT VERIFICATION (NON-BREAKING)
-      - name: Verify StoreKit Integration
-        script: |
-          set -ex
-          echo "=== VERIFYING STOREKIT INTEGRATION ==="
-          
-          # Check if StoreKit framework would be available (system framework)
-          echo "StoreKit is a system framework - will be available at runtime"
-          
-          # Check plugin integration
-          if find ios/App -name "*purchase*" -type d | grep -q .; then
-            echo "✅ IAP plugin integrated"
-          else
-            echo "⚠️ IAP plugin not found"
-          fi
+      # 🆕 REMOVED: StoreKit Verification (RevenueCat handles this automatically)
 
       # PHASE 6: CREATE XCODE SCHEME
       - name: Create Xcode Scheme
@@ -259,7 +222,7 @@ workflows:
           
           echo "✅ Xcode scheme created"
 
-      # PHASE 7: CODE SIGNING SETUP
+      # PHASE 7: CODE SIGNING SETUP (KEEP EXISTING)
       - name: Configure Signing
         script: |
           set -ex
