@@ -66,22 +66,6 @@ workflows:
             npm install @revenuecat/purchases-capacitor
           fi
 
-      - name: Verify RevenueCat Integration
-        script: |
-          set -ex
-          echo "=== VERIFYING REVENUECAT INTEGRATION ==="
-          
-          echo "1. CHECKING REVENUECAT PACKAGE:"
-          ls -la node_modules/@revenuecat/purchases-capacitor || echo "RevenueCat package not found"
-          
-          echo "2. CHECKING CAPACITOR PLUGINS:"
-          npx cap ls ios | grep -i revenuecat || echo "RevenueCat not in plugin list (will be added by sync)"
-          
-          echo "3. SYNCING CAPACITOR:"
-          npx cap sync ios
-          
-          echo "=== RevenueCat verification complete ==="
-
       # PHASE 3: BUILD REACT APP
       - name: Build React App
         script: |
