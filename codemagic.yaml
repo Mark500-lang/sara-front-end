@@ -64,62 +64,35 @@ workflows:
             exit 1
           fi
 
-      # CORRECTED VERSION FIX - Use consistent versions
+      # 🆕 CORRECTED: SINGLE CAPACITOR VERSION FIX
       - name: Fix Capacitor Version Compatibility
         script: |
           set -ex
           echo "=== FIXING CAPACITOR VERSION COMPATIBILITY ==="
           
-          # Check current versions first
-          echo "=== CURRENT VERSIONS ==="
-          npm list @capacitor/core @capacitor/ios @capacitor/cli @capacitor/android
+          # Update to consistent versions without forcing conflicts
+          npm install @capacitor/core@^7.4.0 @capacitor/ios@^7.4.0 @capacitor/cli@^7.4.0
           
-          # Update ALL Capacitor packages to consistent versions
-          echo "=== UPDATING TO CONSISTENT VERSIONS ==="
-          npm install @capacitor/core@7.4.3 @capacitor/ios@7.4.3 @capacitor/cli@7.4.3 @capacitor/android@7.4.3
-          
-          # Update other Capacitor plugins to compatible versions
-          echo "=== UPDATING CAPACITOR PLUGINS ==="
-          npm install @capacitor/app@7.1.0 @capacitor/browser@7.0.2 @capacitor/device@7.0.2 @capacitor/filesystem@7.1.4 @capacitor/preferences@7.0.2
-          
-          # Verify consistent versions
-          echo "=== VERIFYING CONSISTENT VERSIONS ==="
-          npm list @capacitor/core @capacitor/ios @capacitor/cli @capacitor/android
-          
-          echo "✅ All Capacitor packages now at consistent versions"
+          echo "✅ Capacitor versions updated"
 
-      # 🆕 NEW PHASE 1: COMPREHENSIVE IAP DIAGNOSTIC (ADD THIS FIRST)
+      # 🆕 CORRECTED: SINGLE COMPREHENSIVE IAP DIAGNOSTIC
       - name: Comprehensive IAP Diagnostic
         script: |
           set -ex
-          echo "=== COMPREHENSIVE IAP DIAGNOSTIC - STORE METHODS ISSUE ==="
+          echo "=== COMPREHENSIVE IAP DIAGNOSTIC ==="
           
           echo "1. CHECKING CORDOVA PLUGIN STRUCTURE:"
-          echo "Plugin files:"
-          find node_modules/cordova-plugin-purchase -name "*.js" | grep -E "(store-ios|inapppurchase)" | head -10
+          find node_modules/cordova-plugin-purchase -name "*.js" | grep -E "(store-ios|inapppurchase)" | head -10 || echo "No store-ios files found"
           
           echo "2. CHECKING IOS PLUGIN INTEGRATION:"
-          echo "iOS plugin files:"
-          find ios/App -name "*purchase*" -o -name "*Purchase*" | head -20
+          find ios/App -name "*purchase*" -o -name "*Purchase*" 2>/dev/null | head -10 || echo "No purchase files in iOS project"
           
           echo "3. CHECKING CAPACITOR-CORDOVA BRIDGE:"
           if [ -f "ios/App/App/App/cordova.js" ] || [ -f "ios/App/App/public/cordova.js" ]; then
             echo "✅ Cordova.js found"
           else
-            echo "❌ Cordova.js missing - bridge will fail"
+            echo "⚠️ Cordova.js will be provided by Capacitor"
           fi
-          
-          echo "4. CHECKING STOREKIT FRAMEWORK:"
-          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -showBuildSettings | grep -i "storekit" || echo "⚠️ StoreKit not in build settings"
-          
-          echo "5. CHECKING PLUGIN CONFIGURATION:"
-          if [ -f "plugins/cordova-plugin-purchase/plugin.xml" ]; then
-            grep -A5 -B5 "store-ios" plugins/cordova-plugin-purchase/plugin.xml || echo "store-ios config not found"
-          fi
-          
-          echo "6. CHECKING NODE_MODULES INTEGRITY:"
-          ls -la node_modules/cordova-plugin-purchase/www/
-          ls -la node_modules/cordova-plugin-purchase/src/ios/
           
           echo "=== DIAGNOSTIC COMPLETE ==="
 
@@ -140,82 +113,53 @@ workflows:
           
           echo "✅ React build completed successfully"
 
-      # PHASE 4: FIXED - FOCUS ON STOREKIT BRIDGE, NOT PLUGIN INSTALLATION
+      # 🆕 CORRECTED: SINGLE STOREKIT BRIDGE FIX (REPLACES ALL OTHERS)
       - name: Fix StoreKit Bridge Integration
         script: |
           set -ex
           echo "=== FIXING STOREKIT BRIDGE INTEGRATION ==="
           
-          # Use correct Capacitor commands for version compatibility
-          echo "=== Resetting iOS platform to fix bridge ==="
+          # Clean iOS platform properly
+          echo "=== Resetting iOS platform ==="
           rm -rf ios
           npx cap add ios
           
-          # The plugin should already be installed from node_modules
-          echo "=== Verifying plugin in node_modules ==="
-          if [ -d "node_modules/cordova-plugin-purchase" ]; then
-            echo "✅ cordova-plugin-purchase found in node_modules"
-          else
-            echo "❌ Plugin missing from node_modules - reinstalling"
+          # Ensure plugin is installed
+          if [ ! -d "node_modules/cordova-plugin-purchase" ]; then
             npm install cordova-plugin-purchase@13.12.1
           fi
           
-          # Sync with focus on native bridge
-          echo "=== Syncing with native bridge focus ==="
+          # Sync Capacitor
           npx cap sync ios
           
-          # CRITICAL: Ensure StoreKit is in Podfile
-          echo "=== ENSURING STOREKIT IN PODFILE ==="
+          # Remove plugin from wrong location if it exists
+          rm -rf ios/App/App/public/plugins/cordova-plugin-purchase
+          
+          # CRITICAL: Use Apple's system StoreKit, NOT CocoaPods version
+          echo "=== Ensuring Apple System StoreKit ==="
           cd ios/App
           
-          # Check if StoreKit is already in Podfile, add if missing
-          if ! grep -q "StoreKit" Podfile; then
-            echo "Adding StoreKit to Podfile..."
-            echo "
-            # StoreKit required for IAP functionality
-            pod 'StoreKit'" >> Podfile
-            
-            echo "✅ StoreKit added to Podfile"
-          else
-            echo "✅ StoreKit already in Podfile"
-          fi
+          # Remove any StoreKit pod references (use system framework)
+          sed -i '' '/pod '\''StoreKit'\''/d' Podfile 2>/dev/null || true
           
-          # Show Podfile contents for verification
-          echo "=== Podfile Contents ==="
-          cat Podfile | grep -A 5 -B 5 "StoreKit" || echo "StoreKit section not found"
-          
-          cd ../..
-          
-          # Update pods with StoreKit
-          echo "=== Updating CocoaPods with StoreKit ==="
-          cd ios/App
+          # Update pods
           pod install --repo-update
+          
           cd ../..
           
           # Final sync
           npx cap sync ios
           
-          # CRITICAL: Verify StoreKit framework is actually installed
-          echo "=== VERIFYING STOREKIT FRAMEWORK INSTALLATION ==="
-          if [ -d "ios/App/Pods/StoreKit" ]; then
-            echo "✅✅ SUCCESS: StoreKit framework found in Pods directory"
-            ls -la ios/App/Pods/StoreKit/
+          # Verification
+          echo "=== VERIFICATION ==="
+          if [ -d "ios/App/App/Plugins/cordova-plugin-purchase" ]; then
+            echo "✅ Plugin in CORRECT location: Plugins/"
+          elif [ -d "ios/App/App/public/plugins/cordova-plugin-purchase" ]; then
+            echo "❌ Plugin in WRONG location: public/plugins/"
           else
-            echo "❌ CRITICAL: StoreKit framework NOT found in Pods"
-            echo "This will cause the missing methods issue!"
-            echo "Available Pods:"
-            ls -la ios/App/Pods/ | head -10
+            echo "⚠️ Plugin location unknown"
           fi
           
-          # Check plugin integration
-          echo "=== PLUGIN INTEGRATION CHECK ==="
-          if find ios/App -name "*purchase*" -type d | grep -q .; then
-            echo "✅ IAP plugin integrated"
-            find ios/App -name "*purchase*" -type d | head -5
-          else
-            echo "⚠️ IAP plugin not found in expected locations"
-          fi
-
           # Continue with orientation configuration...
           echo "=== Configuring Proper iOS Orientations ==="
           cd ios/App/App
@@ -240,37 +184,6 @@ workflows:
           
           echo "✅ Orientation configuration fixed"
 
-      # NEW PHASE: VERIFY STOREKIT FRAMEWORK IN XCODE PROJECT
-      - name: Verify StoreKit Framework
-        script: |
-          set -ex
-          echo "=== VERIFYING STOREKIT FRAMEWORK INTEGRATION ==="
-          
-          # Check if StoreKit is in the Xcode project
-          if grep -r "StoreKit" ios/App/App.xcodeproj/project.pbxproj; then
-            echo "✅ StoreKit referenced in Xcode project"
-          else
-            echo "⚠️ StoreKit not found in Xcode project - may cause method issues"
-          fi
-          
-          # Check for required linker flags
-          if grep -r "OTHER_LDFLAGS" ios/App/App.xcodeproj/project.pbxproj | grep -q "StoreKit"; then
-            echo "✅ StoreKit in linker flags"
-          else
-            echo "⚠️ StoreKit may not be properly linked"
-          fi
-          
-          # Verify CocoaPods will include StoreKit
-          echo "=== Checking Podfile ==="
-          if [ -f "ios/App/Podfile" ]; then
-            cat ios/App/Podfile
-            if grep -q "StoreKit" ios/App/Podfile; then
-              echo "✅ StoreKit in Podfile"
-            else
-              echo "ℹ️ StoreKit not explicitly in Podfile (may be included via plugin)"
-            fi
-          fi
-
       # PHASE 5: IOS PROJECT CONFIGURATION
       - name: Configure iOS Project
         script: |
@@ -289,32 +202,20 @@ workflows:
             exit 1
           fi
 
-      # NEW PHASE: ENSURE STOREKIT FRAMEWORK
-      - name: Ensure StoreKit Framework
+      # 🆕 CORRECTED: STOREKIT VERIFICATION (NON-BREAKING)
+      - name: Verify StoreKit Integration
         script: |
           set -ex
-          echo "=== ENSURING STOREKIT FRAMEWORK ==="
-          cd ios/App
+          echo "=== VERIFYING STOREKIT INTEGRATION ==="
           
-          # Add StoreKit to Podfile if missing
-          if ! grep -q "StoreKit" Podfile; then
-            echo "Adding StoreKit to Podfile..."
-            echo "
-            # StoreKit for IAP
-            pod 'StoreKit'" >> Podfile
-          fi
+          # Check if StoreKit framework would be available (system framework)
+          echo "StoreKit is a system framework - will be available at runtime"
           
-          # Update pods
-          pod install --repo-update
-          
-          # Verify StoreKit is installed
-          echo "=== VERIFYING STOREKIT INSTALLATION ==="
-          if [ -d "Pods/StoreKit" ]; then
-            echo "✅ StoreKit installed via CocoaPods"
+          # Check plugin integration
+          if find ios/App -name "*purchase*" -type d | grep -q .; then
+            echo "✅ IAP plugin integrated"
           else
-            echo "❌ StoreKit still missing - manual intervention required"
-            # Manual framework addition
-            xcodebuild -workspace App.xcworkspace -scheme App -configuration Release OTHER_LDFLAGS="-framework StoreKit"
+            echo "⚠️ IAP plugin not found"
           fi
 
       # PHASE 6: CREATE XCODE SCHEME
@@ -327,7 +228,7 @@ workflows:
           # Create scheme directory
           mkdir -p App.xcodeproj/xcshareddata/xcschemes
           
-          # Create scheme file
+          # Create scheme file (your existing code - KEEP THIS)
           cat > App.xcodeproj/xcshareddata/xcschemes/App.xcscheme << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <Scheme LastUpgradeVersion="1500" version="1.7">
@@ -662,45 +563,6 @@ workflows:
           fi
           
           echo "=== Plugin location fix complete ==="# CORRECTED: UNIVERSAL PLUGIN LOCATION FIX
-
-      # CORRECTED: PLUGIN LOCATION FIX (NO CAPACITOR RM)
-      - name: Fix Plugin Location Final
-        script: |
-          set -ex
-          echo "=== FINAL PLUGIN LOCATION FIX ==="
-          
-          # Remove plugin from wrong location
-          echo "=== Removing plugin from wrong location ==="
-          rm -rf ios/App/App/public/plugins/cordova-plugin-purchase
-          
-          # Clean and rebuild iOS platform WITHOUT 'cap rm'
-          echo "=== Rebuilding iOS platform ==="
-          rm -rf ios
-          npx cap add ios
-          
-          # Ensure plugin is installed
-          if [ ! -d "node_modules/cordova-plugin-purchase" ]; then
-            echo "Installing cordova-plugin-purchase..."
-            npm install cordova-plugin-purchase@13.12.1
-          fi
-          
-          npx cap sync ios
-          
-          # Final verification
-          echo "=== FINAL VERIFICATION ==="
-          if [ -d "ios/App/App/Plugins/cordova-plugin-purchase" ]; then
-            echo "✅✅ SUCCESS: Plugin in CORRECT location"
-            echo "Plugin files in Plugins/:"
-            find ios/App/App/Plugins/cordova-plugin-purchase -type f | head -5
-          elif [ -d "ios/App/App/public/plugins/cordova-plugin-purchase" ]; then
-            echo "❌ STILL WRONG: Plugin in public/plugins/"
-            echo "This confirms the fundamental Capacitor-Cordova incompatibility"
-          else
-            echo "⚠️ Plugin location unknown"
-            find ios/App -name "*purchase*" -type d
-          fi
-          
-          echo "=== Fix complete ==="
 
       - name: Verify Native IAP Framework
         script: |
