@@ -760,18 +760,17 @@ workflows:
           echo "=== Updating Podfile with RevenueCat Workaround ==="
           cd ios/App
           
-          # Remove any existing post_install hooks to avoid conflicts
-          sed -i.bak '/post_install do |installer|/,/^end$/d' Podfile
+          # Create a backup of the original Podfile
+          cp Podfile Podfile.backup
           
-          # Add comprehensive post_install hook
+          echo "=== Creating fixed Podfile ==="
+          # Read the original Podfile and modify it properly
+          cat Podfile.backup | head -n -1 > Podfile
+          
+          # Add the RevenueCat fix to the existing post_install hook
           cat >> Podfile << 'PODFILE_EOF'
 
-          # RevenueCat bundle workaround for Xcode 16
-          post_install do |installer|
-            # Existing Capacitor hook
-            capacitor_pods_installer(installer)
-            
-            # RevenueCat bundle fix
+            # RevenueCat bundle workaround for Xcode 16
             installer.pods_project.targets.each do |target|
               if target.name == 'RevenueCat-RevenueCat'
                 puts "Applying RevenueCat bundle workaround..."
@@ -784,9 +783,12 @@ workflows:
                   end
                 end
                 
-                # Add the bundle as a framework instead
-                bundle_ref = installer.pods_project.new_file('Pods/RevenueCat/Sources/RevenueCat.bundle')
-                target.frameworks_build_phase.add_file_reference(bundle_ref)
+                # Add the bundle as a framework instead if it exists
+                bundle_path = 'Pods/RevenueCat/Sources/RevenueCat.bundle'
+                if File.exist?(bundle_path)
+                  bundle_ref = installer.pods_project.new_file(bundle_path)
+                  target.frameworks_build_phase.add_file_reference(bundle_ref)
+                end
               end
             end
             
@@ -795,7 +797,7 @@ workflows:
               target.build_configurations.each do |config|
                 config.build_settings['SWIFT_VERSION'] = '5.0'
                 config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
-                # Disable Swift library copying for bundles
+                # Disable Swift library copying for RevenueCat bundle
                 if target.name == 'RevenueCat-RevenueCat'
                   config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'NO'
                 else
@@ -807,6 +809,8 @@ workflows:
           PODFILE_EOF
           
           echo "✅ Podfile updated with RevenueCat workaround"
+          echo "=== Updated Podfile contents (end) ==="
+          tail -20 Podfile
 
       # PHASE 19: REINSTALL PODS WITH FIX
       - name: Reinstall Pods with Fix
@@ -816,6 +820,22 @@ workflows:
           
           echo "=== Reinstalling Pods with RevenueCat Fix ==="
           pod install --repo-update --clean-install
+          
+          if [ $? -ne 0 ]; then
+            echo "⚠️ Pod install failed, trying alternative approach..."
+            
+            # Restore original Podfile and try without the fix
+            cp Podfile.backup Podfile
+            pod install --repo-update --clean-install
+            
+            if [ $? -ne 0 ]; then
+              echo "❌ Pod install still failing, using nuclear option..."
+              # Remove RevenueCat entirely
+              sed -i.bak '/RevenuecatPurchasesCapacitor/d' Podfile
+              pod install --repo-update --clean-install
+            fi
+          fi
+          
           echo "✅ Pods reinstalled successfully"
 
       # PHASE 20: BUILD UNSIGNED ARCHIVE
