@@ -208,6 +208,18 @@ workflows:
           # Verify the changes
           echo "=== Verifying Project Settings ==="
           grep -E "IPHONEOS_DEPLOYMENT_TARGET|SWIFT_VERSION|ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES" "$PBXPROJ" || echo "Settings not found (may be in different build configuration)"
+          
+          # Also update the project.pbxproj for the main target to ensure Swift libraries are embedded
+          echo "=== Ensuring Swift libraries are properly embedded ==="
+          if grep -q "ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES" "$PBXPROJ"; then
+            echo "✅ ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES is set"
+          else
+            # Add it to the main project build settings
+            sed -i.bak '/Build Settings/a\
+            ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;' "$PBXPROJ"
+            rm -f "$PBXPROJ.bak"
+          fi
+
       # PHASE 6: CREATE XCODE SCHEME
       - name: Create Xcode Scheme
         script: |
@@ -743,14 +755,38 @@ workflows:
           
           echo "✅ Swift support configuration updated"
 
-      # PHASE 15: BUILD UNSIGNED ARCHIVE WITH SWIFT SUPPORT
+      # PHASE 17: FIX REVENUECAT SWIFT SUPPORT
+      - name: Fix RevenueCat Swift Support
+        script: |
+          set -ex
+          echo "=== Fixing RevenueCat Swift Support ==="
+          cd ios/App
+          
+          # Clean derived data to avoid caching issues
+          rm -rf ~/Library/Developer/Xcode/DerivedData/*
+          
+          # Build the project first to ensure all frameworks are properly built
+          echo "=== Building project to generate required frameworks ==="
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            clean build
+          
+          echo "✅ Project built successfully - frameworks should now be available"
+
+      # PHASE 18: BUILD UNSIGNED ARCHIVE WITH SWIFT SUPPORT
       - name: Build Unsigned Archive
         script: |
           set -ex
           cd ios/App
           
-          # Clean previous builds
-          rm -rf build/*
+          # Clean previous builds but keep the built frameworks
+          rm -rf build/App.xcarchive
           
           # Verify signing assets
           echo "=== Verifying Signing Assets ==="
@@ -761,7 +797,7 @@ workflows:
             exit 1
           fi
           
-          # Build without signing (will sign manually later)
+          # Build archive with explicit Swift settings
           echo "=== Building Unsigned Archive ==="
           xcodebuild \
             -workspace App.xcworkspace \
@@ -772,6 +808,7 @@ workflows:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=YES \
+            SKIP_INSTALL=NO \
             clean archive
           
           # Verify archive exists and contains Swift support
@@ -783,8 +820,10 @@ workflows:
           # Check for Swift support libraries
           if [ -d "build/App.xcarchive/SwiftSupport" ]; then
             echo "✅ SwiftSupport folder found in archive"
+            ls -la build/App.xcarchive/SwiftSupport/
           else
-            echo "⚠️ SwiftSupport folder not found - this may cause App Store rejection"
+            echo "⚠️ SwiftSupport folder not found - checking for embedded frameworks"
+            find build/App.xcarchive -name "*.framework" -type d | head -10
           fi
           
           echo "✅ Unsigned archive created successfully"
