@@ -120,7 +120,7 @@ workflows:
           
           echo "✅ Orientation configuration fixed"
 
-      # PHASE 5: IOS PROJECT CONFIGURATION WITH SWIFT SUPPORT FIX
+            # PHASE 5: IOS PROJECT CONFIGURATION WITH SWIFT SUPPORT FIX
       - name: Configure iOS Project
         script: |
           set -ex
@@ -140,8 +140,30 @@ workflows:
             rm -f Podfile.bak
           fi
           
-          # Add Swift version specification if not present
-          if ! grep -q "SWIFT_VERSION" Podfile; then
+          # Check if post_install hook already exists and modify it
+          if grep -q "post_install" Podfile; then
+            echo "=== Modifying existing post_install hook ==="
+            # Create a temporary file with the modified post_install
+            cat > temp_post_install.rb << "RUBY_EOF"
+            post_install do |installer|
+              # Existing Capacitor code
+              capacitor_pods_installer(installer)
+              # Add Swift version and deployment target settings
+              installer.pods_project.targets.each do |target|
+                target.build_configurations.each do |config|
+                  config.build_settings['SWIFT_VERSION'] = '5.0'
+                  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+                end
+              end
+            end
+            RUBY_EOF
+            
+            # Remove the existing post_install block and replace it
+            sed -i.bak '/post_install do |installer|/,/^end$/d' Podfile
+            cat temp_post_install.rb >> Podfile
+            rm -f temp_post_install.rb Podfile.bak
+          else
+            echo "=== Adding new post_install hook ==="
             cat >> Podfile << "PODFILE_EOF"
 
             # Swift version specification
@@ -153,11 +175,11 @@ workflows:
                 end
               end
             end
-          PODFILE_EOF
+            PODFILE_EOF
           fi
           
-          echo "=== Updated Podfile Contents ==="
-          cat Podfile | head -20
+          echo "=== Updated Podfile Contents (showing end) ==="
+          tail -20 Podfile
           
           echo "=== Installing CocoaPods ==="
           pod install --repo-update --clean-install
