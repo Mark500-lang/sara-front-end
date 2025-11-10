@@ -764,10 +764,10 @@ workflows:
           cp Podfile Podfile.backup
           
           echo "=== Creating fixed Podfile ==="
-          # Read the original Podfile and modify it properly
-          cat Podfile.backup | head -n -1 > Podfile
+          # Read the original Podfile and remove the last line (the 'end' of post_install)
+          sed '$d' Podfile.backup > Podfile
           
-          # Add the RevenueCat fix to the existing post_install hook
+          # Add the RevenueCat fix before the final 'end'
           cat >> Podfile << 'PODFILE_EOF'
 
             # RevenueCat bundle workaround for Xcode 16
