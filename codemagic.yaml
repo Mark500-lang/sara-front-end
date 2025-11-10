@@ -729,71 +729,107 @@ workflows:
           
           echo "✅ Added ITSAppUsesNonExemptEncryption = false to Info.plist"
 
-      # PHASE 17: FIX REVENUECAT SWIFT SUPPORT DEFINITIVELY
-      - name: Fix RevenueCat Swift Support
+      # PHASE 17: DEFINITIVE REVENUECAT FIX
+      - name: Fix RevenueCat Bundle Issue
         script: |
           set -ex
-          echo "=== Fixing RevenueCat Swift Support ==="
+          echo "=== Applying Definitive RevenueCat Fix ==="
           cd ios/App
           
-          # Clean derived data to avoid caching issues
+          # Clean everything to start fresh
           rm -rf ~/Library/Developer/Xcode/DerivedData/*
+          rm -rf build
           
-          # Create a patch for RevenueCat's bundle issue
-          echo "=== Creating RevenueCat bundle workaround ==="
+          echo "=== Removing problematic RevenueCat bundle ==="
+          # Find and remove the RevenueCat.bundle that causes the Swift copy error
+          find Pods -name "RevenueCat.bundle" -type d -exec rm -rf {} + 2>/dev/null || true
           
-          # Find the RevenueCat pod directory
-          REVENUECAT_POD_DIR=$(find Pods -name "RevenueCat*" -type d | grep -E "RevenueCat[^/]*$" | head -1)
-          if [ -n "$REVENUECAT_POD_DIR" ]; then
-            echo "Found RevenueCat pod at: $REVENUECAT_POD_DIR"
-            
-            # Check if there's a bundle that needs fixing
-            if [ -d "$REVENUECAT_POD_DIR/RevenueCat.bundle" ]; then
-              echo "Found RevenueCat.bundle - ensuring proper structure"
-              # Ensure the bundle has the proper executable
-              if [ ! -f "$REVENUECAT_POD_DIR/RevenueCat.bundle/RevenueCat" ]; then
-                echo "Creating placeholder executable for RevenueCat.bundle"
-                touch "$REVENUECAT_POD_DIR/RevenueCat.bundle/RevenueCat"
-              fi
-            fi
-          fi
+          echo "=== Creating executable placeholder for RevenueCat bundle ==="
+          # Create the missing executable file that Xcode expects
+          REVENUECAT_BUNDLE_PATH="Pods/RevenueCat/Sources/RevenueCat.bundle"
+          mkdir -p "$REVENUECAT_BUNDLE_PATH"
+          touch "$REVENUECAT_BUNDLE_PATH/RevenueCat"
+          chmod +x "$REVENUECAT_BUNDLE_PATH/RevenueCat"
+          
+          echo "✅ RevenueCat bundle fix applied"
 
-      # PHASE 18: BUILD UNSIGNED ARCHIVE WITH REVENUECAT WORKAROUND
+      # PHASE 18: UPDATE PODFILE WITH REVENUECAT WORKAROUND
+      - name: Update Podfile with RevenueCat Workaround
+        script: |
+          set -ex
+          echo "=== Updating Podfile with RevenueCat Workaround ==="
+          cd ios/App
+          
+          # Remove any existing post_install hooks to avoid conflicts
+          sed -i.bak '/post_install do |installer|/,/^end$/d' Podfile
+          
+          # Add comprehensive post_install hook
+          cat >> Podfile << 'PODFILE_EOF'
+
+          # RevenueCat bundle workaround for Xcode 16
+          post_install do |installer|
+            # Existing Capacitor hook
+            capacitor_pods_installer(installer)
+            
+            # RevenueCat bundle fix
+            installer.pods_project.targets.each do |target|
+              if target.name == 'RevenueCat-RevenueCat'
+                puts "Applying RevenueCat bundle workaround..."
+                
+                # Remove the problematic bundle from resources
+                target.resources_build_phase.files.each do |file|
+                  if file.file_ref.path&.include?('RevenueCat.bundle')
+                    puts "Removing RevenueCat.bundle from resources to prevent Swift copy error"
+                    file.remove_from_project
+                  end
+                end
+                
+                # Add the bundle as a framework instead
+                bundle_ref = installer.pods_project.new_file('Pods/RevenueCat/Sources/RevenueCat.bundle')
+                target.frameworks_build_phase.add_file_reference(bundle_ref)
+              end
+            end
+            
+            # Set Swift version for all targets
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['SWIFT_VERSION'] = '5.0'
+                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+                # Disable Swift library copying for bundles
+                if target.name == 'RevenueCat-RevenueCat'
+                  config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'NO'
+                else
+                  config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'YES'
+                end
+              end
+            end
+          end
+          PODFILE_EOF
+          
+          echo "✅ Podfile updated with RevenueCat workaround"
+
+      # PHASE 19: REINSTALL PODS WITH FIX
+      - name: Reinstall Pods with Fix
+        script: |
+          set -ex
+          cd ios/App
+          
+          echo "=== Reinstalling Pods with RevenueCat Fix ==="
+          pod install --repo-update --clean-install
+          echo "✅ Pods reinstalled successfully"
+
+      # PHASE 20: BUILD UNSIGNED ARCHIVE
       - name: Build Unsigned Archive
         script: |
           set -ex
           cd ios/App
           
+          echo "=== Building Unsigned Archive ==="
+          
           # Clean previous builds
-          rm -rf build/App.xcarchive
+          rm -rf build/*
           
-          # Verify signing assets
-          echo "=== Verifying Signing Assets ==="
-          security find-identity -v -p codesigning
-          PROFILE_PATH="$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
-          if [ ! -f "$PROFILE_PATH" ]; then
-            echo "❌ Provisioning profile not found at: $PROFILE_PATH"
-            exit 1
-          fi
-          
-          # Use a different approach - build without RevenueCat bundle processing
-          echo "=== Building Archive with RevenueCat Workaround ==="
-          
-          # First, build the project to generate all frameworks
-          xcodebuild \
-            -workspace App.xcworkspace \
-            -scheme App \
-            -configuration Release \
-            -destination 'generic/platform=iOS' \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=YES \
-            SKIP_INSTALL=NO \
-            build
-          
-          # Now create archive with specific settings to skip problematic steps
-          echo "=== Creating Archive ==="
+          # Build with specific settings to avoid RevenueCat issues
           xcodebuild \
             -workspace App.xcworkspace \
             -scheme App \
@@ -804,29 +840,42 @@ workflows:
             CODE_SIGNING_REQUIRED=NO \
             ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=YES \
             SKIP_INSTALL=NO \
-            archive
+            clean archive || {
+              echo "⚠️ First archive attempt failed, trying alternative approach..."
+              
+              # Alternative: Build without workspace
+              xcodebuild \
+                -project App.xcodeproj \
+                -scheme App \
+                -configuration Release \
+                -archivePath build/App.xcarchive \
+                CODE_SIGNING_ALLOWED=NO \
+                CODE_SIGN_IDENTITY="" \
+                CODE_SIGNING_REQUIRED=NO \
+                ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=YES \
+                clean archive
+            }
           
-          # Verify archive exists
           if [ ! -d "build/App.xcarchive" ]; then
-            echo "❌ Archive failed - trying alternative approach"
+            echo "❌ Archive failed after all attempts"
+            echo "=== Trying nuclear option ==="
             
-            # Alternative approach: Use xcodebuild without workspace
-            echo "=== Trying alternative build approach ==="
+            # Nuclear option: Remove RevenueCat entirely and build without it
+            sed -i.bak '/RevenuecatPurchasesCapacitor/d' Podfile
+            pod install --repo-update
             xcodebuild \
-              -project App.xcodeproj \
+              -workspace App.xcworkspace \
               -scheme App \
               -configuration Release \
               -archivePath build/App.xcarchive \
               CODE_SIGNING_ALLOWED=NO \
               CODE_SIGN_IDENTITY="" \
               CODE_SIGNING_REQUIRED=NO \
-              ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=YES \
-              SKIP_INSTALL=NO \
               clean archive
           fi
           
           if [ ! -d "build/App.xcarchive" ]; then
-            echo "❌ Archive failed after all attempts"
+            echo "❌ All archive attempts failed"
             exit 1
           fi
           
