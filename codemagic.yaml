@@ -120,7 +120,7 @@ workflows:
           
           echo "✅ Orientation configuration fixed"
 
-            # PHASE 5: IOS PROJECT CONFIGURATION WITH SWIFT SUPPORT FIX
+      # PHASE 5: IOS PROJECT CONFIGURATION WITH SWIFT SUPPORT FIX
       - name: Configure iOS Project
         script: |
           set -ex
@@ -156,7 +156,7 @@ workflows:
                 end
               end
             end
-            RUBY_EOF
+          RUBY_EOF
             
             # Remove the existing post_install block and replace it
             sed -i.bak '/post_install do |installer|/,/^end$/d' Podfile
@@ -175,7 +175,7 @@ workflows:
                 end
               end
             end
-            PODFILE_EOF
+          PODFILE_EOF
           fi
           
           echo "=== Updated Podfile Contents (showing end) ==="
