@@ -379,17 +379,21 @@ workflows:
           
           echo "✅ Build settings configured definitively"
 
-      # PHASE 9: APP ICON SETUP
+      # PHASE 9: GENERATE APP ICONS FROM SOURCE ASSETS
       - name: Generate App Icons
         script: |
           set -ex
           echo "=== Generating App Icons from Source Assets ==="
+          
+          # Navigate to the correct directory
           cd ios/App/App/Assets.xcassets
           
-          # Check if AppIcon.appiconset exists and has proper content
+          echo "=== Current directory: $(pwd) ==="
+          ls -la
+          
+          # Check if AppIcon.appiconset exists
           if [ ! -d "AppIcon.appiconset" ]; then
-            echo "❌ AppIcon.appiconset directory not found!"
-            echo "Creating AppIcon.appiconset structure..."
+            echo "❌ AppIcon.appiconset directory not found - creating it"
             mkdir -p AppIcon.appiconset
             
             # Create the Contents.json with all required icon sizes
@@ -511,82 +515,81 @@ workflows:
               }
             }
           EOF
+            echo "✅ Created AppIcon.appiconset structure"
+          else
+            echo "✅ AppIcon.appiconset already exists"
           fi
           
-          echo "=== Checking for source icon assets ==="
-          # Look for source icon files in the project
-          cd ../../..  # Back to ios/App directory
+          # Check if we need to generate icons or if they already exist
+          cd AppIcon.appiconset
+          echo "=== Checking existing icon files ==="
+          ls -la *.png 2>/dev/null | wc -l || echo "No PNG files found"
           
-          # Check common locations for source icons
-          if [ -f "../src/assets/icon.png" ] || [ -f "../public/icon.png" ] || [ -f "icon.png" ]; then
-            echo "✅ Source icon assets found"
+          # If no icons exist, try to generate them from source
+          if [ ! -f "icon-1024.png" ]; then
+            echo "=== No icons found, attempting to generate from source ==="
             
-            # Generate all required icon sizes from source
-            echo "=== Generating iOS app icons from source ==="
+            # Go back to project root to look for source icons
+            cd ../../../../..
             
-            # Install imagemagick if not available (for icon generation)
-            if ! command -v convert &> /dev/null; then
-              echo "Installing imagemagick for icon generation..."
-              brew install imagemagick || { echo "⚠️ Could not install imagemagick, using fallback method"; }
+            # Look for potential source icons
+            SOURCE_ICON=""
+            if [ -f "src/assets/icon.png" ]; then
+              SOURCE_ICON="src/assets/icon.png"
+            elif [ -f "public/icon.png" ]; then
+              SOURCE_ICON="public/icon.png"
+            elif [ -f "src/assets/Home icon.png" ]; then
+              SOURCE_ICON="src/assets/Home icon.png"
             fi
             
-            # Your actual icon generation logic here
-            # This would typically resize your source icon to all required sizes
-            # Example (adjust paths based on your actual source icon location):
-            SOURCE_ICON="../public/icon.png"
-            if [ ! -f "$SOURCE_ICON" ]; then
-              SOURCE_ICON="../src/assets/icon.png"
-            fi
-            if [ ! -f "$SOURCE_ICON" ]; then
-              SOURCE_ICON="icon.png"
-            fi
-            
-            if [ -f "$SOURCE_ICON" ] && command -v convert &> /dev/null; then
-              echo "Generating icons from: $SOURCE_ICON"
-              ICON_DIR="App/Assets.xcassets/AppIcon.appiconset"
+            if [ -n "$SOURCE_ICON" ]; then
+              echo "✅ Found source icon: $SOURCE_ICON"
               
-              # Generate all required icon sizes
-              convert "$SOURCE_ICON" -resize 40x40 "$ICON_DIR/icon-20@2x.png"
-              convert "$SOURCE_ICON" -resize 60x60 "$ICON_DIR/icon-20@3x.png"
-              convert "$SOURCE_ICON" -resize 58x58 "$ICON_DIR/icon-29@2x.png"
-              convert "$SOURCE_ICON" -resize 87x87 "$ICON_DIR/icon-29@3x.png"
-              convert "$SOURCE_ICON" -resize 80x80 "$ICON_DIR/icon-40@2x.png"
-              convert "$SOURCE_ICON" -resize 120x120 "$ICON_DIR/icon-40@3x.png"
-              convert "$SOURCE_ICON" -resize 120x120 "$ICON_DIR/icon-60@2x.png"
-              convert "$SOURCE_ICON" -resize 180x180 "$ICON_DIR/icon-60@3x.png"
-              convert "$SOURCE_ICON" -resize 20x20 "$ICON_DIR/icon-20.png"
-              convert "$SOURCE_ICON" -resize 40x40 "$ICON_DIR/icon-20@2x-ipad.png"
-              convert "$SOURCE_ICON" -resize 29x29 "$ICON_DIR/icon-29.png"
-              convert "$SOURCE_ICON" -resize 58x58 "$ICON_DIR/icon-29@2x-ipad.png"
-              convert "$SOURCE_ICON" -resize 40x40 "$ICON_DIR/icon-40.png"
-              convert "$SOURCE_ICON" -resize 80x80 "$ICON_DIR/icon-40@2x-ipad.png"
-              convert "$SOURCE_ICON" -resize 76x76 "$ICON_DIR/icon-76.png"
-              convert "$SOURCE_ICON" -resize 152x152 "$ICON_DIR/icon-76@2x.png"
-              convert "$SOURCE_ICON" -resize 167x167 "$ICON_DIR/icon-83.5@2x.png"
-              convert "$SOURCE_ICON" -resize 1024x1024 "$ICON_DIR/icon-1024.png"
-              
-              echo "✅ iOS app icons generated successfully"
+              # Install imagemagick if available
+              if command -v convert &> /dev/null || brew install imagemagick; then
+                echo "=== Generating iOS app icons from source ==="
+                ICON_DIR="ios/App/App/Assets.xcassets/AppIcon.appiconset"
+                
+                # Generate all required icon sizes
+                convert "$SOURCE_ICON" -resize 40x40 "$ICON_DIR/icon-20@2x.png"
+                convert "$SOURCE_ICON" -resize 60x60 "$ICON_DIR/icon-20@3x.png"
+                convert "$SOURCE_ICON" -resize 58x58 "$ICON_DIR/icon-29@2x.png"
+                convert "$SOURCE_ICON" -resize 87x87 "$ICON_DIR/icon-29@3x.png"
+                convert "$SOURCE_ICON" -resize 80x80 "$ICON_DIR/icon-40@2x.png"
+                convert "$SOURCE_ICON" -resize 120x120 "$ICON_DIR/icon-40@3x.png"
+                convert "$SOURCE_ICON" -resize 120x120 "$ICON_DIR/icon-60@2x.png"
+                convert "$SOURCE_ICON" -resize 180x180 "$ICON_DIR/icon-60@3x.png"
+                convert "$SOURCE_ICON" -resize 20x20 "$ICON_DIR/icon-20.png"
+                convert "$SOURCE_ICON" -resize 40x40 "$ICON_DIR/icon-20@2x-ipad.png"
+                convert "$SOURCE_ICON" -resize 29x29 "$ICON_DIR/icon-29.png"
+                convert "$SOURCE_ICON" -resize 58x58 "$ICON_DIR/icon-29@2x-ipad.png"
+                convert "$SOURCE_ICON" -resize 40x40 "$ICON_DIR/icon-40.png"
+                convert "$SOURCE_ICON" -resize 80x80 "$ICON_DIR/icon-40@2x-ipad.png"
+                convert "$SOURCE_ICON" -resize 76x76 "$ICON_DIR/icon-76.png"
+                convert "$SOURCE_ICON" -resize 152x152 "$ICON_DIR/icon-76@2x.png"
+                convert "$SOURCE_ICON" -resize 167x167 "$ICON_DIR/icon-83.5@2x.png"
+                convert "$SOURCE_ICON" -resize 1024x1024 "$ICON_DIR/icon-1024.png"
+                
+                echo "✅ iOS app icons generated successfully"
+              else
+                echo "⚠️ ImageMagick not available - cannot generate icons automatically"
+                echo "Please ensure your AppIcon.appiconset contains all required icon sizes"
+              fi
             else
-              echo "⚠️ Using placeholder icons - add proper source icon and imagemagick for automatic generation"
-              # Create placeholder icons if generation isn't possible
-              ICON_DIR="App/Assets.xcassets/AppIcon.appiconset"
-              # This would create simple colored placeholder icons
-              # You should replace this with your actual icon generation logic
+              echo "⚠️ No suitable source icon found for automatic generation"
+              echo "Please manually add icons to ios/App/App/Assets.xcassets/AppIcon.appiconset/"
             fi
           else
-            echo "⚠️ No source icon assets found in common locations"
-            echo "Looking for icon source files..."
-            find ../src -name "*icon*" -type f | head -10
-            find ../public -name "*icon*" -type f | head -10
+            echo "✅ Icons already exist in AppIcon.appiconset"
           fi
           
           # Final verification
           echo "=== Final App Icon Verification ==="
-          cd App/Assets.xcassets/AppIcon.appiconset
+          cd ios/App/App/Assets.xcassets/AppIcon.appiconset
           if [ -f "Contents.json" ]; then
             echo "✅ AppIcon.appiconset structure is ready"
             echo "Icon files present:"
-            ls -la *.png 2>/dev/null || echo "No PNG files found (icons need to be generated)"
+            ls -la *.png 2>/dev/null | head -10 || echo "No PNG files found (icons need to be added manually)"
           else
             echo "❌ AppIcon.appiconset is not properly configured"
             exit 1
