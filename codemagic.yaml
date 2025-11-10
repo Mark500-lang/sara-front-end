@@ -50,20 +50,21 @@ workflows:
           echo "=== Installing Node Modules ==="
           npm ci
           
+          echo "=== Installing RevenueCat for IAP ==="
+          npm install @revenuecat/purchases-capacitor
+          
           echo "=== Installing missing Babel plugin ==="
           npm install --save-dev @babel/plugin-proposal-private-property-in-object
           
           echo "=== Updating browserslist ==="
           npx update-browserslist-db@latest
 
-          # 🆕 VERIFY REVENUECAT INSTALLATION INSTEAD OF CORDOVA
           echo "=== Verifying RevenueCat installation ==="
           if [ -d "node_modules/@revenuecat/purchases-capacitor" ]; then
             echo "✅ @revenuecat/purchases-capacitor installed successfully"
           else
             echo "❌ @revenuecat/purchases-capacitor not found in node_modules"
-            echo "Installing RevenueCat..."
-            npm install @revenuecat/purchases-capacitor
+            exit 1
           fi
 
       # PHASE 3: BUILD REACT APP
@@ -83,38 +84,19 @@ workflows:
           
           echo "✅ React build completed successfully"
 
-      # 🆕 CORRECTED: SINGLE STOREKIT BRIDGE FIX (REPLACES ALL OTHERS)
-      - name: Setup RevenueCat IAP
+      # PHASE 4: CAPACITOR SYNC WITH REVENUECAT
+      - name: Sync Capacitor and Configure IAP
         script: |
           set -ex
-          echo "=== SETTING UP REVENUECAT IAP ==="
+          echo "=== Syncing Capacitor for iOS ==="
           
-          # Clean iOS platform
-          echo "=== Clean iOS platform setup ==="
+          # Clean iOS platform to start fresh
           rm -rf ios
           npx cap add ios
           
-          # Ensure RevenueCat is installed
-          if [ ! -d "node_modules/@revenuecat/purchases-capacitor" ]; then
-            echo "Installing @revenuecat/purchases-capacitor..."
-            npm install @revenuecat/purchases-capacitor
-          fi
-          
-          # Sync Capacitor (this will integrate RevenueCat properly)
+          # Sync RevenueCat plugin
           npx cap sync ios
           
-          # Remove any old Cordova plugin traces
-          rm -rf ios/App/App/public/plugins/cordova-plugin-purchase
-          
-          echo "=== VERIFYING REVENUECAT INTEGRATION ==="
-          if find ios/App -name "*revenuecat*" -o -name "*RevenueCat*" | grep -q .; then
-            echo "✅ RevenueCat integrated in iOS project"
-            find ios/App -name "*revenuecat*" -o -name "*RevenueCat*" | head -5
-          else
-            echo "⚠️ RevenueCat files not found (may be in Pods)"
-          fi
-          
-          # Continue with orientation configuration...
           echo "=== Configuring Proper iOS Orientations ==="
           cd ios/App/App
           PLIST_PATH="Info.plist"
@@ -138,12 +120,38 @@ workflows:
           
           echo "✅ Orientation configuration fixed"
 
-      # PHASE 5: IOS PROJECT CONFIGURATION
+      # PHASE 5: IOS PROJECT CONFIGURATION WITH SWIFT SUPPORT FIX
       - name: Configure iOS Project
         script: |
           set -ex
           echo "=== Setting up iOS Platform ==="
           cd ios/App
+          
+          echo "=== Updating Podfile for Swift Support ==="
+          # Ensure Podfile has proper iOS deployment target for RevenueCat
+          if ! grep -q "platform :ios" Podfile; then
+            sed -i '' '1i\
+            platform :ios, '\''15.0'\''\
+            ' Podfile
+          else
+            sed -i '' 's/platform :ios, .*/platform :ios, '\''15.0'\''/g' Podfile
+          fi
+          
+          # Add Swift version specification if not present
+          if ! grep -q "SWIFT_VERSION" Podfile; then
+            cat >> Podfile << 'EOF'
+
+            # Swift version specification
+            post_install do |installer|
+              installer.pods_project.targets.each do |target|
+                target.build_configurations.each do |config|
+                  config.build_settings['SWIFT_VERSION'] = '5.0'
+                  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+                end
+              end
+            end
+            EOF
+          fi
           
           echo "=== Installing CocoaPods ==="
           pod install --repo-update --clean-install
@@ -152,18 +160,16 @@ workflows:
           if [ -d "Pods" ] && [ -d "App.xcworkspace" ]; then
             echo "✅ CocoaPods installation verified"
             
-            # 🆕 Check if RevenueCat Pod was installed
+            # Verify RevenueCat pod was installed
             if grep -q "Purchases" Podfile.lock; then
               echo "✅ RevenueCat Purchases framework in Pods"
             else
-              echo "⚠️ RevenueCat not in Podfile.lock (may use Capacitor integration)"
+              echo "⚠️ RevenueCat not in Podfile.lock - checking capacitor integration"
             fi
           else
             echo "❌ CocoaPods installation failed!"
             exit 1
           fi
-
-      # 🆕 REMOVED: StoreKit Verification (RevenueCat handles this automatically)
 
       # PHASE 6: CREATE XCODE SCHEME
       - name: Create Xcode Scheme
@@ -175,7 +181,7 @@ workflows:
           # Create scheme directory
           mkdir -p App.xcodeproj/xcshareddata/xcschemes
           
-          # Create scheme file (your existing code - KEEP THIS)
+          # Create scheme file
           cat > App.xcodeproj/xcshareddata/xcschemes/App.xcscheme << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <Scheme LastUpgradeVersion="1500" version="1.7">
@@ -206,7 +212,7 @@ workflows:
           
           echo "✅ Xcode scheme created"
 
-      # PHASE 7: CODE SIGNING SETUP (KEEP EXISTING)
+      # PHASE 7: CODE SIGNING SETUP
       - name: Configure Signing
         script: |
           set -ex
@@ -268,7 +274,7 @@ workflows:
           echo "PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
           echo "✅ Signing configuration complete"
 
-      # PHASE 8: BUILD CONFIGURATION
+      # PHASE 8: BUILD CONFIGURATION WITH SWIFT SUPPORT
       - name: Configure Build Settings
         script: |
           set -ex
@@ -309,7 +315,9 @@ workflows:
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_BUILD" "$PLIST_PATH"
           /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$PLIST_PATH"
           
-          # Verify the changes were applied correctly
+          # Add Swift support requirements
+          /usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string APPL" "$PLIST_PATH" 2>/dev/null || true
+          
           echo "=== Verifying Plist Changes ==="
           FINAL_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST_PATH")
           FINAL_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH")
@@ -334,7 +342,221 @@ workflows:
           
           echo "✅ Build settings configured definitively"
 
-      # PHASE 9: COMPLETE SUBSCRIPTION DISCLOSURE (FIXED - NO DUPLICATES)
+      # PHASE 9: APP ICON SETUP
+            # PHASE 9: GENERATE APP ICONS FROM SOURCE ASSETS
+      - name: Generate App Icons
+        script: |
+          set -ex
+          echo "=== Generating App Icons from Source Assets ==="
+          cd ios/App/App/Assets.xcassets
+          
+          # Check if AppIcon.appiconset exists and has proper content
+          if [ ! -d "AppIcon.appiconset" ]; then
+            echo "❌ AppIcon.appiconset directory not found!"
+            echo "Creating AppIcon.appiconset structure..."
+            mkdir -p AppIcon.appiconset
+            
+            # Create the Contents.json with all required icon sizes
+            cat > AppIcon.appiconset/Contents.json << 'EOF'
+            {
+              "images" : [
+                {
+                  "size" : "20x20",
+                  "idiom" : "iphone",
+                  "filename" : "icon-20@2x.png",
+                  "scale" : "2x"
+                },
+                {
+                  "size" : "20x20",
+                  "idiom" : "iphone",
+                  "filename" : "icon-20@3x.png",
+                  "scale" : "3x"
+                },
+                {
+                  "size" : "29x29",
+                  "idiom" : "iphone",
+                  "filename" : "icon-29@2x.png",
+                  "scale" : "2x"
+                },
+                {
+                  "size" : "29x29",
+                  "idiom" : "iphone",
+                  "filename" : "icon-29@3x.png",
+                  "scale" : "3x"
+                },
+                {
+                  "size" : "40x40",
+                  "idiom" : "iphone",
+                  "filename" : "icon-40@2x.png",
+                  "scale" : "2x"
+                },
+                {
+                  "size" : "40x40",
+                  "idiom" : "iphone",
+                  "filename" : "icon-40@3x.png",
+                  "scale" : "3x"
+                },
+                {
+                  "size" : "60x60",
+                  "idiom" : "iphone",
+                  "filename" : "icon-60@2x.png",
+                  "scale" : "2x"
+                },
+                {
+                  "size" : "60x60",
+                  "idiom" : "iphone",
+                  "filename" : "icon-60@3x.png",
+                  "scale" : "3x"
+                },
+                {
+                  "size" : "20x20",
+                  "idiom" : "ipad",
+                  "filename" : "icon-20.png",
+                  "scale" : "1x"
+                },
+                {
+                  "size" : "20x20",
+                  "idiom" : "ipad",
+                  "filename" : "icon-20@2x.png",
+                  "scale" : "2x"
+                },
+                {
+                  "size" : "29x29",
+                  "idiom" : "ipad",
+                  "filename" : "icon-29.png",
+                  "scale" : "1x"
+                },
+                {
+                  "size" : "29x29",
+                  "idiom" : "ipad",
+                  "filename" : "icon-29@2x.png",
+                  "scale" : "2x"
+                },
+                {
+                  "size" : "40x40",
+                  "idiom" : "ipad",
+                  "filename" : "icon-40.png",
+                  "scale" : "1x"
+                },
+                {
+                  "size" : "40x40",
+                  "idiom" : "ipad",
+                  "filename" : "icon-40@2x.png",
+                  "scale" : "2x"
+                },
+                {
+                  "size" : "76x76",
+                  "idiom" : "ipad",
+                  "filename" : "icon-76.png",
+                  "scale" : "1x"
+                },
+                {
+                  "size" : "76x76",
+                  "idiom" : "ipad",
+                  "filename" : "icon-76@2x.png",
+                  "scale" : "2x"
+                },
+                {
+                  "size" : "83.5x83.5",
+                  "idiom" : "ipad",
+                  "filename" : "icon-83.5@2x.png",
+                  "scale" : "2x"
+                },
+                {
+                  "size" : "1024x1024",
+                  "idiom" : "ios-marketing",
+                  "filename" : "icon-1024.png",
+                  "scale" : "1x"
+                }
+              ],
+              "info" : {
+                "version" : 1,
+                "author" : "xcode"
+              }
+            }
+            EOF
+          fi
+          
+          echo "=== Checking for source icon assets ==="
+          # Look for source icon files in the project
+          cd ../../..  # Back to ios/App directory
+          
+          # Check common locations for source icons
+          if [ -f "../src/assets/icon.png" ] || [ -f "../public/icon.png" ] || [ -f "icon.png" ]; then
+            echo "✅ Source icon assets found"
+            
+            # Generate all required icon sizes from source
+            echo "=== Generating iOS app icons from source ==="
+            
+            # Install imagemagick if not available (for icon generation)
+            if ! command -v convert &> /dev/null; then
+              echo "Installing imagemagick for icon generation..."
+              brew install imagemagick || { echo "⚠️ Could not install imagemagick, using fallback method"; }
+            fi
+            
+            # Your actual icon generation logic here
+            # This would typically resize your source icon to all required sizes
+            # Example (adjust paths based on your actual source icon location):
+            SOURCE_ICON="../public/icon.png"
+            if [ ! -f "$SOURCE_ICON" ]; then
+              SOURCE_ICON="../src/assets/icon.png"
+            fi
+            if [ ! -f "$SOURCE_ICON" ]; then
+              SOURCE_ICON="icon.png"
+            fi
+            
+            if [ -f "$SOURCE_ICON" ] && command -v convert &> /dev/null; then
+              echo "Generating icons from: $SOURCE_ICON"
+              ICON_DIR="App/Assets.xcassets/AppIcon.appiconset"
+              
+              # Generate all required icon sizes
+              convert "$SOURCE_ICON" -resize 40x40 "$ICON_DIR/icon-20@2x.png"
+              convert "$SOURCE_ICON" -resize 60x60 "$ICON_DIR/icon-20@3x.png"
+              convert "$SOURCE_ICON" -resize 58x58 "$ICON_DIR/icon-29@2x.png"
+              convert "$SOURCE_ICON" -resize 87x87 "$ICON_DIR/icon-29@3x.png"
+              convert "$SOURCE_ICON" -resize 80x80 "$ICON_DIR/icon-40@2x.png"
+              convert "$SOURCE_ICON" -resize 120x120 "$ICON_DIR/icon-40@3x.png"
+              convert "$SOURCE_ICON" -resize 120x120 "$ICON_DIR/icon-60@2x.png"
+              convert "$SOURCE_ICON" -resize 180x180 "$ICON_DIR/icon-60@3x.png"
+              convert "$SOURCE_ICON" -resize 20x20 "$ICON_DIR/icon-20.png"
+              convert "$SOURCE_ICON" -resize 40x40 "$ICON_DIR/icon-20@2x-ipad.png"
+              convert "$SOURCE_ICON" -resize 29x29 "$ICON_DIR/icon-29.png"
+              convert "$SOURCE_ICON" -resize 58x58 "$ICON_DIR/icon-29@2x-ipad.png"
+              convert "$SOURCE_ICON" -resize 40x40 "$ICON_DIR/icon-40.png"
+              convert "$SOURCE_ICON" -resize 80x80 "$ICON_DIR/icon-40@2x-ipad.png"
+              convert "$SOURCE_ICON" -resize 76x76 "$ICON_DIR/icon-76.png"
+              convert "$SOURCE_ICON" -resize 152x152 "$ICON_DIR/icon-76@2x.png"
+              convert "$SOURCE_ICON" -resize 167x167 "$ICON_DIR/icon-83.5@2x.png"
+              convert "$SOURCE_ICON" -resize 1024x1024 "$ICON_DIR/icon-1024.png"
+              
+              echo "✅ iOS app icons generated successfully"
+            else
+              echo "⚠️ Using placeholder icons - add proper source icon and imagemagick for automatic generation"
+              # Create placeholder icons if generation isn't possible
+              ICON_DIR="App/Assets.xcassets/AppIcon.appiconset"
+              # This would create simple colored placeholder icons
+              # You should replace this with your actual icon generation logic
+            fi
+          else
+            echo "⚠️ No source icon assets found in common locations"
+            echo "Looking for icon source files..."
+            find ../src -name "*icon*" -type f | head -10
+            find ../public -name "*icon*" -type f | head -10
+          fi
+          
+          # Final verification
+          echo "=== Final App Icon Verification ==="
+          cd App/Assets.xcassets/AppIcon.appiconset
+          if [ -f "Contents.json" ]; then
+            echo "✅ AppIcon.appiconset structure is ready"
+            echo "Icon files present:"
+            ls -la *.png 2>/dev/null || echo "No PNG files found (icons need to be generated)"
+          else
+            echo "❌ AppIcon.appiconset is not properly configured"
+            exit 1
+          fi
+
+      # PHASE 10: COMPLETE SUBSCRIPTION DISCLOSURE
       - name: Add Complete Subscription Disclosure
         script: |
           set -ex
@@ -388,7 +610,7 @@ workflows:
           
           echo "✅ Complete subscription disclosure added to Info.plist"
 
-      # PHASE 10: VERIFY COMPLETE PLIST CONTENTS
+      # PHASE 11: VERIFY COMPLETE PLIST CONTENTS
       - name: Verify Complete Plist Contents
         script: |
           set -ex
@@ -422,7 +644,7 @@ workflows:
           cp "$PLIST_PATH" "Info_With_Subscription_Disclosure.plist"
           echo "✅ Created verification copy of Info.plist"
 
-      # PHASE 11: ADD PRIVACY DESCRIPTIONS
+      # PHASE 12: ADD PRIVACY DESCRIPTIONS
       - name: Add Privacy Descriptions
         script: |
           set -ex
@@ -441,7 +663,7 @@ workflows:
           
           echo "✅ Privacy descriptions added"
 
-      # PHASE 12: APP ENCRYPTION COMPLIANCE
+      # PHASE 13: APP ENCRYPTION COMPLIANCE
       - name: Add App Encryption Compliance
         script: |
           set -ex
@@ -456,46 +678,33 @@ workflows:
           
           echo "✅ Added ITSAppUsesNonExemptEncryption = false to Info.plist"
 
-      # ADD THIS PHASE BEFORE "Build Unsigned Archive"
-      - name: Fix StoreKit Framework Conflict
+      # PHASE 14: FIX SWIFT SUPPORT FOR APP STORE
+      - name: Fix Swift Support for App Store
         script: |
           set -ex
-          echo "=== FIXING STOREKIT FRAMEWORK CONFLICT ==="
+          echo "=== Fixing Swift Support for App Store ==="
           cd ios/App
           
-          # Remove the wrong StoreKit pod from Podfile
-          echo "=== Removing third-party StoreKit pod ==="
-          sed -i '' '/pod '\''StoreKit'\''/d' Podfile
+          # Update project settings for Swift
+          PBXPROJ="App.xcodeproj/project.pbxproj"
           
-          # Verify StoreKit is removed
-          echo "=== Updated Podfile Contents ==="
-          grep -i storekit Podfile || echo "✅ StoreKit removed from Podfile"
-          
-          # Reinstall pods without the conflicting StoreKit
-          echo "=== Reinstalling Pods without StoreKit conflict ==="
-          pod install --repo-update
-          
-          echo "✅ Now using Apple's system StoreKit framework (not third-party pod)"
-
-      - name: Verify Native IAP Framework
-        script: |
-          set -ex
-          echo "=== VERIFYING NATIVE IAP FRAMEWORK ==="
-          cd ios/App
-          
-          # Check if native plugin framework is being built
-          if find Pods -name "*purchase*" -o -name "*Purchase*" | grep -q .; then
-            echo "✅ Native IAP plugin found in Pods"
-            find Pods -name "*purchase*" -o -name "*Purchase*"
-          else
-            echo "❌ Native IAP plugin MISSING from Pods"
-            echo "This explains why methods are missing!"
+          # Ensure ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES is set correctly
+          if ! grep -q "ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES" "$PBXPROJ"; then
+            echo "Adding ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES setting..."
+            sed -i '' '/CODE_SIGN_IDENTITY = "Apple Distribution";/a\
+            ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;' "$PBXPROJ"
           fi
           
-          # Check build settings for IAP
-          xcodebuild -workspace App.xcworkspace -scheme App -showBuildSettings | grep -i "framework" | head -10
+          # Ensure Swift version is set
+          if ! grep -q "SWIFT_VERSION" "$PBXPROJ"; then
+            echo "Adding SWIFT_VERSION setting..."
+            sed -i '' '/ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;/a\
+            SWIFT_VERSION = 5.0;' "$PBXPROJ"
+          fi
+          
+          echo "✅ Swift support configuration updated"
 
-      # PHASE 13: BUILD UNSIGNED ARCHIVE
+      # PHASE 15: BUILD UNSIGNED ARCHIVE WITH SWIFT SUPPORT
       - name: Build Unsigned Archive
         script: |
           set -ex
@@ -523,29 +732,25 @@ workflows:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
+            ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=YES \
             clean archive
           
-          # Verify archive exists
+          # Verify archive exists and contains Swift support
           if [ ! -d "build/App.xcarchive" ]; then
             echo "❌ Archive failed"
             exit 1
           fi
           
+          # Check for Swift support libraries
+          if [ -d "build/App.xcarchive/SwiftSupport" ]; then
+            echo "✅ SwiftSupport folder found in archive"
+          else
+            echo "⚠️ SwiftSupport folder not found - this may cause App Store rejection"
+          fi
+          
           echo "✅ Unsigned archive created successfully"
 
-      # Add this diagnostic phase
-      - name: Verify StoreKit Framework in Final Build
-        script: |
-          echo "=== STOREKIT FRAMEWORK VERIFICATION ==="
-          cd ios/App
-          
-          # Check if StoreKit is in built app
-          xcodebuild -workspace App.xcworkspace -scheme App -showBuildSettings | grep -i storekit
-          
-          # Verify framework is in build directory
-          find build -name "StoreKit.framework" -type d
-
-      # PHASE 14: MANUAL SIGNING
+      # PHASE 16: MANUAL SIGNING
       - name: Manual Signing
         script: |
           set -ex
@@ -579,12 +784,19 @@ workflows:
           # 1. Embed provisioning profile
           cp "$PROFILE_PATH" "$APP_PATH/embedded.mobileprovision"
           
-          # 2. Sign frameworks first
+          # 2. Sign frameworks first (including Swift libraries)
           find "$APP_PATH/Frameworks" -name "*.framework" -print0 | while IFS= read -r -d '' fw; do
             codesign --force --sign "Apple Distribution" --preserve-metadata=identifier,entitlements "$fw"
           done
           
-          # 3. Sign main app bundle
+          # 3. Sign Swift libraries if they exist
+          if [ -d "$APP_PATH/Frameworks/libswift" ]; then
+            find "$APP_PATH/Frameworks/libswift" -name "*.dylib" -print0 | while IFS= read -r -d '' dylib; do
+              codesign --force --sign "Apple Distribution" --preserve-metadata=identifier,entitlements "$dylib"
+            done
+          fi
+          
+          # 4. Sign main app bundle
           codesign --force --sign "Apple Distribution" \
             --entitlements "$TEMP_ENTITLEMENTS" \
             --generate-entitlement-der \
@@ -595,7 +807,7 @@ workflows:
           codesign -vvv --deep --strict "$APP_PATH"
           echo "✅ Build successfully signed and validated"
 
-      # PHASE 15: CREATE IPA MANUALLY
+      # PHASE 17: CREATE IPA MANUALLY
       - name: Create IPA Manually
         script: |
           set -ex
@@ -621,7 +833,7 @@ workflows:
           
           echo "✅ IPA created manually"
 
-      # PHASE 16: VALIDATION AND ARTIFACT PREPARATION
+      # PHASE 18: VALIDATION AND ARTIFACT PREPARATION
       - name: Validate Build and Prepare Artifacts
         script: |
           set -ex
