@@ -140,46 +140,9 @@ workflows:
             rm -f Podfile.bak
           fi
           
-          # Check if post_install hook already exists and modify it
-          if grep -q "post_install" Podfile; then
-            echo "=== Modifying existing post_install hook ==="
-            # Create a temporary file with the modified post_install
-            cat > temp_post_install.rb << "RUBY_EOF"
-            post_install do |installer|
-              # Existing Capacitor code
-              capacitor_pods_installer(installer)
-              # Add Swift version and deployment target settings
-              installer.pods_project.targets.each do |target|
-                target.build_configurations.each do |config|
-                  config.build_settings['SWIFT_VERSION'] = '5.0'
-                  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
-                end
-              end
-            end
-          RUBY_EOF
-            
-            # Remove the existing post_install block and replace it
-            sed -i.bak '/post_install do |installer|/,/^end$/d' Podfile
-            cat temp_post_install.rb >> Podfile
-            rm -f temp_post_install.rb Podfile.bak
-          else
-            echo "=== Adding new post_install hook ==="
-            cat >> Podfile << "PODFILE_EOF"
-
-            # Swift version specification
-            post_install do |installer|
-              installer.pods_project.targets.each do |target|
-                target.build_configurations.each do |config|
-                  config.build_settings['SWIFT_VERSION'] = '5.0'
-                  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
-                end
-              end
-            end
-          PODFILE_EOF
-          fi
-          
-          echo "=== Updated Podfile Contents (showing end) ==="
-          tail -20 Podfile
+          # Add Swift settings without modifying existing post_install hook
+          # Instead, we'll use a script phase or modify project settings later
+          echo "=== Using alternative Swift configuration approach ==="
           
           echo "=== Installing CocoaPods ==="
           pod install --repo-update --clean-install
@@ -198,7 +161,53 @@ workflows:
             echo "❌ CocoaPods installation failed!"
             exit 1
           fi
-
+          
+      # PHASE 6: CONFIGURE SWIFT SETTINGS IN XCODE PROJECT
+      - name: Configure Swift Settings
+        script: |
+          set -ex
+          echo "=== Configuring Swift Settings in Xcode Project ==="
+          cd ios/App
+          
+          # Configure Swift settings directly in the project file
+          PBXPROJ="App.xcodeproj/project.pbxproj"
+          
+          # Add Swift version and deployment target to project settings
+          echo "=== Adding Swift 5.0 and iOS 15.0 deployment target ==="
+          
+          # Create backup
+          cp "$PBXPROJ" "$PBXPROJ.backup"
+          
+          # Add IPHONEOS_DEPLOYMENT_TARGET if not present
+          if ! grep -q "IPHONEOS_DEPLOYMENT_TARGET" "$PBXPROJ"; then
+            sed -i.bak '/ASSETCATALOG_COMPILER_APPICON_NAME/a\
+            IPHONEOS_DEPLOYMENT_TARGET = 15.0;' "$PBXPROJ"
+          else
+            sed -i.bak 's/IPHONEOS_DEPLOYMENT_TARGET = .*/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' "$PBXPROJ"
+          fi
+          
+          # Add Swift version if not present
+          if ! grep -q "SWIFT_VERSION" "$PBXPROJ"; then
+            sed -i.bak '/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/a\
+            SWIFT_VERSION = 5.0;' "$PBXPROJ"
+          else
+            sed -i.bak 's/SWIFT_VERSION = .*/SWIFT_VERSION = 5.0;/g' "$PBXPROJ"
+          fi
+          
+          # Add ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES for Swift support
+          if ! grep -q "ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES" "$PBXPROJ"; then
+            sed -i.bak '/SWIFT_VERSION = 5.0;/a\
+            ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;' "$PBXPROJ"
+          fi
+          
+          # Clean up backup files
+          rm -f "$PBXPROJ.bak"
+          
+          echo "✅ Swift settings configured in Xcode project"
+          
+          # Verify the changes
+          echo "=== Verifying Project Settings ==="
+          grep -E "IPHONEOS_DEPLOYMENT_TARGET|SWIFT_VERSION|ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES" "$PBXPROJ" || echo "Settings not found (may be in different build configuration)"
       # PHASE 6: CREATE XCODE SCHEME
       - name: Create Xcode Scheme
         script: |
