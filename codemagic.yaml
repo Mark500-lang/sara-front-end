@@ -130,16 +130,19 @@ workflows:
           echo "=== Updating Podfile for Swift Support ==="
           # Ensure Podfile has proper iOS deployment target for RevenueCat
           if ! grep -q "platform :ios" Podfile; then
-            sed -i '' '1i\
-            platform :ios, '\''15.0'\''\
-            ' Podfile
+            # Add platform line if it doesn't exist
+            echo "platform :ios, '15.0'" > temp_podfile
+            cat Podfile >> temp_podfile
+            mv temp_podfile Podfile
           else
-            sed -i '' 's/platform :ios, .*/platform :ios, '\''15.0'\''/g' Podfile
+            # Update existing platform line
+            sed -i.bak "s/platform :ios, .*/platform :ios, '15.0'/g" Podfile
+            rm -f Podfile.bak
           fi
           
           # Add Swift version specification if not present
           if ! grep -q "SWIFT_VERSION" Podfile; then
-            cat >> Podfile << 'EOF'
+            cat >> Podfile << "PODFILE_EOF"
 
             # Swift version specification
             post_install do |installer|
@@ -150,8 +153,11 @@ workflows:
                 end
               end
             end
-          EOF
+            PODFILE_EOF
           fi
+          
+          echo "=== Updated Podfile Contents ==="
+          cat Podfile | head -20
           
           echo "=== Installing CocoaPods ==="
           pod install --repo-update --clean-install
