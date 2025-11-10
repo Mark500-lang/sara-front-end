@@ -161,7 +161,7 @@ workflows:
             echo "❌ CocoaPods installation failed!"
             exit 1
           fi
-          
+
       # PHASE 6: CONFIGURE SWIFT SETTINGS IN XCODE PROJECT
       - name: Configure Swift Settings
         script: |
@@ -510,7 +510,7 @@ workflows:
                 "author" : "xcode"
               }
             }
-            EOF
+          EOF
           fi
           
           echo "=== Checking for source icon assets ==="
