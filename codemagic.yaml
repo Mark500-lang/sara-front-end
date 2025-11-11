@@ -838,68 +838,33 @@ workflows:
           
           echo "✅ Pods reinstalled successfully"
 
-      # PHASE 20: BUILD UNSIGNED ARCHIVE
+      # PHASE 20: BUILD UNSIGNED ARCHIVE WITH XCODE 16 WORKAROUND
       - name: Build Unsigned Archive
         script: |
           set -ex
           cd ios/App
           
-          echo "=== Building Unsigned Archive ==="
-          
-          # Clean previous builds
+          echo "=== Building Unsigned Archive with Xcode 16 Workaround ==="
           rm -rf build/*
           
-          # Build with specific settings to avoid RevenueCat issues
+          # Use legacy build system to avoid Xcode 16 module resolution bug
           xcodebuild \
             -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
             -archivePath build/App.xcarchive \
+            -UseModernBuildSystem=NO \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=YES \
-            SKIP_INSTALL=NO \
-            clean archive || {
-              echo "⚠️ First archive attempt failed, trying alternative approach..."
-              
-              # Alternative: Build without workspace
-              xcodebuild \
-                -project App.xcodeproj \
-                -scheme App \
-                -configuration Release \
-                -archivePath build/App.xcarchive \
-                CODE_SIGNING_ALLOWED=NO \
-                CODE_SIGN_IDENTITY="" \
-                CODE_SIGNING_REQUIRED=NO \
-                ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=YES \
-                clean archive
-            }
+            clean archive
           
           if [ ! -d "build/App.xcarchive" ]; then
-            echo "❌ Archive failed after all attempts"
-            echo "=== Trying nuclear option ==="
-            
-            # Nuclear option: Remove RevenueCat entirely and build without it
-            sed -i.bak '/RevenuecatPurchasesCapacitor/d' Podfile
-            pod install --repo-update
-            xcodebuild \
-              -workspace App.xcworkspace \
-              -scheme App \
-              -configuration Release \
-              -archivePath build/App.xcarchive \
-              CODE_SIGNING_ALLOWED=NO \
-              CODE_SIGN_IDENTITY="" \
-              CODE_SIGNING_REQUIRED=NO \
-              clean archive
-          fi
-          
-          if [ ! -d "build/App.xcarchive" ]; then
-            echo "❌ All archive attempts failed"
+            echo "❌ Archive failed with legacy build system"
             exit 1
           fi
           
-          echo "✅ Unsigned archive created successfully"
+          echo "✅ Unsigned archive created successfully with legacy build system"
 
       # PHASE 16: MANUAL SIGNING
       - name: Manual Signing
