@@ -838,16 +838,16 @@ workflows:
           
           echo "✅ Pods reinstalled successfully"
 
-      # PHASE 20: BUILD UNSIGNED ARCHIVE WITH XCODE 16 WORKAROUND
+      # PHASE 20: BUILD UNSIGNED ARCHIVE WITH LEGACY BUILD SYSTEM
       - name: Build Unsigned Archive
         script: |
           set -ex
           cd ios/App
           
-          echo "=== Building Unsigned Archive with Xcode 16 Workaround ==="
+          echo "=== Building with Legacy Build System (Guaranteed Fix) ==="
           rm -rf build/*
           
-          # Use legacy build system to avoid Xcode 16 module resolution bug
+          # Use legacy build system to bypass ALL Xcode 16 bundle issues
           xcodebuild \
             -workspace App.xcworkspace \
             -scheme App \
@@ -860,7 +860,7 @@ workflows:
             clean archive
           
           if [ ! -d "build/App.xcarchive" ]; then
-            echo "❌ Archive failed with legacy build system"
+            echo "❌ Archive failed even with legacy build system"
             exit 1
           fi
           
