@@ -1,3 +1,5 @@
+@import url('../fonts.css');
+
 .home-page {
   position: relative;
   min-height: 100vh;
@@ -90,10 +92,10 @@
 }
 
 .unlock-btn {
-  background: #f96d27;
+  background: #9d3900;
   color: white;
-  font-weight: bold;
-  font-size: 20px;
+  font-family: AgendaBold;
+  font-size: 26px;
   padding: 5px 20px;
   border: none;
   border-radius: 40px;
@@ -124,6 +126,38 @@
   height: auto; 
 }
 
+.book-cover {
+  width: 100%;
+  height: 100%;
+  position: relative; 
+}
+
+.book-lock {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 50px;
+  color: white;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 50px;
+  width: 40px;
+  padding: 5px;
+}
+.book-title {
+  position: absolute;
+  bottom: 0; 
+  width: 100%;
+  font-family: AgendaBold;
+  font-size: 28px;
+  font-weight: 500;
+  color: white;
+  text-align: center;
+  padding: 5px 20px; 
+  box-sizing: border-box; 
+  text-shadow: 2px 5px 8px rgb(0, 0, 0);
+}
+
 @media (max-width: 890px) {
   .book-grid {
     /* grid-template-columns: repeat(2, 1fr); */
@@ -136,7 +170,7 @@
     height: auto; 
   }
   .book-title {
-    font-size: 1.3rem;
+    font-size: 1.4rem;
   }
   .unlock-btn {
     font-size: 19px;
@@ -166,36 +200,6 @@
     height: 40px;
   }
 }
-.book-cover {
-  width: 100%;
-  height: 100%;
-  position: relative; 
-}
-
-.book-lock {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 50px;
-  color: white;
-  background: rgba(0, 0, 0, 0.4);
-  border-radius: 50px;
-  width: 40px;
-  padding: 5px;
-}
-.book-title {
-  position: absolute;
-  bottom: 0; 
-  width: 100%;
-  font-weight: bolder;
-  color: white;
-  text-align: center;
-  padding: 5px 20px; 
-  box-sizing: border-box; 
-  text-shadow: 2px 5px 8px rgb(0, 0, 0);
-}
-
 
 /* Book Opening Animation Styles */
 .book-opening-animation-container {

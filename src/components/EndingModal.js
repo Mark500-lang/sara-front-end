@@ -4,8 +4,8 @@ import { Modal } from "react-bootstrap";
 import { motion } from "framer-motion";
 import { MdCancel } from "react-icons/md"; // Import the cancel icon
 import endingImage from "../assets/book-ending-image.png";
-import readIcon from "../assets/screen-3/Read Icon.png";
-import libraryIcon from "../assets/screen-3/Library Icon.png";
+import readIconWhite from "../assets/screen-3/Read Icon - white.png";
+import libraryIconWhite from "../assets/screen-3/Library Icon - white.png";
 
 const EndingModal = ({
     show,
@@ -54,7 +54,7 @@ const EndingModal = ({
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                     >
-                        <img src={readIcon} alt="Read Icon" />
+                        <img src={readIconWhite} alt="Read Icon" />
                         <p className="ps-2">The beginning</p>
                     </motion.div>
                     <motion.div
@@ -63,7 +63,7 @@ const EndingModal = ({
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                     >
-                        <img src={libraryIcon} alt="Library Icon" />
+                        <img src={libraryIconWhite} alt="Library Icon" />
                         <p className="ps-2">The library</p>
                   </motion.div>
                 </motion.div>

@@ -7,6 +7,9 @@ import recordIcon from "../assets/screen-3/Record Icon.png";
 import homeIcon from "../assets/Home icon.png";
 import musicIcon from "../assets/Music Icon.png";
 import StopMusicIcon from "../assets/Stop music icon.png";
+import readIconWhite from "../assets/screen-3/Read Icon - white.png";
+import listenIconWhite from "../assets/screen-3/Listen Icon - white.png";
+import recordIconWhite from "../assets/screen-3/Record Icon - white.png";
 
 const ActionIcons = ({
   bookId,
@@ -163,7 +166,7 @@ const ActionIcons = ({
             whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
             whileTap={{ scale: 0.95 }}
           >
-            <img src={readIcon} alt="Read Icon" />
+            <img src={selectedMode === "read" ? readIconWhite : readIcon} alt="Read Icon" />
             <p className="ps-2">Read</p>
           </motion.div>
 
@@ -173,7 +176,7 @@ const ActionIcons = ({
             whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
             whileTap={{ scale: 0.95 }}
           >
-            <img src={listenIcon} alt="Listen Icon" />
+            <img src={selectedMode === "listen" ? listenIconWhite : listenIcon} alt="Listen Icon" />
             <p className="ps-2">Listen</p>
           </motion.div>
 
@@ -183,7 +186,7 @@ const ActionIcons = ({
             whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
             whileTap={{ scale: 0.95 }}
           >
-            <img src={recordIcon} alt="Record Icon" />
+            <img src={selectedMode === "record" ? recordIconWhite : recordIcon} alt="Record Icon" />
             <p>Record</p>
           </motion.div>
         </motion.div>
@@ -201,7 +204,7 @@ const ActionIcons = ({
               {selectedMode === "listen" && (
                 <>
                   <motion.div className="proffesional-voice-over" variants={itemVariants}>
-                    <h3>Generated Voice-over</h3>
+                    <h3>AI Voice-over</h3>
                     {professionalAudio ? (
                       <motion.div className="audio-item" variants={itemVariants}>
                         <span>{professionalAudio.narrator}: {professionalAudio.name}</span>
@@ -213,11 +216,11 @@ const ActionIcons = ({
                         </button>
                       </motion.div>
                     ) : (
-                      <motion.p variants={itemVariants}>No generated audio available</motion.p>
+                      <motion.p variants={itemVariants}>No AI audio available</motion.p>
                     )}
                   </motion.div>
                   <motion.div className="my-voice-over" variants={itemVariants}>
-                    <h3>My Voice-over</h3>
+                    <h3>My Voice-overs</h3>
                     {completeNarrators.length > 0 ? (
                       completeNarrators.map(narrator => (
                         <motion.div className="audio-item" key={narrator} variants={itemVariants}>

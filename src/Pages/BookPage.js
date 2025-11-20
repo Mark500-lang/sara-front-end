@@ -8,8 +8,8 @@ import ActionIcons from "./ReadingModeSelect";
 import homeIcon from "../assets/Home icon.png";
 import musicIcon from "../assets/Music Icon.png";
 import StopMusicIcon from "../assets/Stop music icon.png";
-import readIcon from "../assets/screen-3/Read Icon.png";
-import libraryIcon from "../assets/screen-3/Library Icon.png";
+import readIconWhite from "../assets/screen-3/Read Icon - white.png";
+import libraryIconWhite from "../assets/screen-3/Library Icon - white.png";
 import { FaPause, FaPlay } from "react-icons/fa";
 import { MdCancel } from "react-icons/md";
 import { tokenManager } from "../utils/tokenManager";
@@ -1230,7 +1230,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
-                    <img src={readIcon} alt="Read Icon" />
+                    <img src={readIconWhite} alt="Read Icon" />
                     <p className="ps-2">The beginning</p>
                   </motion.div>
                   <motion.div
@@ -1239,7 +1239,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
-                    <img src={libraryIcon} alt="Library Icon" />
+                    <img src={libraryIconWhite} alt="Library Icon" />
                     <p className="ps-2">The library</p>
                   </motion.div>
                 </div>

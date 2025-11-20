@@ -247,7 +247,7 @@ const ChildProfileScreen = () => {
           />
 
           <h4 className="text-center profile-header-text">
-            Stories starring your own child
+            Little stories from little Sara
           </h4>
           <img src={musicIcon} alt="Music Icon" />
         </motion.div>

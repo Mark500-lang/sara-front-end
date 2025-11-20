@@ -84,17 +84,19 @@ workflows:
           
           echo "✅ React build completed successfully"
 
-      # PHASE 4: CAPACITOR SYNC WITH REVENUECAT
+      # PHASE 4: CAPACITOR SYNC (NO IOS RECREATION)
       - name: Sync Capacitor and Configure IAP
         script: |
           set -ex
           echo "=== Syncing Capacitor for iOS ==="
           
-          # Clean iOS platform to start fresh
-          rm -rf ios
-          npx cap add ios
+          # Only add iOS platform if it doesn't exist
+          if [ ! -d "ios" ]; then
+            echo "=== Adding iOS platform ==="
+            npx cap add ios
+          fi
           
-          # Sync RevenueCat plugin
+          # Sync RevenueCat plugin (this preserves existing icons)
           npx cap sync ios
           
           echo "=== Configuring Proper iOS Orientations ==="
@@ -108,7 +110,7 @@ workflows:
           
           # Configure for iPhone (Landscape only)
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$PLIST_PATH"
-          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationLandscapeLeft" "$PLIST_PATH"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationLandscapeLeft" "$PList_PATH"
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:1 string UIInterfaceOrientationLandscapeRight" "$PLIST_PATH"
           
           # Configure for iPad (ALL orientations required for multitasking)
@@ -391,309 +393,93 @@ workflows:
           
           echo "✅ Build settings configured definitively"
 
-      # PHASE 9: GENERATE APP ICONS FROM SOURCE ASSETS
-      - name: Generate App Icons
-        script: |
-          set -ex
-          echo "=== Generating App Icons from Source Assets ==="
+      # # PHASE 10: COMPLETE SUBSCRIPTION DISCLOSURE
+      # - name: Add Complete Subscription Disclosure
+      #   script: |
+      #     set -ex
+      #     cd ios/App/App
           
-          # Navigate to the correct directory
-          cd ios/App/App/Assets.xcassets
+      #     echo "=== Adding COMPLETE Subscription Disclosure to Info.plist ==="
+      #     PLIST_PATH="Info.plist"
           
-          echo "=== Current directory: $(pwd) ==="
-          ls -la
+      #     # 1. FUNCTIONAL LINKS (Required by Apple)
+      #     echo "=== Adding Functional Links ==="
+      #     /usr/libexec/PlistBuddy -c "Add :PrivacyPolicyURL string https://www.privacypolicies.com/live/396845b8-e470-4bed-8cbb-5432ab867986" "$PLIST_PATH" 2>/dev/null || \
+      #     /usr/libexec/PlistBuddy -c "Set :PrivacyPolicyURL https://www.privacypolicies.com/live/396845b8-e470-4bed-8cbb-5432ab867986" "$PLIST_PATH"
           
-          # Check if AppIcon.appiconset exists
-          if [ ! -d "AppIcon.appiconset" ]; then
-            echo "❌ AppIcon.appiconset directory not found - creating it"
-            mkdir -p AppIcon.appiconset
-            
-            # Create the Contents.json with all required icon sizes
-            cat > AppIcon.appiconset/Contents.json << 'EOF'
-            {
-              "images" : [
-                {
-                  "size" : "20x20",
-                  "idiom" : "iphone",
-                  "filename" : "icon-20@2x.png",
-                  "scale" : "2x"
-                },
-                {
-                  "size" : "20x20",
-                  "idiom" : "iphone",
-                  "filename" : "icon-20@3x.png",
-                  "scale" : "3x"
-                },
-                {
-                  "size" : "29x29",
-                  "idiom" : "iphone",
-                  "filename" : "icon-29@2x.png",
-                  "scale" : "2x"
-                },
-                {
-                  "size" : "29x29",
-                  "idiom" : "iphone",
-                  "filename" : "icon-29@3x.png",
-                  "scale" : "3x"
-                },
-                {
-                  "size" : "40x40",
-                  "idiom" : "iphone",
-                  "filename" : "icon-40@2x.png",
-                  "scale" : "2x"
-                },
-                {
-                  "size" : "40x40",
-                  "idiom" : "iphone",
-                  "filename" : "icon-40@3x.png",
-                  "scale" : "3x"
-                },
-                {
-                  "size" : "60x60",
-                  "idiom" : "iphone",
-                  "filename" : "icon-60@2x.png",
-                  "scale" : "2x"
-                },
-                {
-                  "size" : "60x60",
-                  "idiom" : "iphone",
-                  "filename" : "icon-60@3x.png",
-                  "scale" : "3x"
-                },
-                {
-                  "size" : "20x20",
-                  "idiom" : "ipad",
-                  "filename" : "icon-20.png",
-                  "scale" : "1x"
-                },
-                {
-                  "size" : "20x20",
-                  "idiom" : "ipad",
-                  "filename" : "icon-20@2x.png",
-                  "scale" : "2x"
-                },
-                {
-                  "size" : "29x29",
-                  "idiom" : "ipad",
-                  "filename" : "icon-29.png",
-                  "scale" : "1x"
-                },
-                {
-                  "size" : "29x29",
-                  "idiom" : "ipad",
-                  "filename" : "icon-29@2x.png",
-                  "scale" : "2x"
-                },
-                {
-                  "size" : "40x40",
-                  "idiom" : "ipad",
-                  "filename" : "icon-40.png",
-                  "scale" : "1x"
-                },
-                {
-                  "size" : "40x40",
-                  "idiom" : "ipad",
-                  "filename" : "icon-40@2x.png",
-                  "scale" : "2x"
-                },
-                {
-                  "size" : "76x76",
-                  "idiom" : "ipad",
-                  "filename" : "icon-76.png",
-                  "scale" : "1x"
-                },
-                {
-                  "size" : "76x76",
-                  "idiom" : "ipad",
-                  "filename" : "icon-76@2x.png",
-                  "scale" : "2x"
-                },
-                {
-                  "size" : "83.5x83.5",
-                  "idiom" : "ipad",
-                  "filename" : "icon-83.5@2x.png",
-                  "scale" : "2x"
-                },
-                {
-                  "size" : "1024x1024",
-                  "idiom" : "ios-marketing",
-                  "filename" : "icon-1024.png",
-                  "scale" : "1x"
-                }
-              ],
-              "info" : {
-                "version" : 1,
-                "author" : "xcode"
-              }
-            }
-          EOF
-            echo "✅ Created AppIcon.appiconset structure"
-          else
-            echo "✅ AppIcon.appiconset already exists"
-          fi
+      #     /usr/libexec/PlistBuddy -c "Add :TermsOfUseURL string https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" "$PLIST_PATH" 2>/dev/null || \
+      #     /usr/libexec/PlistBuddy -c "Set :TermsOfUseURL https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" "$PLIST_PATH"
           
-          # Check if we need to generate icons or if they already exist
-          cd AppIcon.appiconset
-          echo "=== Checking existing icon files ==="
-          ls -la *.png 2>/dev/null | wc -l || echo "No PNG files found"
+      #     # 2. SUBSCRIPTION TITLES (Required - same as IAP product names)
+      #     echo "=== Adding Subscription Titles ==="
+      #     /usr/libexec/PlistBuddy -c "Add :SubscriptionMonthlyTitle string Monthly Subscription" "$PLIST_PATH" 2>/dev/null || \
+      #     /usr/libexec/PlistBuddy -c "Set :SubscriptionMonthlyTitle Monthly Subscription" "$PLIST_PATH"
           
-          # If no icons exist, try to generate them from source
-          if [ ! -f "icon-1024.png" ]; then
-            echo "=== No icons found, attempting to generate from source ==="
-            
-            # Go back to project root to look for source icons
-            cd ../../../../..
-            
-            # Look for potential source icons
-            SOURCE_ICON=""
-            if [ -f "src/assets/icon.png" ]; then
-              SOURCE_ICON="src/assets/icon.png"
-            elif [ -f "public/icon.png" ]; then
-              SOURCE_ICON="public/icon.png"
-            elif [ -f "src/assets/Home icon.png" ]; then
-              SOURCE_ICON="src/assets/Home icon.png"
-            fi
-            
-            if [ -n "$SOURCE_ICON" ]; then
-              echo "✅ Found source icon: $SOURCE_ICON"
-              
-              # Install imagemagick if available
-              if command -v convert &> /dev/null || brew install imagemagick; then
-                echo "=== Generating iOS app icons from source ==="
-                ICON_DIR="ios/App/App/Assets.xcassets/AppIcon.appiconset"
-                
-                # Generate all required icon sizes
-                convert "$SOURCE_ICON" -resize 40x40 "$ICON_DIR/icon-20@2x.png"
-                convert "$SOURCE_ICON" -resize 60x60 "$ICON_DIR/icon-20@3x.png"
-                convert "$SOURCE_ICON" -resize 58x58 "$ICON_DIR/icon-29@2x.png"
-                convert "$SOURCE_ICON" -resize 87x87 "$ICON_DIR/icon-29@3x.png"
-                convert "$SOURCE_ICON" -resize 80x80 "$ICON_DIR/icon-40@2x.png"
-                convert "$SOURCE_ICON" -resize 120x120 "$ICON_DIR/icon-40@3x.png"
-                convert "$SOURCE_ICON" -resize 120x120 "$ICON_DIR/icon-60@2x.png"
-                convert "$SOURCE_ICON" -resize 180x180 "$ICON_DIR/icon-60@3x.png"
-                convert "$SOURCE_ICON" -resize 20x20 "$ICON_DIR/icon-20.png"
-                convert "$SOURCE_ICON" -resize 40x40 "$ICON_DIR/icon-20@2x-ipad.png"
-                convert "$SOURCE_ICON" -resize 29x29 "$ICON_DIR/icon-29.png"
-                convert "$SOURCE_ICON" -resize 58x58 "$ICON_DIR/icon-29@2x-ipad.png"
-                convert "$SOURCE_ICON" -resize 40x40 "$ICON_DIR/icon-40.png"
-                convert "$SOURCE_ICON" -resize 80x80 "$ICON_DIR/icon-40@2x-ipad.png"
-                convert "$SOURCE_ICON" -resize 76x76 "$ICON_DIR/icon-76.png"
-                convert "$SOURCE_ICON" -resize 152x152 "$ICON_DIR/icon-76@2x.png"
-                convert "$SOURCE_ICON" -resize 167x167 "$ICON_DIR/icon-83.5@2x.png"
-                convert "$SOURCE_ICON" -resize 1024x1024 "$ICON_DIR/icon-1024.png"
-                
-                echo "✅ iOS app icons generated successfully"
-              else
-                echo "⚠️ ImageMagick not available - cannot generate icons automatically"
-                echo "Please ensure your AppIcon.appiconset contains all required icon sizes"
-              fi
-            else
-              echo "⚠️ No suitable source icon found for automatic generation"
-              echo "Please manually add icons to ios/App/App/Assets.xcassets/AppIcon.appiconset/"
-            fi
-          else
-            echo "✅ Icons already exist in AppIcon.appiconset"
-          fi
+      #     /usr/libexec/PlistBuddy -c "Add :SubscriptionYearlyTitle string Yearly Subscription" "$PLIST_PATH" 2>/dev/null || \
+      #     /usr/libexec/PlistBuddy -c "Set :SubscriptionYearlyTitle Yearly Subscription" "$PLIST_PATH"
           
-          # Final verification
-          echo "=== Final App Icon Verification ==="
-          cd ios/App/App/Assets.xcassets/AppIcon.appiconset
-          if [ -f "Contents.json" ]; then
-            echo "✅ AppIcon.appiconset structure is ready"
-            echo "Icon files present:"
-            ls -la *.png 2>/dev/null | head -10 || echo "No PNG files found (icons need to be added manually)"
-          else
-            echo "❌ AppIcon.appiconset is not properly configured"
-            exit 1
-          fi
+      #     # 3. SUBSCRIPTION LENGTHS (Required)
+      #     echo "=== Adding Subscription Lengths ==="
+      #     /usr/libexec/PlistBuddy -c "Add :SubscriptionMonthlyLength string 1 month" "$PLIST_PATH" 2>/dev/null || \
+      #     /usr/libexec/PlistBuddy -c "Set :SubscriptionMonthlyLength 1 month" "$PLIST_PATH"
+          
+      #     /usr/libexec/PlistBuddy -c "Add :SubscriptionYearlyLength string 1 year" "$PLIST_PATH" 2>/dev/null || \
+      #     /usr/libexec/PlistBuddy -c "Set :SubscriptionYearlyLength 1 year" "$PLIST_PATH"
+          
+      #     # 4. SUBSCRIPTION PRICES (Required - with price per unit)
+      #     echo "=== Adding Subscription Prices ==="
+      #     /usr/libexec/PlistBuddy -c "Add :SubscriptionMonthlyPrice string \$4.99" "$PLIST_PATH" 2>/dev/null || \
+      #     /usr/libexec/PlistBuddy -c "Set :SubscriptionMonthlyPrice \$4.99" "$PLIST_PATH"
+          
+      #     /usr/libexec/PlistBuddy -c "Add :SubscriptionMonthlyPricePerUnit string \$4.99 per month" "$PLIST_PATH" 2>/dev/null || \
+      #     /usr/libexec/PlistBuddy -c "Set :SubscriptionMonthlyPricePerUnit \$4.99 per month" "$PLIST_PATH"
+          
+      #     /usr/libexec/PlistBuddy -c "Add :SubscriptionYearlyPrice string \$34.99" "$PLIST_PATH" 2>/dev/null || \
+      #     /usr/libexec/PlistBuddy -c "Set :SubscriptionYearlyPrice \$34.99" "$PLIST_PATH"
+          
+      #     /usr/libexec/PlistBuddy -c "Add :SubscriptionYearlyPricePerUnit string \$2.92 per month" "$PLIST_PATH" 2>/dev/null || \
+      #     /usr/libexec/PlistBuddy -c "Set :SubscriptionYearlyPricePerUnit \$2.92 per month" "$PLIST_PATH"
+          
+      #     # 5. AUTO-RENEWAL DISCLOSURE (Required for auto-renewable subscriptions)
+      #     echo "=== Adding Auto-Renewal Disclosure ==="
+      #     /usr/libexec/PlistBuddy -c "Add :SubscriptionAutoRenewalDisclosure string Subscriptions auto-renew unless canceled at least 24 hours before the end of the current period. You can manage subscriptions in your Account Settings." "$PLIST_PATH" 2>/dev/null || \
+      #     /usr/libexec/PlistBuddy -c "Set :SubscriptionAutoRenewalDisclosure Subscriptions auto-renew unless canceled at least 24 hours before the end of the current period. You can manage subscriptions in your Account Settings." "$PLIST_PATH"
+          
+      #     echo "✅ Complete subscription disclosure added to Info.plist"
 
-      # PHASE 10: COMPLETE SUBSCRIPTION DISCLOSURE
-      - name: Add Complete Subscription Disclosure
-        script: |
-          set -ex
-          cd ios/App/App
+      # # PHASE 11: VERIFY COMPLETE PLIST CONTENTS
+      # - name: Verify Complete Plist Contents
+      #   script: |
+      #     set -ex
+      #     cd ios/App/App
           
-          echo "=== Adding COMPLETE Subscription Disclosure to Info.plist ==="
-          PLIST_PATH="Info.plist"
+      #     echo "=== VERIFYING COMPLETE PLIST CONTENTS ==="
+      #     PLIST_PATH="Info.plist"
           
-          # 1. FUNCTIONAL LINKS (Required by Apple)
-          echo "=== Adding Functional Links ==="
-          /usr/libexec/PlistBuddy -c "Add :PrivacyPolicyURL string https://www.privacypolicies.com/live/396845b8-e470-4bed-8cbb-5432ab867986" "$PLIST_PATH" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Set :PrivacyPolicyURL https://www.privacypolicies.com/live/396845b8-e470-4bed-8cbb-5432ab867986" "$PLIST_PATH"
+      #     echo "=== SUBSCRIPTION DISCLOSURE VERIFICATION ==="
+      #     echo "PrivacyPolicyURL: $(/usr/libexec/PlistBuddy -c "Print :PrivacyPolicyURL" "$PLIST_PATH")"
+      #     echo "TermsOfUseURL: $(/usr/libexec/PlistBuddy -c "Print :TermsOfUseURL" "$PLIST_PATH")"
+      #     echo "SubscriptionMonthlyTitle: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionMonthlyTitle" "$PLIST_PATH")"
+      #     echo "SubscriptionYearlyTitle: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionYearlyTitle" "$PLIST_PATH")"
+      #     echo "SubscriptionMonthlyLength: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionMonthlyLength" "$PLIST_PATH")"
+      #     echo "SubscriptionYearlyLength: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionYearlyLength" "$PLIST_PATH")"
+      #     echo "SubscriptionMonthlyPrice: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionMonthlyPrice" "$PLIST_PATH")"
+      #     echo "SubscriptionMonthlyPricePerUnit: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionMonthlyPricePerUnit" "$PLIST_PATH")"
+      #     echo "SubscriptionYearlyPrice: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionYearlyPrice" "$PLIST_PATH")"
+      #     echo "SubscriptionYearlyPricePerUnit: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionYearlyPricePerUnit" "$PLIST_PATH")"
+      #     echo "SubscriptionAutoRenewalDisclosure: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionAutoRenewalDisclosure" "$PLIST_PATH")"
           
-          /usr/libexec/PlistBuddy -c "Add :TermsOfUseURL string https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" "$PLIST_PATH" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Set :TermsOfUseURL https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" "$PLIST_PATH"
+      #     echo "=== CRITICAL APP KEYS ==="
+      #     echo "CFBundleShortVersionString: $(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST_PATH")"
+      #     echo "CFBundleVersion: $(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH")"
+      #     echo "CFBundleIdentifier: $(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST_PATH")"
           
-          # 2. SUBSCRIPTION TITLES (Required - same as IAP product names)
-          echo "=== Adding Subscription Titles ==="
-          /usr/libexec/PlistBuddy -c "Add :SubscriptionMonthlyTitle string Monthly Subscription" "$PLIST_PATH" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Set :SubscriptionMonthlyTitle Monthly Subscription" "$PLIST_PATH"
+      #     # Final validation
+      #     plutil -lint "$PLIST_PATH" && echo "✅ Info.plist is valid and complete" || echo "❌ Info.plist is invalid"
           
-          /usr/libexec/PlistBuddy -c "Add :SubscriptionYearlyTitle string Yearly Subscription" "$PLIST_PATH" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Set :SubscriptionYearlyTitle Yearly Subscription" "$PLIST_PATH"
-          
-          # 3. SUBSCRIPTION LENGTHS (Required)
-          echo "=== Adding Subscription Lengths ==="
-          /usr/libexec/PlistBuddy -c "Add :SubscriptionMonthlyLength string 1 month" "$PLIST_PATH" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Set :SubscriptionMonthlyLength 1 month" "$PLIST_PATH"
-          
-          /usr/libexec/PlistBuddy -c "Add :SubscriptionYearlyLength string 1 year" "$PLIST_PATH" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Set :SubscriptionYearlyLength 1 year" "$PLIST_PATH"
-          
-          # 4. SUBSCRIPTION PRICES (Required - with price per unit)
-          echo "=== Adding Subscription Prices ==="
-          /usr/libexec/PlistBuddy -c "Add :SubscriptionMonthlyPrice string \$4.99" "$PLIST_PATH" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Set :SubscriptionMonthlyPrice \$4.99" "$PLIST_PATH"
-          
-          /usr/libexec/PlistBuddy -c "Add :SubscriptionMonthlyPricePerUnit string \$4.99 per month" "$PLIST_PATH" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Set :SubscriptionMonthlyPricePerUnit \$4.99 per month" "$PLIST_PATH"
-          
-          /usr/libexec/PlistBuddy -c "Add :SubscriptionYearlyPrice string \$34.99" "$PLIST_PATH" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Set :SubscriptionYearlyPrice \$34.99" "$PLIST_PATH"
-          
-          /usr/libexec/PlistBuddy -c "Add :SubscriptionYearlyPricePerUnit string \$2.92 per month" "$PLIST_PATH" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Set :SubscriptionYearlyPricePerUnit \$2.92 per month" "$PLIST_PATH"
-          
-          # 5. AUTO-RENEWAL DISCLOSURE (Required for auto-renewable subscriptions)
-          echo "=== Adding Auto-Renewal Disclosure ==="
-          /usr/libexec/PlistBuddy -c "Add :SubscriptionAutoRenewalDisclosure string Subscriptions auto-renew unless canceled at least 24 hours before the end of the current period. You can manage subscriptions in your Account Settings." "$PLIST_PATH" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Set :SubscriptionAutoRenewalDisclosure Subscriptions auto-renew unless canceled at least 24 hours before the end of the current period. You can manage subscriptions in your Account Settings." "$PLIST_PATH"
-          
-          echo "✅ Complete subscription disclosure added to Info.plist"
-
-      # PHASE 11: VERIFY COMPLETE PLIST CONTENTS
-      - name: Verify Complete Plist Contents
-        script: |
-          set -ex
-          cd ios/App/App
-          
-          echo "=== VERIFYING COMPLETE PLIST CONTENTS ==="
-          PLIST_PATH="Info.plist"
-          
-          echo "=== SUBSCRIPTION DISCLOSURE VERIFICATION ==="
-          echo "PrivacyPolicyURL: $(/usr/libexec/PlistBuddy -c "Print :PrivacyPolicyURL" "$PLIST_PATH")"
-          echo "TermsOfUseURL: $(/usr/libexec/PlistBuddy -c "Print :TermsOfUseURL" "$PLIST_PATH")"
-          echo "SubscriptionMonthlyTitle: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionMonthlyTitle" "$PLIST_PATH")"
-          echo "SubscriptionYearlyTitle: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionYearlyTitle" "$PLIST_PATH")"
-          echo "SubscriptionMonthlyLength: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionMonthlyLength" "$PLIST_PATH")"
-          echo "SubscriptionYearlyLength: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionYearlyLength" "$PLIST_PATH")"
-          echo "SubscriptionMonthlyPrice: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionMonthlyPrice" "$PLIST_PATH")"
-          echo "SubscriptionMonthlyPricePerUnit: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionMonthlyPricePerUnit" "$PLIST_PATH")"
-          echo "SubscriptionYearlyPrice: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionYearlyPrice" "$PLIST_PATH")"
-          echo "SubscriptionYearlyPricePerUnit: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionYearlyPricePerUnit" "$PLIST_PATH")"
-          echo "SubscriptionAutoRenewalDisclosure: $(/usr/libexec/PlistBuddy -c "Print :SubscriptionAutoRenewalDisclosure" "$PLIST_PATH")"
-          
-          echo "=== CRITICAL APP KEYS ==="
-          echo "CFBundleShortVersionString: $(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST_PATH")"
-          echo "CFBundleVersion: $(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH")"
-          echo "CFBundleIdentifier: $(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST_PATH")"
-          
-          # Final validation
-          plutil -lint "$PLIST_PATH" && echo "✅ Info.plist is valid and complete" || echo "❌ Info.plist is invalid"
-          
-          # Create a readable copy for artifacts
-          cp "$PLIST_PATH" "Info_With_Subscription_Disclosure.plist"
-          echo "✅ Created verification copy of Info.plist"
+      #     # Create a readable copy for artifacts
+      #     cp "$PLIST_PATH" "Info_With_Subscription_Disclosure.plist"
+      #     echo "✅ Created verification copy of Info.plist"
 
       # PHASE 12: ADD PRIVACY DESCRIPTIONS
       - name: Add Privacy Descriptions

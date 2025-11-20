@@ -1,3 +1,5 @@
+@import url('../fonts.css');
+
 .book-page {
     position: relative;
     width: 100%;
@@ -23,12 +25,12 @@
   .page-number {
     position: absolute;
     font-size: 18px;
-    font-weight: bold;
-    color: #0d3345;
+    color: #9d3900;
     background-color: rgb(255, 255, 255);
     padding: 0px 10px;
     border-radius: 30px;
     top: 80px;
+    font-family: AgendaBold;
   }
   
   .navigation-and-text-container{
@@ -49,6 +51,7 @@
     width: 100%;
     max-width: 850px;
     pointer-events: auto; 
+    font-family: Agenda;
   }
   
   .nav-btn{
@@ -142,7 +145,7 @@
   flex-direction: row;
   justify-content: center;
   align-items: center;
-  background-color: #0d3345a9;
+  background-color: #9d3a0081;
   border-radius: 30px;
   padding: 10px;
   gap: 10px;
@@ -296,7 +299,7 @@
   text-align: center;
   border: 2px solid white !important;
   position: relative;
-  background-color: #0d3345 !important;
+  background-color: #41dfd0 !important;
   padding: 0px 0px 30px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
@@ -312,13 +315,13 @@
 
 .custom-btn-cancel {
   position: absolute;
-  top: -13px;
-  left: -13px;
-  background-color: #0d3345;
+  top: -14px;
+  left: -14px;
+  background-color: #9d3900;
   border-radius: 20px;
   border: none;
   color: white; 
-  font-size: 32px;
+  font-size: 36px;
   cursor: pointer;
 }
 
@@ -328,9 +331,9 @@
 }
 
 .custom-title {
-  font-weight: bolder;
-  font-size: 24px;
-  color: white;
+  font-family: AgendaBold;
+  font-size: 28px;
+  color: #9d3900;
   padding-top: 10px;
 }
 
@@ -343,12 +346,13 @@
   padding: 0px 30px;
   border: 2px solid white;
   border-radius: 30px;
-  background-color: #e29b00;
+  background-color: #9d3900;
   gap: 10px;
+  font-family: Agenda;
 }
 
 .custom-btn-yes:hover {
-  background-color: #e69a3a; 
+  background-color: #ff5e00; 
 }
 
 .custom-btn-yes img {
@@ -359,7 +363,7 @@
 .custom-btn-yes p {
   font-size: 18px;
   font-weight: 900;
-  color: #0d3345;
+  color: #fffffff3;
   margin: 0;
   white-space: nowrap;
 }

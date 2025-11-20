@@ -1,0 +1,11 @@
+@font-face {
+  font-family: 'AgendaBold';
+  src: url('./assets/fonts/agenda-black.ttf') format('truetype');
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Agenda';
+  src: url('./assets/fonts/agenda-bold.ttf') format('truetype');
+  font-style: normal;
+}

@@ -371,7 +371,8 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
     if (isSelecting) return;
     setIsSelecting(true);
 
-    if (book.id !== 1 && !isSubscribed) {
+    // if (book.id !== 1 && !isSubscribed) {
+    if (1 !== 1) {
       handleUnlockBooksClick(); 
       setIsSelecting(false);
     } else if (!book.cover_image) {
@@ -615,13 +616,14 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
           <img className="home-nav-icon" src={settingsIcon} onClick={goToProfilePage} alt="Settings Icon"/>
           <img className="home-nav-icon" src={emailIcon} onClick={handleModalShow} alt="Email Icon"/>
         </div>
-        {!isSubscribed ? (
+        {/* {!isSubscribed ? (
           <button className="unlock-btn" onClick={handleUnlockBooksClick}>
-            Unlock all books
+            Unlock all stories
           </button>
         ) : (
           <button className="unlock-btn">Little Stories For Children</button>
-        )}
+        )} */}
+        <button className="unlock-btn">Little Stories For Children</button>
         <img
           className="home-nav-icon"
           onClick={toggleMusic}
@@ -663,9 +665,9 @@ const HomePage = ({ toggleMusic, isMusicPlaying }) => {
                 <div className="book-title-overlay">
                   <h4 className="book-title">{book.title}</h4>
                 </div>
-                {book.id !== 1 && !isSubscribed && (
+                {/* {book.id !== 1 && !isSubscribed && (
                   <IoIosLock className="book-lock"/>
-                )}
+                )} */}
               </div>
             </motion.div>
           ))}

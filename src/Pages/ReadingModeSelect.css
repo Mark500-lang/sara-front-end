@@ -1,4 +1,4 @@
-/* ReadingModeSelect.css - Updated with animation support */
+@import url('../fonts.css');
 
 .action-overlay {
   position: absolute;
@@ -6,7 +6,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #0d3345a8;
+  background-color: #41dfcf9a;
   display: flex;
   flex-direction: column;
   z-index: 10;
@@ -60,26 +60,28 @@
   justify-content: center;
   cursor: pointer;
   padding: 0px 30px;
-  border: 2px solid white;
+  border: 2px solid #9d3900;
   border-radius: 30px;
-  background-color: #e29b00;
+  background-color: #ffffff;
   transition: background-color 0.3s ease;
 }
-
 .clicked-mode-btn{
-  background-color: white;
+  background-color: #9d3900;
 }
-
 .mode-button img {
   width: 40px;
   height: auto;
 }
 
 .mode-button p {
-  font-size: 18px;
-  font-weight: bolder;
-  color: #0d3345;
+  font-family: AgendaBold;
+  font-size: 24px;
+  color: #000000ec;
   margin: auto;
+}
+
+.clicked-mode-btn p{
+  color: #ffffff !important;
 }
 
 .select-mode-dialogue-box {
@@ -112,15 +114,15 @@
   border: 1px solid #e9ecef;
 } */
 .select-mode-dialogue-box h3{
+  font-family: AgendaBold;
   font-size: 20px;
-  font-weight: bolder;
-  color: #0d3345;
+  color: #000000ea;;
   text-align: center;
 }
 .select-mode-dialogue-box h4{
+  font-family: AgendaBold;
   font-size: 16px;
-  font-weight: bolder;
-  color: #103a4e;
+  color: #000000ea;;
   margin: 0 0 10px 0;
   text-align: center;
 }
@@ -139,6 +141,7 @@
   background-color: #f1f1f1;
   border-radius: 9999px;
   border: 1px solid #ccc;
+  font-family: AgendaBold;
   font-size: 16px;
   text-align: center;
   margin: 0 0 15px;
@@ -147,7 +150,7 @@
 .record-button{
   background-color: #bdbdbd;
   color: #ebebeb;
-  font-weight: bolder;
+  font-family: AgendaBold;
   font-size: 18px;
   padding: 10px 30px;
   border: none;
@@ -157,8 +160,8 @@
 }
 
 .record-button.active{
-  background-color: #e29b00;
-  color: #0d3345;
+  background-color: #9d3900;
+  color: #ffffff;
 }
 
 .record-button:disabled {
@@ -173,14 +176,15 @@
   margin: 0;
   margin-bottom: 7px;
   padding: 5px 10px;
-  color: #0d3345;
-  font-weight: 900;
+  color: #000000ea;
+  font-family: Agenda;
+  font-size: 18px;
   background-color: #f1f1f1;
   border-radius: 10px;
   width: 100%;
 }
 .draft-name{
-  font-weight: 500;
+  font-family: Agenda;
   cursor: pointer;
   text-decoration: underline;
 }
@@ -189,18 +193,19 @@
 }
 
 .play-button {
-  background-color: #e29b00;
+  background-color: #9d3900;
   color: white;
   border: none;
   padding: 8px 15px;
   border-radius: 20px;
   cursor: pointer;
+  font-family: Agenda;
   font-weight: bold;
   transition: background-color 0.3s ease;
 }
 
 .play-button.playing {
-  background-color: #0d3345;
+  background-color: #000000ea;;
 }
 
 .play-button:hover {
@@ -235,7 +240,7 @@
   .mode-button p {
     font-size: 17px;
     font-weight: bolder;
-    color: #0d3345;
+    color: #000000ea;;
     margin: auto;
   }
 }
