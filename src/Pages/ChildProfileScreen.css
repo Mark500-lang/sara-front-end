@@ -25,14 +25,6 @@
     cursor: pointer;
 }
 
-.profile-header-text {
-    font-family: AgendaBold;
-    color: #9d3900;
-    font-size: 36px;
-    text-align: center;
-    flex-grow: 1;
-}
-
 .child-profile-content {
     position: relative;
     width: 100%;
@@ -142,6 +134,23 @@
 .gender-icon.selected img {
     filter: sepia(100%) saturate(900%) hue-rotate(-35deg) brightness(70%) contrast(105%);
 }
+.continue-child-section {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+.continue-child-section-header {
+    margin-bottom: 60px;
+}
+.profile-header-text {
+    font-family: AgendaBold;
+    color: #9d3900;
+    font-size: 40px;
+    text-align: center;
+    flex-grow: 1;
+}
 .continue-child-btn {
     background: #9d3900;
     color: #41dfd0;
@@ -149,14 +158,33 @@
     font-size: 18px;
     padding: 12px 30px;
     border: none;
-    border-radius: 12px;
+    border-radius: 30px;
     transition: all 0.3s ease;
 }
 
 .continue-child-btn:hover {
     border: #41dfd0 solid 2px;
 }
-
+@media (min-width: 1000px) {
+    .profile-header-text {
+        font-size: 55px;
+    }  
+    .child-illustration-1-container,
+    .child-illustration-2-container {
+        height: 400px; /* Fixed height for container */
+    }
+    .child-illustration-1,
+    .child-illustration-2 {
+        height: 400px; /* Fixed height for container */
+    }
+    .continue-child-btn {
+        background: #9d3900;
+        color: #41dfd0;
+        font-weight: bolder;
+        font-size: 26px;
+        padding: 12px 50px;
+    }
+}
 @media (max-width: 700px) {
     .child-profile-main-container {
         padding: 0 8px;

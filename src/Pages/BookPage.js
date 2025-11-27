@@ -1104,7 +1104,7 @@ const BookPage = ({ toggleMusic, isMusicPlaying, volume, setVolume }) => {
             <img
               className="book-nav-icon"
               onClick={toggleMusic}
-              src={isMusicPlaying ? StopMusicIcon : musicIcon}
+              src={isMusicPlaying ? musicIcon : StopMusicIcon}
               alt="Music Icon"
             />
           </div>

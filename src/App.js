@@ -8,6 +8,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { App as CapacitorApp } from "@capacitor/app";
+import { Preferences } from '@capacitor/preferences';
 import { AnimatePresence } from "framer-motion";
 import HomePage from "./Pages/Homepage";
 import BookPage from "./Pages/BookPage";
@@ -23,10 +24,16 @@ import VerifyEmail from "./Pages/VerifyEmail";
 import ForgotPassword from "./Pages/PasswordReset";
 import ResetPassword from "./Pages/ResetPassword";
 import PaymentSuccess from "./Pages/PaymentSuccess";
-import backgroundMusic from "./assets/please-calm-my-mind-125566.mp3"; // Your music file
+import backgroundMusic from "./assets/please-calm-my-mind-125566.mp3";
 import DataDeletionPolicy from "./Pages/AccountDeletion";
 
-function AnimatedRoutes({ toggleMusic, isMusicPlaying, volume, setVolume }) {
+function AnimatedRoutes({ 
+  toggleMusic, 
+  isMusicPlaying, 
+  volume, 
+  setVolume, 
+  booksData 
+}) {
   const location = useLocation();
   const navigate = useNavigate();
   const [adminToken, setAdminToken] = useState(localStorage.getItem("auth_token"));
@@ -35,7 +42,7 @@ function AnimatedRoutes({ toggleMusic, isMusicPlaying, volume, setVolume }) {
 
   useEffect(() => {
     const token = localStorage.getItem("auth_token");
-    setAdminToken(token); // Update state when location changes
+    setAdminToken(token);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -78,23 +85,17 @@ function AnimatedRoutes({ toggleMusic, isMusicPlaying, volume, setVolume }) {
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        <Route
-          path="/"
-          element={
-            <Navigate to="/profile" />
-          }
-        />
-        <Route
-          path="/profile"
-          element={<ChildProfileScreen />}
-        />
+        <Route path="/" element={<Navigate to="/profile" />} />
+        <Route path="/profile" element={<ChildProfileScreen />} />
         <Route
           path="/home"
-          element={<HomePage
-          isReturningFromBook={isReturningFromBook}
-            toggleMusic={toggleMusic}
-            isMusicPlaying={isMusicPlaying}
-           />
+          element={
+            <HomePage
+              isReturningFromBook={isReturningFromBook}
+              toggleMusic={toggleMusic}
+              isMusicPlaying={isMusicPlaying}
+              booksData={booksData}
+            />
           }
         />
         <Route
@@ -108,16 +109,8 @@ function AnimatedRoutes({ toggleMusic, isMusicPlaying, volume, setVolume }) {
             />
           }
         />
-        <Route
-          path="/book-animation"
-          element={<BookOpeningAnimation />}
-        />
-        <Route
-          path="/admin"
-          element={<AdminDashboard />
-            // adminToken ? <AdminDashboard /> : <Navigate to="/login" />
-          }
-        />
+        <Route path="/book-animation" element={<BookOpeningAnimation />} />
+        <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/sign-up" element={<Signup />} />
         <Route path="/login" element={<Login />} />
         <Route path="/payment-success" element={<PaymentSuccess />} />
@@ -133,11 +126,96 @@ function AnimatedRoutes({ toggleMusic, isMusicPlaying, volume, setVolume }) {
 function App() {
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
   const [volume, setVolume] = useState(0.5);
+  const [booksData, setBooksData] = useState(null);
   const musicRef = useRef(null);
+
+  // Fetch all book data once on app initialization
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        // Check for cached data first
+        const cachedData = await Preferences.get({ key: 'booksData' });
+        const cacheTimestamp = await Preferences.get({ key: 'booksDataTimestamp' });
+        
+        const isCacheValid = cachedData.value && cacheTimestamp.value && 
+          (Date.now() - parseInt(cacheTimestamp.value)) < (24 * 60 * 60 * 1000); // 24 hour cache
+        
+        if (isCacheValid) {
+          console.log("Loading books from cache");
+          setBooksData(JSON.parse(cachedData.value));
+          return;
+        }
+
+        // Fetch fresh data from API
+        const response = await fetch("https://kithia.com/website_b5d91c8e/api/books-with-first-pages", {
+          method: "GET",
+          headers: {
+            "ngrok-skip-browser-warning": "69420",
+            "Content-Type": "application/json",
+          },
+          timeout: 15000,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch books: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (!Array.isArray(data)) {
+          throw new Error("Invalid books response: not an array");
+        }
+
+        console.log("Fetched books with first pages:", data);
+        
+        // Transform data for easier access
+        const transformedData = {
+          books: data.map(book => ({
+            id: book.id,
+            title: book.title,
+            cover_image: book.cover_image,
+            first_page_image: book.first_page_image
+          })),
+          firstPages: data.reduce((acc, book) => {
+            if (book.first_page_image) {
+              acc[book.id] = `https://kithia.com/website_b5d91c8e/book-backend/public/${book.first_page_image}`;
+            }
+            return acc;
+          }, {})
+        };
+
+        setBooksData(transformedData);
+        
+        // Cache the data
+        await Preferences.set({ 
+          key: 'booksData', 
+          value: JSON.stringify(transformedData) 
+        });
+        await Preferences.set({ 
+          key: 'booksDataTimestamp', 
+          value: Date.now().toString() 
+        });
+        
+      } catch (error) {
+        console.error("Error initializing app:", error);
+        
+        // Try to use cached data even if expired
+        const cachedData = await Preferences.get({ key: 'booksData' });
+        if (cachedData.value) {
+          console.log("Using expired cache as fallback");
+          setBooksData(JSON.parse(cachedData.value));
+        } else {
+          // No data available
+          setBooksData({ books: [], firstPages: {} });
+        }
+      }
+    };
+
+    initializeApp();
+  }, []);
 
   const toggleMusic = () => {
     setIsMusicPlaying(!isMusicPlaying);
-
     if (!isMusicPlaying) {
       musicRef.current.play();
     } else {
@@ -163,6 +241,7 @@ function App() {
         isMusicPlaying={isMusicPlaying}
         volume={volume}
         setVolume={handleVolumeChange}
+        booksData={booksData}
       />
     </Router>
   );

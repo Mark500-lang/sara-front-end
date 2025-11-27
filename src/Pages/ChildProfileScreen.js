@@ -43,7 +43,7 @@ const ChildProfileScreen = () => {
       const platformStr = deviceInfo.platform === 'ios' ? 'ios' : 
                          deviceInfo.platform === 'android' ? 'android' : 
                          'web'; // Fallback to 'web'
-      let version = '1.0.8';
+      let version = '1.1.0';
       try {
         const appInfo = await window.Capacitor.Plugins.App.getInfo?.();
         version = appInfo?.version || version;
@@ -107,56 +107,57 @@ const ChildProfileScreen = () => {
   }, []);
 
   const handleContinue = async () => {
-    if (!childName || !gender) {
-      alert("Please enter a name and select a gender.");
-      return;
-    }
+    navigate("/home");
+    // if (!childName || !gender) {
+    //   alert("Please enter a name and select a gender.");
+    //   return;
+    // }
 
-    setIsLoading(true);
+    // setIsLoading(true);
     
-    try {
-      const storedToken = await tokenManager.getToken();
-      const storedName = localStorage.getItem("childName");
-      const storedGender = localStorage.getItem("gender");
+    // try {
+    //   const storedToken = await tokenManager.getToken();
+    //   const storedName = localStorage.getItem("childName");
+    //   const storedGender = localStorage.getItem("gender");
 
-      if (storedToken && childName === storedName && gender === storedGender) {
-        navigate("/home");
-        return;
-      }
+    //   if (storedToken && childName === storedName && gender === storedGender) {
+    //     navigate("/home");
+    //     return;
+    //   }
 
-      const response = await fetch("https://kithia.com/website_b5d91c8e/api/register-child", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ child_name: childName, child_gender: gender }),
-      });
+    //   const response = await fetch("https://kithia.com/website_b5d91c8e/api/register-child", {
+    //     method: "POST",
+    //     headers: { "Content-Type": "application/json" },
+    //     body: JSON.stringify({ child_name: childName, child_gender: gender }),
+    //   });
       
-      const data = await response.json();
+    //   const data = await response.json();
       
-      if (response.ok && data.token) {
-        // Store token using the token manager
-        const storedSecurely = await tokenManager.setToken(data.token);
+    //   if (response.ok && data.token) {
+    //     // Store token using the token manager
+    //     const storedSecurely = await tokenManager.setToken(data.token);
         
-        if (storedSecurely) {
-          console.log("Token stored securely");
-        } else {
-          console.warn("Token stored in fallback storage");
-        }
+    //     if (storedSecurely) {
+    //       console.log("Token stored securely");
+    //     } else {
+    //       console.warn("Token stored in fallback storage");
+    //     }
         
-        // Store additional profile data in localStorage (non-sensitive)
-        localStorage.setItem("childName", childName);
-        localStorage.setItem("gender", gender);
-        localStorage.setItem("verification_token", data.token);
+    //     // Store additional profile data in localStorage (non-sensitive)
+    //     localStorage.setItem("childName", childName);
+    //     localStorage.setItem("gender", gender);
+    //     localStorage.setItem("verification_token", data.token);
         
-        navigate("/home");
-      } else {
-        alert("Error registering child: " + (data.message || "Unknown error"));
-      }
-    } catch (error) {
-      console.error("Error registering child:", error);
-      alert("Error registering child: " + (error.message || "Network error"));
-    } finally {
-      setIsLoading(false);
-    }
+    //     navigate("/home");
+    //   } else {
+    //     alert("Error registering child: " + (data.message || "Unknown error"));
+    //   }
+    // } catch (error) {
+    //   console.error("Error registering child:", error);
+    //   alert("Error registering child: " + (error.message || "Network error"));
+    // } finally {
+    //   setIsLoading(false);
+    // }
   };
 
   const containerVariants = {
@@ -246,9 +247,7 @@ const ChildProfileScreen = () => {
             onClick={() => navigate("/home")}
           />
 
-          <h4 className="text-center profile-header-text">
-            Little stories from little Sara
-          </h4>
+          
           <img src={musicIcon} alt="Music Icon" />
         </motion.div>
 
@@ -269,7 +268,7 @@ const ChildProfileScreen = () => {
             </motion.div>
 
             {/* Center Form */}
-            <motion.div variants={topItemVariants} className="child-profile-form">
+            {/* <motion.div variants={topItemVariants} className="child-profile-form">
               <div className="child-name-form-section mb-3">
                 <label className="profile-labels">Child's name:</label>
                 <input
@@ -297,16 +296,26 @@ const ChildProfileScreen = () => {
                 </div>
               </div>
               <Card.Body>
-                <Button
-                  onClick={handleContinue}
-                  className="continue-child-btn"
-                  disabled={isLoading}
-                >
-                  {isLoading ? 'Loading...' : 'Continue'}
-                </Button>
               </Card.Body>
-            </motion.div>
-
+            </motion.div> */}
+            <div className="continue-child-section mt-3">
+              <div className="continue-child-section-header">
+                <h4 className="text-center profile-header-text">
+                  Little stories from
+                </h4>
+                <h4 className="text-center profile-header-text">
+                  little Sara.
+                </h4>
+              </div>
+              <Button
+                onClick={handleContinue}
+                className="continue-child-btn"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Loading...' : 'Continue'}
+              </Button>
+            </div>
+                
             {/* Girl Image - rises from bottom */}
             <motion.div
               className="child-illustration-2-container"

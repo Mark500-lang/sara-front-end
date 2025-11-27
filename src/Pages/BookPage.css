@@ -150,7 +150,23 @@
   padding: 10px;
   gap: 10px;
 }
+.volume-slider {
+  -webkit-appearance: none;
+  width: 100px;
+  height: 4px;
+  background: #ffffff;
+  border-radius: 2px;
+  outline: none;
+}
 
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #41dfcf;
+  border-radius: 50%;
+  cursor: pointer;
+}
 .pause-play-icons {
   display: flex;
   justify-content: center;
@@ -369,6 +385,109 @@
 }
 
 
+@media (min-height:1000px) {
+  .header-icons img.book-nav-icon {
+    width: 120px!important; 
+  }
+  .page-number {
+    font-size: 25px;
+    padding: 0px 15px;
+    top: 100px;
+  }
+  .middle-icon-container {
+    padding: 10px;
+  }
+
+  .pause-play-icons {
+    width: 40px!important;
+    height: 40px!important;
+    font-size: 20px!important;
+  }
+  .recording-timer {
+    font-size: 28px!important;
+  }
+  .playback-button {
+    font-size: 28px!important;
+  }
+  .navigation-and-text {
+    max-width: 650px!important;
+  }
+  .page-text {
+    font-size: 24px!important;
+    padding: 60px 20px!important;
+  }
+  .custom-popup {
+    width: 550px!important;
+    padding: 0px 0px 0px;
+  }
+  .custom-title{
+    font-size: 36px;
+  }
+  .custom-btn-yes {
+    padding: 5px 20px;
+  }
+  .custom-btn-yes img {
+      width: 40px;
+  }
+  .custom-btn-yes p {
+    font-size: 24px;
+  }
+  .custom-btn-cancel {
+    font-size: 45px;
+  }
+}
+@media (min-width: 1000px) {
+  .header-icons img.book-nav-icon {
+    width: 130px; 
+  }
+  .page-number {
+    font-size: 30px;
+    padding: 0px 15px;
+    top: 100px;
+  }
+  .middle-icon-container {
+    padding: 10px;
+    gap: 25px;
+  }
+
+  .pause-play-icons {
+    width: 45px;
+    height: 45px;
+    font-size: 20px;
+  }
+  .recording-timer {
+    font-size: 30px;
+  }
+  .playback-button {
+    font-size: 30px;
+  }
+  .navigation-and-text {
+    max-width: 900px;
+  }
+  .page-text {
+    font-size: 28px;
+    padding: 50px 20px;
+  }
+  .custom-popup {
+    width: 450px !important;
+    padding: 0px 0px 0px;
+  }
+  .custom-title{
+    font-size: 36px;
+  }
+  .custom-btn-yes {
+    padding: 5px 20px;
+  }
+  .custom-btn-yes img {
+      width: 40px;
+  }
+  .custom-btn-yes p {
+    font-size: 24px;
+  }
+  .custom-btn-cancel {
+    font-size: 45px;
+  }
+}
 @media (max-width: 890px) {
   .navigation-and-text {
     max-width: 600px;
@@ -402,6 +521,136 @@
 
   .custom-btn-yes p {
     font-size: 17px;
+  }
+
+}
+@media (min-width: 1000px) {
+  .header-icons img.book-nav-icon {
+    width: 130px; 
+  }
+  .page-number {
+    font-size: 30px;
+    padding: 0px 15px;
+    top: 100px;
+  }
+  .middle-icon-container {
+    padding: 10px;
+    gap: 25px;
+  }
+
+  .pause-play-icons {
+    width: 45px;
+    height: 45px;
+    font-size: 20px;
+  }
+  .recording-timer {
+    font-size: 30px;
+  }
+  .playback-button {
+    font-size: 30px;
+  }
+  .navigation-and-text {
+    max-width: 900px;
+  }
+  .page-text {
+    font-size: 28px;
+    padding: 50px 20px;
+  }
+  .custom-popup {
+    width: 450px !important;
+    padding: 0px 0px 0px;
+  }
+  .custom-title{
+    font-size: 36px;
+  }
+  .custom-btn-yes {
+    padding: 5px 20px;
+  }
+  .custom-btn-yes img {
+      width: 40px;
+  }
+  .custom-btn-yes p {
+    font-size: 24px;
+  }
+  .custom-btn-cancel {
+    font-size: 45px;
+  }
+}
+@media (max-width: 680px) {
+  .middle-icon-container {
+    padding: 5px;
+  }
+  .volume-slider {
+    width: 80px;
+    height: 3px;
+  }
+  .volume-slider::-webkit-slider-thumb {
+    width: 13px;
+    height: 13px;
+  }
+  .page-number {
+    font-size: 16px;
+    top: 55px;
+  }
+  .record-button {
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+  }
+  .pause-play-icons {
+    width: 15px; 
+    height: 15px;
+    font-size: 10px;
+  }
+  .navigation-and-text {
+    max-width: 500px;
+  }
+  .page-text {
+    font-size: 15px;
+    max-width: 78%;
+    padding: 8px 10px;
+  }
+  
+  .header-icons img.book-nav-icon {
+    width: 70px; 
+  }
+  .pause-play-icons {
+    width: 20px; 
+    height: 20px;
+    font-size: 12px;
+  }
+  
+  .recording-timer {
+    font-size: 14px;
+  }
+  .custom-popup {
+    width: 320px !important;
+    padding: 0px 0px 0px;
+  }
+  .custom-title{
+    font-size: 24px;
+  }
+  .custom-btn-yes {
+    padding: 0px 20px;
+  }
+  .custom-btn-yes img {
+      width: 30px;
+  }
+  .custom-btn-yes p {
+    font-size: 17px;
+  }
+  .custom-btn-cancel {
+    font-size: 30px;
+  }
+  .popup-modal-body {
+    padding: 20px;
+    gap: 10px;
   }
 
 }

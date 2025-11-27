@@ -9,6 +9,7 @@
   background-color: #41dfcf9a;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   z-index: 10;
 }
 
@@ -17,7 +18,6 @@
   flex-direction: column;
   overflow: hidden;
 }
-
 .action-header-container{
   display: flex;
   justify-content: space-between;
@@ -35,6 +35,10 @@
 }
 
 .select-mode-container{
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -223,7 +227,94 @@
 .audio-item {
   transition: all 0.3s ease;
 }
-@media (max-width: 890px) {
+/* Ipad styles */
+@media (min-width: 1000px) {
+  .action-header-container img{
+    width: 130px;
+  }
+  .select-mode-container{
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .mode-button {
+    padding: 5px 45px;
+  }
+  .clicked-mode-btn{
+    background-color: #9d3900;
+  }
+  .mode-button img {
+    width: 45px;
+    height: auto;
+  }
+  .mode-button p {
+    font-size: 30px;
+  }
+  .select-mode-dialogue-box {
+    gap: 20px;
+    padding: 20px 15px;
+    min-width: 300px;
+    max-width: 350px;
+  }
+  .select-mode-dialogue-box h3{
+    font-size: 28px;
+  }
+  .select-mode-dialogue-box h4{
+    font-size: 20px;
+  }
+  .audio-item {
+    font-size: 26px;
+    padding: 5px 20px;
+  }
+  .recordings-box input {
+    width: 80%;
+    padding: 6px 15px;
+    font-size: 24px;
+  }
+  .record-button{
+    font-size: 24px;
+    padding: 20px 40px;
+  }
+}
+@media (min-height: 900px) {
+  .action-header-container img{
+    width: 120px!important;
+  }
+  .mode-button {
+    padding: 5px 45px!important;
+  }
+  .mode-button img {
+    width: 45px!important;
+  }
+  .mode-button p {
+    font-size: 28px!important;
+  }
+  .select-mode-dialogue-box {
+    padding: 30px 15px!important;
+    min-width: 300px!important;
+    max-width: 350px!important;
+  }
+  .select-mode-dialogue-box h3{
+    font-size: 24px!important;
+  }
+  .select-mode-dialogue-box h4{
+    font-size: 20px!important;
+  }
+  .audio-item {
+    font-size: 22px!important;
+    padding: 5px 20px!important;
+  }
+  .recordings-box input {
+    padding: 8px 15px!important;
+    font-size: 20px!important;
+  }
+  .record-button{
+    font-size: 24px!important;
+    padding: 20px 40px!important;
+  }
+}
+@media (max-width: 800px) {
   .action-header-container img{
     width: 85px;
     height: auto;
@@ -233,7 +324,7 @@
     padding: 0px 25px;
   }
   .mode-button img {
-    width: 35px;
+    width: 32px;
     height: auto;
   }
 
@@ -242,5 +333,37 @@
     font-weight: bolder;
     color: #000000ea;;
     margin: auto;
+  }
+  .select-mode-dialogue-box {
+    gap: 20px;
+    background-color: #ffffff;
+    padding: 7px;
+    border-radius: 20px;
+    min-width: 200px;
+    max-width: 250px;
+  }
+  .select-mode-dialogue-box h3{
+    font-size: 18px;
+  }
+  .select-mode-dialogue-box h4{
+    font-size: 12px;
+  }
+  .audio-item {
+    font-size: 14px;
+  }
+  .recordings-box input {
+    width: 80%;
+    padding: 3px 8px;
+    font-size: 16px;
+  }
+  .record-button{
+    font-size: 16px;
+  }
+}
+@media (max-width: 680px) {
+  .action-header-container img{
+    width: 70px;
+    height: auto;
+    cursor: pointer;
   }
 }

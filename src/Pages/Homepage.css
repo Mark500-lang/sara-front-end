@@ -35,32 +35,6 @@
   height: auto;
   cursor: pointer;
 }
-.green-icon {
-  color: #ffffff;
-  font-size: 34px;
-  cursor: pointer;
-  /* border: solid red 1px; */
-  border-radius: 100%;
-  width: 60px;
-  height: 60px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: #24a359;
-}
-
-.blue-icon {
-  color: #ffffff;
-  font-size: 34px;
-  cursor: pointer;
-  border-radius: 100%;
-  width: 60px;
-  height: 60px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: #2e8cb5;
-}
 
 .music-icon {
   /* position: absolute;
@@ -106,10 +80,9 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr); 
   row-gap: 3rem; 
-  column-gap: 1rem;
   justify-items: center;
   padding: 0px 95px 50px; 
-  margin-top: -60px;
+  margin-top: -50px;
   transition: opacity 0.3s ease;
 }
 
@@ -200,7 +173,35 @@
     height: 40px;
   }
 }
+@media (max-width: 680px) {
+  .book-grid {
+    /* grid-template-columns: repeat(2, 1fr); */
+    padding: 0px 0px 40px;
+  }
+  .book-container {
+    width: 150px;
+  }
+  .book-title {
+    font-size: 20px;
+  }
+  .unlock-btn {
+    font-size: 18px;
+  }
+  .home-nav-icon{
+    width: 70px;
+    height: auto;
+    cursor: pointer;
+  }
+  .music-icon {
+    height: 40px;
+    width: 40px;
+  }
 
+  .profile-icon{
+    width: 40px;
+    height: 40px;
+  }
+}
 /* Book Opening Animation Styles */
 .book-opening-animation-container {
   overflow: visible;
