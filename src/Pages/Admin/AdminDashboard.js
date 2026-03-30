@@ -3,6 +3,7 @@ import BookUploadForm from "./BookUploadForm";
 import PageUploadForm from "./PageUploadForm";
 import AudioUploadForm from "./AudioUploadForm";
 import BulkPDFZipUpload from "./BulkPDFZipUpload";
+import BulkAudioUploadForm from "./BulkAudioUploadForm";
 
 const AdminDashboard = () => {
   return (
@@ -15,6 +16,8 @@ const AdminDashboard = () => {
       <PageUploadForm />
       <hr />
       <AudioUploadForm />
+      <hr />
+      <BulkAudioUploadForm />
     </div>
   );
 };

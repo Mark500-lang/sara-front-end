@@ -1,0 +1,467 @@
+--------- beginning of kernel
+12-05 15:50:55.161 E/kvm     (    0): no hardware support for 'kvm_intel'
+12-05 15:50:55.162 E/kvm     (    0): no hardware support for 'kvm_amd'
+12-05 15:50:56.747 E/init    (    0): Failed to copy /avb into /metadata/gsi/dsu/avb/: No such file or directory
+12-05 15:50:57.758 E/init    (    0): [libfs_avb] Device path not found: /dev/block/by-name/system
+12-05 15:50:58.764 E/init    (    0): [libfs_avb] Device path not found: /dev/block/by-name/system
+12-05 15:50:58.933 E/init    (    0): Failed to open package /system/etc/selinux/apex/SEPolicy.zip: No such file or directory
+12-05 15:50:59.037 E/selinux (    0): SELinux:  Could not stat /dev/selinux: No such file or directory.
+12-05 15:50:59.110 E/selinux (    0): SELinux: Could not get canonical path for /metadata/ota/rollback-indicator restorecon: No such file or directory.
+12-05 15:50:59.110 E/selinux (    0): SELinux:  Could not stat /metadata/gsi: No such file or directory.
+12-05 15:50:59.374 E/cutils-trace(    0): Error opening trace file: No such file or directory (2)
+12-05 15:50:59.935 E/cutils-trace(    0): Error opening trace file: Permission denied (13)
+12-05 15:50:59.994 E/selinux (    0): SELinux:  setxattr failed: /cache:  Read-only file system
+--------- beginning of main
+12-05 15:51:00.036 E/HidlServiceManagement(  182): Service android.system.suspend@1.0::ISystemSuspend/default must be in VINTF manifest in order to register/get.
+12-05 15:51:00.091 E/dlkm_loader(    0): LoadWithAliases was unable to load vkms
+--------- beginning of system
+12-05 15:51:00.794 E/keystore2(  183): system/security/keystore2/src/error.rs:180 - system/security/keystore2/src/security_level.rs:622
+12-05 15:51:00.794 E/keystore2(  183): 
+12-05 15:51:00.794 E/keystore2(  183): Caused by:
+12-05 15:51:00.794 E/keystore2(  183):     0: system/security/keystore2/src/security_level.rs:620: While generating Key without explicit attestation key.
+12-05 15:51:00.794 E/keystore2(  183):     1: Error::Km(r#ROLLBACK_RESISTANCE_UNAVAILABLE)
+12-05 15:51:00.794 E/vold    (  172): keystore2 Keystore generateKey returned service specific error: -67
+12-05 15:51:00.852 E/vold    (    0): keystore2 Keystore generateKey returned service specific error: -67
+12-05 15:51:06.073 E/init    (    0): Unable to set property 'ro.boottime.init.fsck.data' from uid:0 gid:0 pid:172: Read-only property was already set
+12-05 15:51:06.077 E/init    (    0): Unable to set property 'ro.boottime.init.mount.data' from uid:0 gid:0 pid:172: Read-only property was already set
+12-05 15:51:06.092 E/keystore2(  183): system/security/keystore2/src/error.rs:180 - system/security/keystore2/src/security_level.rs:622
+12-05 15:51:06.092 E/keystore2(  183): 
+12-05 15:51:06.092 E/keystore2(  183): Caused by:
+12-05 15:51:06.092 E/keystore2(  183):     0: system/security/keystore2/src/security_level.rs:620: While generating Key without explicit attestation key.
+12-05 15:51:06.092 E/keystore2(  183):     1: Error::Km(r#ROLLBACK_RESISTANCE_UNAVAILABLE)
+12-05 15:51:06.092 E/vold    (  172): keystore2 Keystore generateKey returned service specific error: -67
+12-05 15:51:06.151 E/vold    (    0): keystore2 Keystore generateKey returned service specific error: -67
+12-05 15:51:06.188 E/init    (    0): Failed to set encryption policy of /data/misc to ad85081fda8fd3617ca608d177ba0c22 v2 modes 1/4 flags 0x2: Directory not empty
+12-05 15:51:06.275 E/logwrapper(    0): executing ls failed: Permission denied
+12-05 15:51:06.277 E/logwrapper(    0):  
+12-05 15:51:06.278 E/init    (    0): ls -laZ /data/misc returned failure: 255
+12-05 15:51:06.278 E/init    (    0): Setting ad85081fda8fd3617ca608d177ba0c22 policy on /data/misc failed!
+12-05 15:51:06.279 E/init    (    0): Rebooting into recovery
+12-05 15:51:06.520 E/keystore2(  183): system/security/keystore2/src/keystore2_main.rs:69 - [SQLITE3] 17: statement aborts at 28: [CREATE TABLE IF NOT EXISTS persistent.version (
+12-05 15:51:06.520 E/keystore2(  183):                 id INTEGER PRIMARY KEY,
+12-05 15:51:06.520 E/keystore2(  183):                 version INTEGER);] database schema has changed
+12-05 15:51:06.530 E/keystore2(  183): system/security/keystore2/src/maintenance.rs:192 - Call to earlyBootEnded failed for security level STRONGBOX: system/security/keystore2/src/maintenance.rs:167: getting keymint device.
+12-05 15:51:06.530 E/keystore2(  183): system/security/keystore2/src/error.rs:180 - system/security/keystore2/src/maintenance.rs:167: getting keymint device
+12-05 15:51:06.530 E/keystore2(  183): 
+12-05 15:51:06.530 E/keystore2(  183): Caused by:
+12-05 15:51:06.530 E/keystore2(  183):     0: system/security/keystore2/src/globals.rs:335: Cannot connect to Keymint
+12-05 15:51:06.530 E/keystore2(  183):     1: system/security/keystore2/src/globals.rs:246: Trying to get Legacy wrapper.
+12-05 15:51:06.530 E/keystore2(  183):     2: Error::Km(r#HARDWARE_TYPE_UNAVAILABLE)
+12-05 15:51:06.530 E/vold    (  172): keystore2 Keystore earlyBootEnded returned service specific error: -68
+12-05 15:51:06.588 E/vold    (    0): keystore2 Keystore earlyBootEnded returned service specific error: -68
+12-05 15:51:06.593 E/init    (    0): Could not set 'ro.logd.size' to '2M' in /data/local.prop: Read-only property was already set
+12-05 15:51:06.594 E/init    (    0): Could not load single persistent property file, trying legacy directory: Unable to read persistent property file: open() failed: No such file or directory
+12-05 15:51:06.651 E/logd    (    0): Cannot read /data/misc/logd/event-log-tags
+12-05 15:51:06.652 E/logd    (    0): FrameworkListener: read() failed (Connection reset by peer)
+12-05 15:51:30.058 E/keystore2(  183): system/security/keystore2/src/error.rs:180 - system/security/keystore2/src/security_level.rs:622
+12-05 15:51:30.058 E/keystore2(  183): 
+12-05 15:51:30.058 E/keystore2(  183): Caused by:
+12-05 15:51:30.058 E/keystore2(  183):     0: system/security/keystore2/src/security_level.rs:620: While generating Key without explicit attestation key.
+12-05 15:51:30.058 E/keystore2(  183):     1: Error::Km(r#ROLLBACK_RESISTANCE_UNAVAILABLE)
+12-05 15:51:30.058 E/vold    (  172): keystore2 Keystore generateKey returned service specific error: -67
+12-05 15:51:30.117 E/vold    (    0): keystore2 Keystore generateKey returned service specific error: -67
+12-05 15:51:30.737 E/selinux (    0): SELinux:  Could not stat /data/dalvik-cache/arm: No such file or directory.
+12-05 15:51:30.737 E/selinux (    0): SELinux:  Could not stat /data/dalvik-cache/arm64: No such file or directory.
+12-05 15:51:30.738 E/selinux (    0): SELinux:  Could not stat /data/dalvik-cache/riscv64: No such file or directory.
+12-05 15:51:30.738 E/selinux (    0): SELinux:  Could not stat /data/dalvik-cache/x86: No such file or directory.
+12-05 15:51:30.739 E/selinux (    0): SELinux:  Could not stat /data/dalvik-cache/x86_64: No such file or directory.
+12-05 15:51:31.154 E/TcUtils (  362): NLMSG_ERROR message return error: -2
+12-05 15:51:31.154 E/TcUtils (  362): NLMSG_ERROR message return error: -2
+12-05 15:51:31.154 E/TcUtils (  362): NLMSG_ERROR message return error: -2
+12-05 15:51:31.154 E/TcUtils (  362): NLMSG_ERROR message return error: -2
+12-05 15:51:31.154 E/TcUtils (  362): NLMSG_ERROR message return error: -2
+12-05 15:51:31.154 E/TcUtils (  362): NLMSG_ERROR message return error: -2
+12-05 15:51:31.154 E/TcUtils (  362): NLMSG_ERROR message return error: -2
+12-05 15:51:31.154 E/TcUtils (  362): NLMSG_ERROR message return error: -2
+12-05 15:51:31.154 E/TcUtils (  362): NLMSG_ERROR message return error: -2
+12-05 15:51:31.154 E/TcUtils (  362): NLMSG_ERROR message return error: -2
+12-05 15:51:31.154 E/TcUtils (  362): NLMSG_ERROR message return error: -2
+12-05 15:51:31.154 E/TcUtils (  362): NLMSG_ERROR message return error: -2
+12-05 15:51:31.154 E/TcUtils (  362): NLMSG_ERROR message return error: -2
+12-05 15:51:31.154 E/TcUtils (  362): NLMSG_ERROR message return error: -2
+12-05 15:51:31.154 E/TcUtils (  362): NLMSG_ERROR message return error: -2
+12-05 15:51:31.154 E/TcUtils (  362): NLMSG_ERROR message return error: -2
+12-05 15:51:31.402 E/SensorsMultiHal(  379): Failed to load subHal config file: /odm/etc/sensors/hals.conf
+12-05 15:51:31.449 E/ProcessState(  371): vndservicemanager is not started on this device, you can save resources/threads by not initializing ProcessState with /dev/vndbinder.
+12-05 15:51:31.665 E/LegacySupport(  368): Could not get passthrough implementation for android.hardware.soundtrigger@2.3::ISoundTriggerHw/default.
+12-05 15:51:31.665 E/LegacySupport(  368): Could not get passthrough implementation for android.hardware.soundtrigger@2.2::ISoundTriggerHw/default.
+12-05 15:51:31.666 E/LegacySupport(  368): Could not get passthrough implementation for android.hardware.soundtrigger@2.1::ISoundTriggerHw/default.
+12-05 15:51:31.666 E/LegacySupport(  368): Could not get passthrough implementation for android.hardware.soundtrigger@2.0::ISoundTriggerHw/default.
+12-05 15:51:31.666 E/LegacySupport(  368): Could not get passthrough implementation for android.hardware.bluetooth.audio@2.2::IBluetoothAudioProvidersFactory/default.
+12-05 15:51:31.666 E/LegacySupport(  368): Could not get passthrough implementation for android.hardware.bluetooth.audio@2.1::IBluetoothAudioProvidersFactory/default.
+12-05 15:51:31.666 E/LegacySupport(  368): Could not get passthrough implementation for android.hardware.bluetooth.audio@2.0::IBluetoothAudioProvidersFactory/default.
+12-05 15:51:31.666 E/LegacySupport(  368): Could not get passthrough implementation for android.hardware.bluetooth.a2dp@1.0::IBluetoothAudioOffload/default.
+12-05 15:51:31.708 E/audiohalservice(  368): Failed to dlopen android.hardware.audio.sounddose-vendor-impl.so: dlopen failed: library "android.hardware.audio.sounddose-vendor-impl.so" not found
+12-05 15:51:31.985 E/bootstat(  436): Failed to read /metadata/bootstat/persist.sys.boot.reason: No such file or directory
+12-05 15:51:32.000 E/GCH_CameraProvider(  371): Initialize: HWL doesn't support vendor buffer allocation Function not implemented(-38)
+12-05 15:51:32.023 E/bootstat(  436): Failed to unlink /metadata/bootstat/persist.sys.boot.reason: No such file or directory
+12-05 15:51:32.127 E/bt_vhci_forwarder(  457): setTerminalRaw failed /dev/bluetooth0: Inappropriate ioctl for device
+12-05 15:51:32.435 E/cutils  (  462): Failed to read /data/misc/installd/layout_version: No such file or directory
+12-05 15:51:32.498 E/SurfaceFlinger(  415): Unrecognized RenderEngineType ; ignoring!
+12-05 15:51:32.689 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.689 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.689 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.689 E/android.hardware.audio@7.1-impl.ranchu(  368): getPresentationPosition:510 failure: Result::INVALID_STATE
+12-05 15:51:32.690 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.690 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.690 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.690 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.693 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.693 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.693 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.694 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.752 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.755 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.755 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.755 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.755 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.755 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.755 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.755 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.755 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.755 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.755 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.760 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.760 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.762 E/android.hardware.audio@7.1-impl.ranchu(  368): getPresentationPosition:510 failure: Result::INVALID_STATE
+12-05 15:51:32.763 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.763 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.763 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.764 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.764 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.767 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.767 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.768 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.768 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.772 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.773 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.773 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.773 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.773 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.773 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.773 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.773 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.773 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.773 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.773 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.774 E/APM_AudioPolicyManager(  412): invalid volume index range
+12-05 15:51:32.882 E/RanchuHwc(  392): loadPersistentKeyValues: persistent key-value store path not available.
+12-05 15:51:32.882 E/RanchuHwc(  392): getPersistentKeyValue: failed to load pmem json
+12-05 15:51:32.882 E/RanchuHwc(  392): getBootConfigId: display:0 failed to get persistent boot config
+12-05 15:51:32.882 E/RanchuHwc(  392): start: failed to set Vsync thread name: Math result not representable
+12-05 15:51:32.882 E/RanchuHwc(  392): start: failed to set Vsync thread priority: Invalid argument
+12-05 15:51:32.919 E/android.hardware.graphics.composer3-service.ranchu(  392): freeBuffer:127 failed with 'Error3::BAD_BUFFER'
+12-05 15:51:32.919 E/Gralloc3(  392): freeBuffer(0x0) failed with 2
+12-05 15:51:32.920 E/android.hardware.graphics.composer3-service.ranchu(  392): freeBuffer:127 failed with 'Error3::BAD_BUFFER'
+12-05 15:51:32.920 E/Gralloc3(  392): freeBuffer(0x0) failed with 2
+12-05 15:51:32.920 E/android.hardware.graphics.composer3-service.ranchu(  392): freeBuffer:127 failed with 'Error3::BAD_BUFFER'
+12-05 15:51:32.920 E/Gralloc3(  392): freeBuffer(0x0) failed with 2
+12-05 15:51:32.920 E/android.hardware.graphics.composer3-service.ranchu(  392): freeBuffer:127 failed with 'Error3::BAD_BUFFER'
+12-05 15:51:32.920 E/Gralloc3(  392): freeBuffer(0x0) failed with 2
+12-05 15:51:32.920 E/android.hardware.graphics.composer3-service.ranchu(  392): freeBuffer:127 failed with 'Error3::BAD_BUFFER'
+12-05 15:51:32.920 E/Gralloc3(  392): freeBuffer(0x0) failed with 2
+12-05 15:51:32.920 E/android.hardware.graphics.composer3-service.ranchu(  392): freeBuffer:127 failed with 'Error3::BAD_BUFFER'
+12-05 15:51:32.920 E/Gralloc3(  392): freeBuffer(0x0) failed with 2
+12-05 15:51:32.933 E/HwcComposer(  415): getPerFrameMetadataKeys failed Status(-8, EX_SERVICE_SPECIFIC): '8: '
+12-05 15:51:33.003 E/HidlServiceManagement(  415): Service android.frameworks.displayservice@1.0::IDisplayService/default must be in VINTF manifest in order to register/get.
+12-05 15:51:33.003 E/SurfaceFlinger(  415): Did not register (deprecated) IDisplayService service.
+12-05 15:51:33.564 E/emuglGLESv2_enc(  536): device/generic/goldfish-opengl/system/GLESv2_enc/GL2Encoder.cpp:s_glEnable:5076 GL error 0x500 condition [!GLESv2Validation::allowedEnable(ctx->majorVersion(), ctx->minorVersion(), what)]
+12-05 15:51:37.489 E/storaged(  466): getService package_native failed
+12-05 15:51:37.572 E/ServiceUtilities(  464): getInfo: Cannot find package_native
+12-05 15:51:42.577 E/storaged(  466): getService package_native failed
+12-05 15:51:59.489 E/ActivityRecognitionHardware(  363): activity_recognition HAL is deprecated. class_init is effectively a no-op
+12-05 15:52:00.595 E/zygote64(  363): Unable to find pattern file or unable to map it for am
+12-05 15:52:01.315 E/system_server(  564): Not starting debugger since process cannot load the jdwp agent.
+12-05 15:52:05.538 E/HidlServiceManagement(  564): Service android.frameworks.stats@1.0::IStats/default must be in VINTF manifest in order to register/get.
+12-05 15:52:05.679 E/BatteryStatsService(  564): Unable to load Power.Stats.HAL. Setting rail availability to false
+12-05 15:52:05.683 E/BluetoothAdapter(  564): Bluetooth service is null
+12-05 15:52:06.064 E/UserManagerService(  564): No user list file
+12-05 15:52:06.064 E/UserManagerService(  564): userlist.xml not found, fallback to single user
+12-05 15:53:07.517 E/ArtService(  564): Failed to load dex use data
+12-05 15:53:07.517 E/ArtService(  564): java.io.FileNotFoundException: /data/system/package-dex-usage.pb: open failed: ENOENT (No such file or directory)
+12-05 15:53:07.517 E/ArtService(  564): 	at libcore.io.IoBridge.open(IoBridge.java:574)
+12-05 15:53:07.517 E/ArtService(  564): 	at java.io.FileInputStream.<init>(FileInputStream.java:160)
+12-05 15:53:07.517 E/ArtService(  564): 	at java.io.FileInputStream.<init>(FileInputStream.java:115)
+12-05 15:53:07.517 E/ArtService(  564): 	at com.android.server.art.DexUseManagerLocal.load(DexUseManagerLocal.java:553)
+12-05 15:53:07.517 E/ArtService(  564): 	at com.android.server.art.DexUseManagerLocal.<init>(DexUseManagerLocal.java:161)
+12-05 15:53:07.517 E/ArtService(  564): 	at com.android.server.art.DexUseManagerLocal.<init>(DexUseManagerLocal.java:153)
+12-05 15:53:07.517 E/ArtService(  564): 	at com.android.server.art.DexUseManagerLocal.createInstance(DexUseManagerLocal.java:147)
+12-05 15:53:07.517 E/ArtService(  564): 	at com.android.server.SystemServer.startBootstrapServices(SystemServer.java:1257)
+12-05 15:53:07.517 E/ArtService(  564): 	at com.android.server.SystemServer.run(SystemServer.java:940)
+12-05 15:53:07.517 E/ArtService(  564): 	at com.android.server.SystemServer.main(SystemServer.java:664)
+12-05 15:53:07.517 E/ArtService(  564): 	at java.lang.reflect.Method.invoke(Native Method)
+12-05 15:53:07.517 E/ArtService(  564): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:552)
+12-05 15:53:07.517 E/ArtService(  564): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:949)
+12-05 15:53:07.517 E/ArtService(  564): Caused by: android.system.ErrnoException: open failed: ENOENT (No such file or directory)
+12-05 15:53:07.517 E/ArtService(  564): 	at libcore.io.Linux.open(Native Method)
+12-05 15:53:07.517 E/ArtService(  564): 	at libcore.io.ForwardingOs.open(ForwardingOs.java:563)
+12-05 15:53:07.517 E/ArtService(  564): 	at libcore.io.BlockGuardOs.open(BlockGuardOs.java:274)
+12-05 15:53:07.517 E/ArtService(  564): 	at libcore.io.IoBridge.open(IoBridge.java:560)
+12-05 15:53:07.517 E/ArtService(  564): 	... 12 more
+12-05 15:53:07.982 E/idmap2d (  459): no resources were overlaid
+12-05 15:53:08.296 E/idmap2d (  459): no resources were overlaid
+12-05 15:53:09.304 E/BluetoothAdapter(  564): Bluetooth service is null
+12-05 15:53:11.144 E/DeviceStateManagerService(  564): Cannot notify device state info change before the initial state has been committed.
+12-05 15:53:16.161 E/statsd  (  361): Uid 1000 does not have the android.permission.REGISTER_STATS_PULL_ATOM permission when registering atom 10110 (-1)
+12-05 15:53:23.191 E/AppIdleHistory(  564): Unable to read app idle file for user 0
+12-05 15:53:23.191 E/AppIdleHistory(  564): java.io.FileNotFoundException: /data/system/users/0/app_idle_stats.xml: open failed: ENOENT (No such file or directory)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at libcore.io.IoBridge.open(IoBridge.java:574)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at java.io.FileInputStream.<init>(FileInputStream.java:160)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at android.util.AtomicFile.openRead(AtomicFile.java:260)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at com.android.server.usage.AppIdleHistory.readAppIdleTimes(AppIdleHistory.java:715)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at com.android.server.usage.AppIdleHistory.getUserHistory(AppIdleHistory.java:384)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at com.android.server.usage.AppIdleHistory.isIdle(AppIdleHistory.java:413)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at com.android.server.usage.AppStandbyController.checkAndUpdateStandbyState(AppStandbyController.java:969)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at com.android.server.usage.AppStandbyController.-$$Nest$mcheckAndUpdateStandbyState(AppStandbyController.java:0)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at com.android.server.usage.AppStandbyController$AppStandbyHandler.handleMessage(AppStandbyController.java:2868)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at android.os.Handler.dispatchMessage(Handler.java:106)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at android.os.Looper.loopOnce(Looper.java:205)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at android.os.Looper.loop(Looper.java:294)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at android.os.HandlerThread.run(HandlerThread.java:67)
+12-05 15:53:23.191 E/AppIdleHistory(  564): Caused by: android.system.ErrnoException: open failed: ENOENT (No such file or directory)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at libcore.io.Linux.open(Native Method)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at libcore.io.ForwardingOs.open(ForwardingOs.java:563)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at libcore.io.BlockGuardOs.open(BlockGuardOs.java:274)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	at libcore.io.IoBridge.open(IoBridge.java:560)
+12-05 15:53:23.191 E/AppIdleHistory(  564): 	... 12 more
+12-05 15:54:12.887 E/BluetoothAdapter(  564): Bluetooth service is null
+12-05 15:54:16.236 E/vold    (  172): Error getting bootctrl v1.0 module.
+12-05 15:54:42.111 E/DevicePolicyManager(  564): Error reading version
+12-05 15:54:42.111 E/DevicePolicyManager(  564): java.nio.file.NoSuchFileException: /data/system/device_policies_version
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at sun.nio.fs.UnixFileSystemProvider.newByteChannel(UnixFileSystemProvider.java:220)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at java.nio.file.Files.newByteChannel(Files.java:361)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at java.nio.file.Files.newByteChannel(Files.java:407)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at java.nio.file.spi.FileSystemProvider.newInputStream(FileSystemProvider.java:384)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at java.nio.file.Files.newInputStream(Files.java:152)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at java.nio.file.Files.newBufferedReader(Files.java:2784)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at java.nio.file.Files.readAllLines(Files.java:3202)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at com.android.server.devicepolicy.PolicyVersionUpgrader.readVersion(PolicyVersionUpgrader.java:307)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at com.android.server.devicepolicy.PolicyVersionUpgrader.upgradePolicy(PolicyVersionUpgrader.java:71)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at com.android.server.devicepolicy.DevicePolicyManagerService.performPolicyVersionUpgrade(DevicePolicyManagerService.java:3519)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at com.android.server.devicepolicy.DevicePolicyManagerService.<init>(DevicePolicyManagerService.java:2091)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at com.android.server.devicepolicy.DevicePolicyManagerService.<init>(DevicePolicyManagerService.java:2032)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at com.android.server.devicepolicy.DevicePolicyManagerService$Lifecycle.<init>(DevicePolicyManagerService.java:1068)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at java.lang.reflect.Constructor.newInstance0(Native Method)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at java.lang.reflect.Constructor.newInstance(Constructor.java:343)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at com.android.server.SystemServiceManager.startService(SystemServiceManager.java:218)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at com.android.server.SystemServer.startOtherServices(SystemServer.java:1872)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at com.android.server.SystemServer.run(SystemServer.java:942)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at com.android.server.SystemServer.main(SystemServer.java:664)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at java.lang.reflect.Method.invoke(Native Method)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:552)
+12-05 15:54:42.111 E/DevicePolicyManager(  564): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:949)
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): Failed to add a SoundTriggerModule instance
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): java.util.NoSuchElementException
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): 	at android.os.HwBinder.getService(Native Method)
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): 	at android.hardware.soundtrigger.V2_0.ISoundTriggerHw.getService(ISoundTriggerHw.java:57)
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): 	at android.hardware.soundtrigger.V2_0.ISoundTriggerHw.getService(ISoundTriggerHw.java:64)
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): 	at com.android.server.soundtrigger_middleware.DefaultHalFactory.create(DefaultHalFactory.java:76)
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): 	at com.android.server.soundtrigger_middleware.SoundTriggerModule.attachToHal(SoundTriggerModule.java:176)
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): 	at com.android.server.soundtrigger_middleware.SoundTriggerModule.<init>(SoundTriggerModule.java:105)
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): 	at com.android.server.soundtrigger_middleware.SoundTriggerMiddlewareImpl.<init>(SoundTriggerMiddlewareImpl.java:86)
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): 	at com.android.server.soundtrigger_middleware.SoundTriggerMiddlewareService$Lifecycle.onStart(SoundTriggerMiddlewareService.java:248)
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): 	at com.android.server.SystemServiceManager.startService(SystemServiceManager.java:255)
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): 	at com.android.server.SystemServiceManager.startService(SystemServiceManager.java:233)
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): 	at com.android.server.SystemServer.startOtherServices(SystemServer.java:2208)
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): 	at com.android.server.SystemServer.run(SystemServer.java:942)
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): 	at com.android.server.SystemServer.main(SystemServer.java:664)
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): 	at java.lang.reflect.Method.invoke(Native Method)
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:552)
+12-05 15:54:45.301 E/SoundTriggerMiddlewareImpl(  564): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:949)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): connectToProxy: usb gadget hidl hal service not found.
+12-05 15:54:45.349 E/UsbDeviceManager(  564): java.util.NoSuchElementException
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at android.os.HwBinder.getService(Native Method)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at android.hardware.usb.gadget.V1_0.IUsbGadget.getService(IUsbGadget.java:57)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at android.hardware.usb.gadget.V1_0.IUsbGadget.getService(IUsbGadget.java:64)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at com.android.server.usb.hal.gadget.UsbGadgetHidl.isServicePresent(UsbGadgetHidl.java:132)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at com.android.server.usb.hal.gadget.UsbGadgetHalInstance.getInstance(UsbGadgetHalInstance.java:39)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at com.android.server.usb.UsbDeviceManager.<init>(UsbDeviceManager.java:312)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at com.android.server.usb.UsbService.<init>(UsbService.java:187)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at com.android.server.usb.UsbService$Lifecycle.lambda$onStart$0(UsbService.java:101)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at com.android.server.usb.UsbService$Lifecycle.$r8$lambda$RuGFfXZPzv9JlSTzhIl-GWrBFrQ(UsbService.java:0)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at com.android.server.usb.UsbService$Lifecycle$$ExternalSyntheticLambda2.run(R8$$SyntheticClass:0)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at com.android.server.SystemServerInitThreadPool.lambda$submitTask$0(SystemServerInitThreadPool.java:107)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at com.android.server.SystemServerInitThreadPool.$r8$lambda$iar571g8isa6ZrPZMHj1USmyX48(SystemServerInitThreadPool.java:0)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at com.android.server.SystemServerInitThreadPool$$ExternalSyntheticLambda1.run(R8$$SyntheticClass:0)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:487)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at java.util.concurrent.FutureTask.run(FutureTask.java:264)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:644)
+12-05 15:54:45.349 E/UsbDeviceManager(  564): 	at com.android.internal.util.ConcurrentUtils$1$1.run(ConcurrentUtils.java:65)
+12-05 15:54:45.350 E/UsbPortManager(  564): USB Gadget HAL AIDL/HIDL not present
+12-05 15:54:45.351 E/UsbDeviceManagerJNI(  564): could not open control for mtp No such file or directory
+12-05 15:54:45.352 E/UsbDeviceManager(  564): Failed to open control for mtp
+12-05 15:54:45.352 E/UsbDeviceManagerJNI(  564): could not open control for ptp No such file or directory
+12-05 15:54:45.352 E/UsbDeviceManager(  564): Failed to open control for ptp
+12-05 15:54:45.361 E/UsbDeviceManagerJNI(  564): could not open /dev/usb_accessory
+12-05 15:54:45.403 E/AS.AudioService(  564): error reading spatial audio device settings
+12-05 15:54:45.755 E/AutofillManagerServiceImpl(  564): Bad service name: com.google.android.gms/.autofill.service.AutofillService
+12-05 15:54:45.926 E/DisplayPowerController2[0](  564): failed to set up display white-balance: java.lang.IllegalStateException: cannot find sensor com.google.sensor.color
+12-05 15:54:46.003 E/AppWidgetManager(  564): Nofity service of inheritance info
+12-05 15:54:46.003 E/AppWidgetManager(  564): java.lang.IllegalStateException: User 0 must be unlocked for widgets to be available
+12-05 15:54:46.003 E/AppWidgetManager(  564): 	at com.android.server.appwidget.AppWidgetServiceImpl.ensureGroupStateLoadedLocked(AppWidgetServiceImpl.java:650)
+12-05 15:54:46.003 E/AppWidgetManager(  564): 	at com.android.server.appwidget.AppWidgetServiceImpl.ensureGroupStateLoadedLocked(AppWidgetServiceImpl.java:644)
+12-05 15:54:46.003 E/AppWidgetManager(  564): 	at com.android.server.appwidget.AppWidgetServiceImpl.getInstalledProvidersForProfile(AppWidgetServiceImpl.java:1708)
+12-05 15:54:46.003 E/AppWidgetManager(  564): 	at android.appwidget.AppWidgetManager.getInstalledProvidersForProfile(AppWidgetManager.java:923)
+12-05 15:54:46.003 E/AppWidgetManager(  564): 	at android.appwidget.AppWidgetManager.getInstalledProvidersForPackage(AppWidgetManager.java:857)
+12-05 15:54:46.003 E/AppWidgetManager(  564): 	at android.appwidget.AppWidgetManager.lambda$new$3(AppWidgetManager.java:536)
+12-05 15:54:46.003 E/AppWidgetManager(  564): 	at android.appwidget.AppWidgetManager.$r8$lambda$MnZCUjy90wcD58stsygv3SVPbu4(Unknown Source:0)
+12-05 15:54:46.003 E/AppWidgetManager(  564): 	at android.appwidget.AppWidgetManager$$ExternalSyntheticLambda4.run(Unknown Source:2)
+12-05 15:54:46.003 E/AppWidgetManager(  564): 	at android.os.Handler.handleCallback(Handler.java:958)
+12-05 15:54:46.003 E/AppWidgetManager(  564): 	at android.os.Handler.dispatchMessage(Handler.java:99)
+12-05 15:54:46.003 E/AppWidgetManager(  564): 	at android.os.Looper.loopOnce(Looper.java:205)
+12-05 15:54:46.003 E/AppWidgetManager(  564): 	at android.os.Looper.loop(Looper.java:294)
+12-05 15:54:46.003 E/AppWidgetManager(  564): 	at android.os.HandlerThread.run(HandlerThread.java:67)
+12-05 15:55:28.125 E/TestHarnessModeService(  564): Failed to start Test Harness Mode; no implementation of PersistentDataBlockManagerInternal was bound!
+12-05 15:55:48.951 E/system_server(  564): libdebuggerd_client: failed to read status response from tombstoned: timeout reached?
+12-05 15:56:05.396 E/SupplicantStaIfaceHalAidlImpl(  564): Can't call setDebugParams, ISupplicant is null
+12-05 15:56:33.361 E/WifiChipAidlImpl(  564): getMode failed with service-specific exception: android.os.ServiceSpecificException:  (code 5)
+12-05 15:56:33.363 E/android.hardware.wifi-service(  387): Unknown iface name: wlan0
+12-05 15:56:33.363 E/android.hardware.wifi-service(  387): Unknown iface name: wlan0
+12-05 15:56:33.585 E/WifiChipAidlImpl(  564): getMode failed with service-specific exception: android.os.ServiceSpecificException:  (code 5)
+12-05 15:56:33.585 E/android.hardware.wifi-service(  387): Unknown iface name: wlan0
+12-05 15:56:33.585 E/android.hardware.wifi-service(  387): Unknown iface name: wlan0
+12-05 15:56:35.407 E/system_server(  564): libdebuggerd_client: failed to read status response from tombstoned: Try again
+12-05 15:56:35.413 E/ActivityManager(  564): Aborting stack trace dump (current firstPid=564); deadline exceeded.
+12-05 15:56:40.655 E/android.hardware.wifi-service(  387): Failed to register radio mode change callback
+12-05 15:56:40.657 E/android.hardware.wifi-service(  387): Failed to get SupportedIfaceCombinations matrix from legacy HAL: NOT_SUPPORTED
+12-05 15:56:40.659 E/IPCThreadState(  387): binder thread pool (1 threads) starved for 7071 ms
+12-05 15:56:40.665 E/android.hardware.wifi-service(  387): Failed to set DFS flag; DFS channels may be unavailable.
+12-05 15:56:43.036 E/android.hardware.wifi-service(  387): Failed to get chip capabilities from legacy HAL: NOT_SUPPORTED
+12-05 15:56:43.037 E/WifiChipAidlImpl(  564): getWifiChipCapabilities failed with service-specific exception: android.os.ServiceSpecificException:  (code 4)
+12-05 15:56:43.150 E/SupplicantStaIfaceHalAidlImpl(  564): Can't call getKeyMgmtCapabilities, ISupplicantStaIface is null for iface=wlan0
+12-05 15:56:43.155 E/android.hardware.wifi-service(  387): Failed to get SupportedRadioCombinations matrix from legacy HAL: NOT_SUPPORTED
+12-05 15:56:43.155 E/WifiChipAidlImpl(  564): getSupportedRadioCombinations failed with service-specific exception: android.os.ServiceSpecificException:  (code 4)
+12-05 15:56:43.155 E/SupplicantStaIfaceHalAidlImpl(  564): Can't call getWpaDriverCapabilities, ISupplicantStaIface is null for iface=wlan0
+12-05 15:56:43.156 E/WifiChipAidlImpl(  564): getUsableChannels failed with service-specific exception: android.os.ServiceSpecificException:  (code 4)
+12-05 15:56:43.172 E/WifiChipAidlImpl(  564): enableStaChannelForPeerNetwork failed with service-specific exception: android.os.ServiceSpecificException:  (code 4)
+12-05 15:56:46.336 E/tombstoned(  220): failed to get crash output for type kDebuggerdNativeBacktrace
+12-05 15:56:46.337 E/libc    (  909): failed to read response to DumpRequest packet: No message of desired type
+12-05 15:56:46.395 E/tombstoned(  220): Traces for pid 564 written to: trace_00
+12-05 15:56:46.836 E/DefaultPermGrantPolicy(  564): Package not found: com.google.android.apps.setupwizard.searchselector
+12-05 15:56:46.836 E/DefaultPermGrantPolicy(  564): Package not found: com.google.android.apps.nest.dockmanager.app
+12-05 15:56:46.864 E/DefaultPermGrantPolicy(  564): Package not found: com.google.android.gms.location.history
+12-05 15:56:47.059 E/DefaultPermGrantPolicy(  564): Package not found: com.google.android.apps.pixelmigrate
+12-05 15:56:47.062 E/DefaultPermGrantPolicy(  564): Package not found: com.google.android.adservices
+12-05 15:56:47.062 E/DefaultPermGrantPolicy(  564): Package not found: com.google.android.apps.mediashell
+12-05 15:56:47.063 E/DefaultPermGrantPolicy(  564): Package not found: com.google.android.apps.tips
+12-05 15:56:47.063 E/DefaultPermGrantPolicy(  564): Package not found: com.google.android.apps.turbo
+12-05 15:56:47.063 E/DefaultPermGrantPolicy(  564): Package not found: com.google.android.euicc
+12-05 15:56:47.064 E/DefaultPermGrantPolicy(  564): Package not found: com.google.android.volta
+12-05 15:56:47.649 E/WifiChipAidlImpl(  564): getUsableChannels failed with service-specific exception: android.os.ServiceSpecificException:  (code 4)
+12-05 15:56:47.747 E/WifiChipAidlImpl(  564): setMultiStaUseCase failed with service-specific exception: android.os.ServiceSpecificException:  (code 4)
+12-05 15:56:47.747 E/WifiChipAidlImpl(  564): setMultiStaPrimaryConnection failed with service-specific exception: android.os.ServiceSpecificException:  (code 4)
+12-05 15:56:47.748 E/WifiStaIfaceAidlImpl(  564): getBackgroundScanCapabilities failed with service-specific exception: android.os.ServiceSpecificException:  (code 4)
+12-05 15:56:49.678 E/DisplayModeDirector(  564): Asked about unknown display, returning empty display mode specs!(id=0)
+12-05 15:56:49.679 E/DisplayModeDirector(  564): Asked about unknown display, returning empty display mode specs!(id=0)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): Attempted to fetch resources before Health Connect resources APK is loaded!
+12-05 15:57:14.876 E/HealthConnectResContext(  564): java.lang.IllegalStateException
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at com.android.server.healthconnect.migration.notification.HealthConnectResourcesContext.resolvePackageInfo(HealthConnectResourcesContext.java:129)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at com.android.server.healthconnect.migration.notification.HealthConnectResourcesContext.initialisePackageNames(HealthConnectResourcesContext.java:87)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at com.android.server.healthconnect.migration.notification.HealthConnectResourcesContext.<init>(HealthConnectResourcesContext.java:83)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at com.android.server.healthconnect.migration.notification.HealthConnectResourcesContext.<init>(HealthConnectResourcesContext.java:70)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at com.android.server.healthconnect.migration.notification.MigrationNotificationFactory.<init>(MigrationNotificationFactory.java:107)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at com.android.server.healthconnect.migration.notification.MigrationNotificationSender.<init>(MigrationNotificationSender.java:60)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at com.android.server.healthconnect.HealthConnectManagerService.<init>(HealthConnectManagerService.java:105)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at java.lang.reflect.Constructor.newInstance0(Native Method)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at java.lang.reflect.Constructor.newInstance(Constructor.java:343)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at com.android.server.SystemServiceManager.startService(SystemServiceManager.java:218)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at com.android.server.SystemServiceManager.startService(SystemServiceManager.java:142)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at com.android.server.SystemServer.startOtherServices(SystemServer.java:2864)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at com.android.server.SystemServer.run(SystemServer.java:942)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at com.android.server.SystemServer.main(SystemServer.java:664)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at java.lang.reflect.Method.invoke(Native Method)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:552)
+12-05 15:57:14.876 E/HealthConnectResContext(  564): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:949)
+12-05 15:57:15.096 E/OmxInfoBuilder(  465): Cannot find an IOmxStore service.
+12-05 15:57:15.436 E/ssioncontroller(  948): Not starting debugger since process cannot load the jdwp agent.
+12-05 15:57:16.049 E/Codec2-FilterWrapper(  375): plugin not OK: -19
+12-05 15:57:17.405 E/idmap2d ( 1081): no resources were overlaid
+12-05 15:57:17.482 E/AppOps  (  564): Bad call made by uid 1000. Package "android" does not belong to uid 1037.
+12-05 15:57:17.491 E/AppOps  (  564): Cannot checkOperation
+12-05 15:57:17.491 E/AppOps  (  564): java.lang.SecurityException: Specified package "android" under uid 1037 but it is not
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.appop.AppOpsService.verifyAndGetBypass(AppOpsService.java:3886)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.appop.AppOpsService.verifyAndGetBypass(AppOpsService.java:3746)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.appop.AppOpsService.verifyAndGetBypass(AppOpsService.java:3738)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.appop.AppOpsService.checkOperationUnchecked(AppOpsService.java:2417)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.appop.AppOpsService.checkOperationImpl(AppOpsService.java:2400)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.appop.AppOpsService.-$$Nest$mcheckOperationImpl(AppOpsService.java:0)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.appop.AppOpsService$CheckOpsDelegateDispatcher.$r8$lambda$fx57Sum-uA3sXo7NCFwrI3iq4WM(AppOpsService.java:0)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.appop.AppOpsService$CheckOpsDelegateDispatcher$$ExternalSyntheticLambda9.apply(R8$$SyntheticClass:0)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.policy.AppOpsPolicy.checkOperation(AppOpsPolicy.java:221)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.appop.AppOpsService$CheckOpsDelegateDispatcher.checkOperation(AppOpsService.java:6389)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.appop.AppOpsService.checkOperation(AppOpsService.java:2385)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.StorageManagerService$StorageManagerInternalImpl.hasExternalStorageAccess(StorageManagerService.java:4717)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.am.ProcessList.startProcessLocked(ProcessList.java:1778)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.am.ProcessList.startProcessLocked(ProcessList.java:2483)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.am.ProcessList.startProcessLocked(ProcessList.java:2628)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.am.ActivityManagerService.startIsolatedProcess(ActivityManagerService.java:2894)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.am.ActivityManagerService$LocalService.startIsolatedProcess(ActivityManagerService.java:17372)
+12-05 15:57:17.491 E/AppOps  (  564): 	at android.webkit.WebViewLibraryLoader.createRelroFile(WebViewLibraryLoader.java:126)
+12-05 15:57:17.491 E/AppOps  (  564): 	at android.webkit.WebViewLibraryLoader.createRelros(WebViewLibraryLoader.java:170)
+12-05 15:57:17.491 E/AppOps  (  564): 	at android.webkit.WebViewLibraryLoader.prepareNativeLibraries(WebViewLibraryLoader.java:152)
+12-05 15:57:17.491 E/AppOps  (  564): 	at android.webkit.WebViewFactory.onWebViewProviderChanged(WebViewFactory.java:555)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.webkit.SystemImpl.onWebViewProviderChanged(SystemImpl.java:174)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.webkit.WebViewUpdateServiceImpl.onWebViewProviderChanged(WebViewUpdateServiceImpl.java:351)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.webkit.WebViewUpdateServiceImpl.prepareWebViewInSystemServer(WebViewUpdateServiceImpl.java:182)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.webkit.WebViewUpdateService.prepareWebViewInSystemServer(WebViewUpdateService.java:129)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.SystemServer.lambda$startOtherServices$4(SystemServer.java:2919)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.SystemServer.$r8$lambda$t1R-mpe1gQ3l_T3UqaEuPqwZT88(SystemServer.java:0)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.SystemServer$$ExternalSyntheticLambda7.run(R8$$SyntheticClass:0)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.SystemServerInitThreadPool.lambda$submitTask$0(SystemServerInitThreadPool.java:107)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.SystemServerInitThreadPool.$r8$lambda$iar571g8isa6ZrPZMHj1USmyX48(SystemServerInitThreadPool.java:0)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.server.SystemServerInitThreadPool$$ExternalSyntheticLambda1.run(R8$$SyntheticClass:0)
+12-05 15:57:17.491 E/AppOps  (  564): 	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:487)
+12-05 15:57:17.491 E/AppOps  (  564): 	at java.util.concurrent.FutureTask.run(FutureTask.java:264)
+12-05 15:57:17.491 E/AppOps  (  564): 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)
+12-05 15:57:17.491 E/AppOps  (  564): 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:644)
+12-05 15:57:17.491 E/AppOps  (  564): 	at com.android.internal.util.ConcurrentUtils$1$1.run(ConcurrentUtils.java:65)
+12-05 15:57:17.632 E/WebViewLoader-x( 1104): Not starting debugger since process cannot load the jdwp agent.
+12-05 15:57:18.501 E/WebViewUpdateServiceImpl(  564): Timed out waiting for relro creation, relros started 1 relros finished 0 package dirty? false
+12-05 15:57:20.797 E/AppWidgetManager(  944): Nofity service of inheritance info
+12-05 15:57:20.797 E/AppWidgetManager(  944): java.lang.IllegalStateException: User 0 must be unlocked for widgets to be available
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at android.os.Parcel.createExceptionOrNull(Parcel.java:3065)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at android.os.Parcel.createException(Parcel.java:3041)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at android.os.Parcel.readException(Parcel.java:3024)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at android.os.Parcel.readException(Parcel.java:2966)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at com.android.internal.appwidget.IAppWidgetService$Stub$Proxy.getInstalledProvidersForProfile(IAppWidgetService.java:990)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at android.appwidget.AppWidgetManager.getInstalledProvidersForProfile(AppWidgetManager.java:923)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at android.appwidget.AppWidgetManager.getInstalledProvidersForPackage(AppWidgetManager.java:857)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at android.appwidget.AppWidgetManager.lambda$new$3(AppWidgetManager.java:536)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at android.appwidget.AppWidgetManager.$r8$lambda$MnZCUjy90wcD58stsygv3SVPbu4(Unknown Source:0)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at android.appwidget.AppWidgetManager$$ExternalSyntheticLambda4.run(Unknown Source:2)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at android.os.Handler.handleCallback(Handler.java:958)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at android.os.Handler.dispatchMessage(Handler.java:99)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at android.os.Looper.loopOnce(Looper.java:205)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at android.os.Looper.loop(Looper.java:294)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at android.os.HandlerThread.run(HandlerThread.java:67)
+12-05 15:57:20.797 E/AppWidgetManager(  944): Caused by: android.os.RemoteException: Remote stack trace:
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at com.android.server.appwidget.AppWidgetServiceImpl.ensureGroupStateLoadedLocked(AppWidgetServiceImpl.java:650)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at com.android.server.appwidget.AppWidgetServiceImpl.ensureGroupStateLoadedLocked(AppWidgetServiceImpl.java:644)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at com.android.server.appwidget.AppWidgetServiceImpl.getInstalledProvidersForProfile(AppWidgetServiceImpl.java:1708)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at com.android.internal.appwidget.IAppWidgetService$Stub.onTransact(IAppWidgetService.java:510)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 	at android.os.Binder.execTransactInternal(Binder.java:1339)
+12-05 15:57:20.797 E/AppWidgetManager(  944): 
+12-05 15:57:20.797 E/EGL_emulation(  415): eglQueryContext 3100  EGL_BAD_ATTRIBUTE
+12-05 15:57:20.797 E/EGL_emulation(  415): tid 495: eglQueryContext(2146): error 0x3004 (EGL_BAD_ATTRIBUTE)
+12-05 15:57:20.843 E/ActivityRecognitionHardware(  564): activity_recognition HAL is deprecated. is_supported is effectively a no-op
+12-05 15:57:20.889 E/system_server(  564): Can't open file: /sys/kernel/ion/total_heaps_kb
+12-05 15:57:20.889 E/system_server(  564): Can't open file: /sys/kernel/ion/total_pools_kb
+12-05 15:57:20.970 E/StatsCompanionService(  564): Could not get installer for package: com.google.android.trichromelibrary
+12-05 15:57:20.970 E/StatsCompanionService(  564): android.content.pm.PackageManager$NameNotFoundException: com.google.android.trichromelibrary
+12-05 15:57:20.970 E/StatsCompanionService(  564): 	at android.app.ApplicationPackageManager.getInstallSourceInfo(ApplicationPackageManager.java:2569)
+12-05 15:57:20.970 E/StatsCompanionService(  564): 	at com.android.server.stats.StatsCompanionService.getInstallerPackageName(StatsCompanionService.java:153)
+12-05 15:57:20.970 E/StatsCompanionService(  564): 	at com.android.server.stats.StatsCompanionService.lambda$informAllUids$0(StatsCompanionService.java:239)
+12-05 15:57:20.970 E/StatsCompanionService(  564): 	at com.android.server.stats.StatsCompanionService.$r8$lambda$VOiYvFUkZmZjyfB0dWDMf-akDT0(StatsCompanionService.java:0)
+12-05 15:57:20.970 E/StatsCompanionService(  564): 	at com.android.server.stats.StatsCompanionService$$ExternalSyntheticLambda1.run(R8$$SyntheticClass:0)
+12-05 15:57:20.970 E/StatsCompanionService(  564): 	at android.os.Handler.handleCallback(Handler.java:958)
+12-05 15:57:20.970 E/StatsCompanionService(  564): 	at android.os.Handler.dispatchMessage(Handler.java:99)
+12-05 15:57:20.970 E/StatsCompanionService(  564): 	at android.os.Looper.loopOnce(Looper.java:205)
+12-05 15:57:20.970 E/StatsCompanionService(  564): 	at android.os.Looper.loop(Looper.java:294)
+12-05 15:57:20.970 E/StatsCompanionService(  564): 	at android.os.HandlerThread.run(HandlerThread.java:67)
+12-05 15:57:21.007 E/rkstack.process( 1172): Not starting debugger since process cannot load the jdwp agent.
+12-05 15:57:21.072 E/system_server(  564): Unable to read DMA-BUF heap total pool size, read ION total pool size instead.
+12-05 15:57:21.072 E/system_server(  564): Can't open file: /sys/kernel/ion/total_pools_kb
+12-05 15:57:22.466 E/system_server(  564): libdebuggerd_client: timeout expired
+12-05 15:57:53.175 E/ActivityManager(  564): Aborting stack trace dump (current native pid=362); deadline exceeded.
+12-05 15:57:53.599 E/CountryDetector(  564): Could not instantiate the custom country detector class

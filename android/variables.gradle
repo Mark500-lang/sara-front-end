@@ -1,13 +1,13 @@
 ext {
-    minSdkVersion = 23
-    compileSdkVersion = 34  
-    targetSdkVersion = 34   
+    minSdkVersion = 24  // Changed from 23 to 24 
+    compileSdkVersion = 35  
+    targetSdkVersion = 35   
     
-    // Dependency versions
+    // Dependency versions - UPDATED for compatibility with Java 21 and AGP 8.5.0
     androidxActivityVersion = '1.9.2'
     androidxAppCompatVersion = '1.7.0'  
     androidxCoordinatorLayoutVersion = '1.2.0'
-    androidxCoreVersion = '1.15.0'
+    androidxCoreVersion = '1.12.0'  // CHANGED: Downgraded from 1.15.0 to 1.12.0 (more stable)
     androidxFragmentVersion = '1.8.4'
     coreSplashScreenVersion = '1.0.1'
     androidxWebkitVersion = '1.12.1'
@@ -16,4 +16,8 @@ ext {
     androidxEspressoCoreVersion = '3.6.1' 
     cordovaAndroidVersion = '10.1.1'
     capacitorAndroidVersion = '7.0.0'
+    
+    // Additional versions for compatibility
+    androidxCoreKtxVersion = '1.12.0'  // Added for Kotlin compatibility
+    kotlinVersion = '1.9.23'  // Added for Java 21 compatibility
 }

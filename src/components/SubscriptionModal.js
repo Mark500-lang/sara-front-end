@@ -2,466 +2,453 @@ import { useState, useEffect, useCallback } from "react";
 import "./SubscriptionModal.css";
 import { BsMoonStarsFill } from "react-icons/bs";
 import { Modal, Button, Form, Spinner, Row, Col } from "react-bootstrap";
-import ParentalGateModal from "./ParentalGateModal";
-import { Purchases } from '@revenuecat/purchases-capacitor';
+import { Purchases, LOG_LEVEL } from "@revenuecat/purchases-capacitor";
+import { Capacitor } from "@capacitor/core";
+import { getDeviceId } from "../utils/deviceIdentity";
 
-const PRODUCT_IDS = {
-  monthly: 'com.littlestories.app.monthlyrenewable',
-  yearly: 'com.littlestories.app.yearlyrenewable',
+// ─── Config (sourced from .env) ───────────────────────────────────────────────
+const RC_API_KEYS = {
+  ios:     process.env.REACT_APP_REVENUECAT_IOS_API_KEY,
+  android: process.env.REACT_APP_REVENUECAT_ANDROID_API_KEY,
 };
 
+const PRODUCT_IDS = {
+  monthly: "com.littlestories.app.premiummonthlyrenewable",
+  yearly:  "com.littlestories.app.premiumyearlyrenewable",
+};
+
+const ENTITLEMENT_ID = "Sara Stories Subscriptions";
+
+// ─── Platform helpers ─────────────────────────────────────────────────────────
+const getPlatform = () => Capacitor.getPlatform();      // "ios" | "android" | "web"
+const isNative    = () => Capacitor.isNativePlatform(); // false in browser / dev
+
+// ─── Component ────────────────────────────────────────────────────────────────
 const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
-  const [selectedPlan, setSelectedPlan] = useState("yearly");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+
+  // ── State ──────────────────────────────────────────────────────────────
+  const [selectedPlan,       setSelectedPlan]       = useState("yearly");
+  const [loading,            setLoading]            = useState(false);
+  const [error,              setError]              = useState(null);
   const [purchaseInProgress, setPurchaseInProgress] = useState(false);
-  const [initialized, setInitialized] = useState(false);
-  const [restoring, setRestoring] = useState(false);
-  const [networkStatus, setNetworkStatus] = useState(true);
-  
-  // ENHANCED VISUAL DEBUG STATES
-  const [debugStatus, setDebugStatus] = useState("Ready");
-  const [storeKitStatus, setStoreKitStatus] = useState("Checking...");
-  const [productStatus, setProductStatus] = useState("Unknown");
-  const [debugDetails, setDebugDetails] = useState(""); // New: For detailed debug info
+  const [initialized,        setInitialized]        = useState(false);
+  const [restoring,          setRestoring]          = useState(false);
+  const [networkStatus,      setNetworkStatus]      = useState(true);
 
-  // Simple network monitoring
+  // Real localised prices fetched from the store after init
+  const [monthlyPrice, setMonthlyPrice] = useState("$4.99");
+  const [yearlyPrice,  setYearlyPrice]  = useState("$34.99");
+
+  // ── Network monitoring ─────────────────────────────────────────────────
   useEffect(() => {
-    const handleOnline = () => {
-      setNetworkStatus(true);
-      if (error?.includes('network')) setError(null);
-    };
-    const handleOffline = () => setNetworkStatus(false);
+    const up   = () => setNetworkStatus(true);
+    const down = () => setNetworkStatus(false);
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    window.addEventListener("online",  up);
+    window.addEventListener("offline", down);
     setNetworkStatus(navigator.onLine);
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener("online",  up);
+      window.removeEventListener("offline", down);
     };
-  }, [error]);
+  }, []);
 
-  // ENHANCED: Debug logging that shows on screen
-  const addDebugDetail = (message) => {
-    setDebugDetails(prev => {
-      const timestamp = new Date().toLocaleTimeString();
-      const newMessage = `[${timestamp}] ${message}\n`;
-      // Keep last 10 debug messages to avoid overflow
-      const lines = (prev + newMessage).split('\n');
-      if (lines.length > 10) {
-        return lines.slice(-10).join('\n');
+  // ── Load offerings → resolve real store prices ─────────────────────────
+  // Mirrors Dare to Connect's subscriptionService.getPaymentPackages()
+  const loadOfferings = async () => {
+    try {
+      const { current } = await Purchases.getOfferings();
+
+      if (!current) {
+        console.warn("[IAP] No current offering returned from RevenueCat.");
+        return;
       }
-      return prev + newMessage;
-    });
+
+      for (const pkg of Object.values(current.availablePackages)) {
+        const { identifier, priceString } = pkg.product;
+        if (identifier === PRODUCT_IDS.monthly) setMonthlyPrice(priceString);
+        if (identifier === PRODUCT_IDS.yearly)  setYearlyPrice(priceString);
+      }
+    } catch (err) {
+      console.warn("[IAP] loadOfferings failed:", err.message);
+    }
   };
 
-  // REVENUECAT IAP Initialization with VISUAL DEBUGGING
+  // ── RevenueCat initialisation ──
   const initializeIAP = useCallback(async () => {
-    setDebugStatus("Initializing RevenueCat Purchases...");
-    addDebugDetail("🚀 Initializing @revenuecat/purchases-capacitor");
+    if (!isNative()) {
+      console.warn("[IAP] Non-native platform — skipping RevenueCat init.");
+      setInitialized(true);
+      return;
+    }
 
     try {
-      // Configure RevenueCat
-      await Purchases.configure({
-        apiKey: "appl_xxx" // Replace with your RevenueCat API key
-      });
-      
-      addDebugDetail("✅ RevenueCat configured");
-      
-      // Load offerings (products)
-      const offerings = await Purchases.getOfferings();
-      
-      if (offerings.current) {
-        addDebugDetail(`✅ Offerings loaded: ${Object.keys(offerings.current.availablePackages).length} packages`);
-        
-        // Log available products for debugging
-        Object.values(offerings.current.availablePackages).forEach(pkg => {
-          addDebugDetail(`📦 ${pkg.product.identifier}: ${pkg.product.title} - ${pkg.product.priceString}`);
-        });
-        
-        setProductStatus("Products loaded");
-      } else {
-        addDebugDetail("⚠️ No current offerings available");
-      }
-      
-      setInitialized(true);
-      setStoreKitStatus("✅ Ready");
-      setDebugStatus("Purchases ready");
-      addDebugDetail("🎉 RevenueCat Purchases initialized successfully");
+      const apiKey = getPlatform() === "android"
+        ? RC_API_KEYS.android
+        : RC_API_KEYS.ios;
 
-    } catch (error) {
-      addDebugDetail(`❌ RevenueCat init failed: ${error.message}`);
-      setDebugStatus(`Init failed: ${error.message}`);
-      setStoreKitStatus("❌ Failed");
+      if (process.env.NODE_ENV !== "production") {
+        await Purchases.setLogLevel({ level: LOG_LEVEL.DEBUG });
+      }
+
+      await Purchases.configure({ apiKey });
+      console.log("[IAP] RevenueCat configured for:", getPlatform());
+
+      // ── Log the device UUID into RevenueCat as the App User ID ──────────
+      // This ties all purchases to this device permanently.
+      // If the app is reinstalled, the same UUID is restored from SecureStorage,
+      // so the user can always restore their purchases.
+      const deviceId = await getDeviceId();
+      if (deviceId) {
+        await Purchases.logIn({ appUserID: deviceId });
+        console.log("[IAP] RevenueCat logged in with device UUID:", deviceId);
+      }
+
+      await loadOfferings();
+
+      const customerInfo = await Purchases.getCustomerInfo();
+      if (Object.keys(customerInfo.entitlements.active).length > 0) {
+        console.log("[IAP] User already has active entitlements on init.");
+      }
+
+      setInitialized(true);
+    } catch (err) {
+      console.error("[IAP] Initialization failed:", err);
+      setInitialized(true);
     }
   }, []);
 
-  // REVENUECAT: Purchase handler with detailed visual debugging
+  // ── Purchase handler ───────────────────────────────────────────────────
+  // Mirrors Dare to Connect's subscriptionService.purchasePackage()
   const handleSubscribe = async () => {
+
+    if (!isNative()) {
+      setError("In-app purchases are only available on iOS and Android.");
+      return;
+    }
     if (!initialized) {
-      setError('Payment system still initializing. Please wait...');
-      setDebugStatus("System not ready");
-      addDebugDetail("❌ Purchase blocked: System not initialized");
+      setError("Payment system is still initialising. Please wait a moment.");
+      return;
+    }
+    if (!networkStatus) {
+      setError("No internet connection. Please check your network and try again.");
       return;
     }
 
     setLoading(true);
     setError(null);
     setPurchaseInProgress(true);
-    setDebugStatus("Starting purchase...");
-    addDebugDetail("🛒 Starting purchase process...");
 
-    const productId = selectedPlan === 'monthly' ? PRODUCT_IDS.monthly : PRODUCT_IDS.yearly;
+    const targetId = selectedPlan === "monthly"
+      ? PRODUCT_IDS.monthly
+      : PRODUCT_IDS.yearly;
 
     try {
-      addDebugDetail(`🔍 Looking for product: ${productId}`);
-      
-      // Get current offerings
-      const offerings = await Purchases.getOfferings();
-      
-      if (!offerings.current) {
-        throw new Error('No products available');
+      // 1. Fetch current offerings
+      const { current } = await Purchases.getOfferings();
+
+      if (!current) {
+        throw new Error("No products are currently available. Please try again later.");
       }
 
-      // Find the package for our product
+      // 2. Find the package matching our target product ID
       let packageToPurchase = null;
-      
-      // Check all available packages for our product ID
-      for (const packageKey in offerings.current.availablePackages) {
-        const pkg = offerings.current.availablePackages[packageKey];
-        if (pkg.product.identifier === productId) {
+
+      for (const pkg of Object.values(current.availablePackages)) {
+        if (pkg.product.identifier === targetId) {
           packageToPurchase = pkg;
           break;
         }
       }
 
+      // 3. Graceful fallback — mirrors Dare to Connect's fallback pattern
       if (!packageToPurchase) {
-        // Fallback: use first available package
-        const firstPackageKey = Object.keys(offerings.current.availablePackages)[0];
-        if (firstPackageKey) {
-          packageToPurchase = offerings.current.availablePackages[firstPackageKey];
-          addDebugDetail(`⚠️ Exact product not found, using: ${packageToPurchase.product.identifier}`);
+        const fallback = Object.values(current.availablePackages)[0];
+        if (fallback) {
+          console.warn(`[IAP] "${targetId}" not found. Falling back to "${fallback.product.identifier}".`);
+          packageToPurchase = fallback;
         } else {
-          throw new Error('No products available for purchase');
+          throw new Error("No products available for purchase.");
         }
       }
 
-      addDebugDetail(`🎯 Purchasing: ${packageToPurchase.product.title} - ${packageToPurchase.product.priceString}`);
+      console.log(`[IAP] Purchasing: ${packageToPurchase.product.title} @ ${packageToPurchase.product.priceString}`);
 
-      // Make purchase
-      const purchaseResult = await Purchases.purchasePackage(packageToPurchase);
-      
-      addDebugDetail("✅ Purchase completed, checking entitlements...");
-      
-      // Check if purchase was successful
-      if (purchaseResult.customerInfo.entitlements.active.premium) {
-        addDebugDetail("🎉 Purchase successful! Premium access granted");
+      // 4. Trigger the native purchase sheet
+      const { customerInfo } = await Purchases.purchasePackage({
+        aPackage: packageToPurchase,
+      });
+
+      // 5. Entitlement check — mirrors Dare to Connect's purchaseResult.success check
+      const activeEntitlements = Object.keys(customerInfo.entitlements.active);
+
+      const hasPremium =
+        !!customerInfo.entitlements.active[ENTITLEMENT_ID] ||
+        activeEntitlements.length > 0;
+
+      if (hasPremium) {
+        console.log("[IAP] Purchase successful. Active entitlements:", activeEntitlements);
         onPaymentSuccess();
         onClose();
       } else {
-        // Check for any active entitlement
-        const activeEntitlements = Object.keys(purchaseResult.customerInfo.entitlements.active);
-        if (activeEntitlements.length > 0) {
-          addDebugDetail(`🎉 Purchase successful! Active entitlements: ${activeEntitlements.join(', ')}`);
-          onPaymentSuccess();
-          onClose();
-        } else {
-          throw new Error('Purchase completed but no active entitlements');
-        }
+        throw new Error(
+          "Purchase completed but no active entitlement was found. Please tap Restore Purchases."
+        );
       }
-      
-    } catch (error) {
-      // Check if user cancelled
-      if (error.message.includes('User cancelled') || error.message.includes('cancelled') || error.code === '1') {
-        addDebugDetail("ℹ️ Purchase cancelled by user");
-        setError('Purchase cancelled');
+
+    } catch (err) {
+      const msg  = err.message || "";
+      const code = err.code;
+
+      if (
+        msg.toLowerCase().includes("cancelled") ||
+        msg.toLowerCase().includes("canceled")  ||
+        code === "1" || code === 1
+      ) {
+        // User tapped Cancel — not an error, dismiss silently
+        setError(null);
+
+      } else if (msg.toLowerCase().includes("already owned")) {
+        // Android: Google Play returns "already owned" for active subscriptions
+        // Treat as success — mirrors Dare to Connect's "already own" handler
+        console.log("[IAP] Product already owned — granting access.");
+        onPaymentSuccess();
+        onClose();
+
+      } else if (msg.toLowerCase().includes("network")) {
+        setError("Network error. Please check your internet connection and try again.");
+
       } else {
-        addDebugDetail(`❌ Purchase failed: ${error.message}`);
-        setError(`Purchase failed: ${error.message}`);
+        setError(`Purchase failed: ${msg}`);
       }
+
+    } finally {
       setLoading(false);
       setPurchaseInProgress(false);
     }
   };
 
-  // REVENUECAT: Restore purchases with debugging
+  // ── Restore purchases ──────────────────────────────────────────────────
+  // Mirrors Dare to Connect's subscriptionService.restorePurchases()
   const restorePurchases = async () => {
+
+    if (!isNative()) {
+      setError("Restore is only available on iOS and Android.");
+      return;
+    }
+
     setRestoring(true);
     setError(null);
-    setDebugStatus("Restoring purchases...");
-    addDebugDetail("🔄 Restoring purchases...");
 
     try {
       const customerInfo = await Purchases.restorePurchases();
-      
-      // Check for any active entitlement
-      const activeEntitlements = Object.keys(customerInfo.entitlements.active);
-      
+
+      const activeEntitlements = Object.keys(
+        customerInfo.entitlements?.active ?? {}
+      );
+
       if (activeEntitlements.length > 0) {
-        addDebugDetail(`✅ Purchases restored - active entitlements: ${activeEntitlements.join(', ')}`);
-        setError('Purchases restored successfully!');
+        console.log("[IAP] Restore successful. Entitlements:", activeEntitlements);
         onPaymentSuccess();
         onClose();
       } else {
-        addDebugDetail("ℹ️ No active purchases found");
-        setError('No active purchases found');
+        setError("No active purchases found for this account.");
       }
-    } catch (error) {
-      addDebugDetail(`❌ Restore failed: ${error.message}`);
-      setError('Could not restore purchases. Please try again.');
+
+    } catch (err) {
+      console.error("[IAP] Restore failed:", err);
+      setError("Could not restore purchases. Please try again.");
     } finally {
       setRestoring(false);
     }
   };
 
-  // REVENUECAT: Test IAP setup with visual output
-  const testIAPSetup = async () => {
-    addDebugDetail("🧪 Running RevenueCat setup test...");
-    
-    try {
-      const offerings = await Purchases.getOfferings();
-      const revenueCatAvailable = !!offerings;
-      
-      addDebugDetail(`💰 RevenueCat: ${revenueCatAvailable ? '✅ Available' : '❌ Missing'}`);
-      
-      if (offerings.current) {
-        const packageCount = Object.keys(offerings.current.availablePackages).length;
-        addDebugDetail(`📦 Available packages: ${packageCount}`);
-        
-        Object.values(offerings.current.availablePackages).forEach(pkg => {
-          addDebugDetail(`   ${pkg.product.identifier}: ${pkg.product.title}`);
-        });
-      }
-    } catch (error) {
-      addDebugDetail(`❌ RevenueCat test failed: ${error.message}`);
-    }
-    
-    addDebugDetail("✅ RevenueCat setup test completed");
-  };
-
+  // ── UI helpers ─────────────────────────────────────────────────────────
   const getButtonText = () => {
-    if (restoring) return "Restoring...";
+    if (restoring)          return "Restoring...";
     if (purchaseInProgress) return "Processing...";
-    if (loading) return "Initializing...";
+    if (loading)            return "Initializing...";
     return "Subscribe Now";
   };
 
-  const isButtonDisabled = () => {
-    return loading || purchaseInProgress || !initialized || restoring || !networkStatus;
-  };
+  const isButtonDisabled = () =>
+    loading || purchaseInProgress || !initialized || restoring || !networkStatus;
 
-  // Reset when modal closes
+  // ── Lifecycle ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!show) {
       setError(null);
       setLoading(false);
       setPurchaseInProgress(false);
       setRestoring(false);
-      setDebugStatus("Ready");
     }
   }, [show]);
 
-  // Call test when modal opens and after initialization
   useEffect(() => {
     if (show && !initialized) {
-      setDebugDetails("");
-      addDebugDetail("🔔 Modal opened - starting RevenueCat diagnostics...");
       initializeIAP();
     }
   }, [show, initialized, initializeIAP]);
 
-  useEffect(() => {
-    if (initialized) {
-      addDebugDetail("🎉 System initialized - running final checks...");
-      testIAPSetup();
-    }
-  }, [initialized]);
-
+  // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <>
-      <Modal
-        show={show}
-        onHide={onClose}
-        fullscreen={true}
-        dialogClassName="subscription-modal-fullscreen bg-transparent border-0"
-        backdropClassName="custom-backdrop"
-        centered
-        scrollable={false}
-      >
-        <Modal.Header closeButton className="border-0 modal-header-fixed">
-        </Modal.Header>
+    <Modal
+      show={show}
+      onHide={onClose}
+      fullscreen={true}
+      dialogClassName="subscription-modal-fullscreen bg-transparent border-0"
+      backdropClassName="custom-backdrop"
+      centered
+      scrollable={false}
+    >
+      <Modal.Header closeButton className="border-0 modal-header-fixed" />
 
-        <Modal.Body className="d-flex flex-column justify-content-between align-items-center text-white modal-body-fullscreen">
-          <h3 className="text-white w-100 text-center mt-3 mb-4">
-            Subscribe to Sara Stories
-          </h3>
-          
-          <ul className="list-unstyled text-center mb-4 benefits-list">
-            <li><BsMoonStarsFill className="benefits-icon" /> Peaceful and restful sleep for your child</li>
-            <li><BsMoonStarsFill className="benefits-icon" /> More than 3000 illustrations</li>
-            <li><BsMoonStarsFill className="benefits-icon" /> Cancel anytime</li>
-          </ul>
-          
-          <div className="flex-grow-1 d-flex flex-column justify-content-center w-100">
-            <Row className="w-100 justify-content-center">
-              <Col xs={12} md={8} lg={6}>
-                <h5 className="mb-4 text-white text-center">Select Plan</h5>
+      <Modal.Body className="d-flex flex-column justify-content-between align-items-center text-white modal-body-fullscreen">
 
-                {/* ENHANCED VISUAL DEBUG PANEL */}
-                <div className="mb-3 p-2 rounded text-center" style={{ 
-                  background: 'rgba(255,255,255,0.1)', 
-                  border: '1px solid rgba(255,255,255,0.3)',
-                  maxHeight: '150px',
-                  overflowY: 'auto',
-                  fontSize: '15px',
-                  textAlign: 'left',
-                  padding: '8px'
-                }}>
-                  <div className="text-center mb-1">
-                    <small className="text-white-50">
-                      <strong>Status:</strong> {debugStatus} | 
-                      <strong> RevenueCat:</strong> {storeKitStatus} | 
-                      <strong> Products:</strong> {productStatus}
-                    </small>
-                  </div>
-                  <hr className="my-1" style={{ borderColor: 'rgba(255,255,255,0.2)' }} />
-                  <pre className="text-white-50 mb-0" style={{ 
-                    fontSize: '12px', 
-                    lineHeight: '1.2',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-all',
-                    margin: 0
-                  }}>
-                    {debugDetails || "Debug information will appear here..."}
-                  </pre>
-                </div>
+        <h3 className="text-white w-100 text-center mt-3 mb-4">
+          Subscribe to Sara Stories
+        </h3>
 
-                {/* Monthly Plan */}
-                <div
-                  className={`plan-option mb-3 p-3 rounded d-flex align-items-center ${selectedPlan === "monthly" ? "selected" : ""}`}
-                  onClick={() => setSelectedPlan("monthly")}
-                  style={{ cursor: "pointer" }}
-                >
-                  <Form.Check
-                    type="radio"
-                    id="monthly"
-                    name="plan"
-                    checked={selectedPlan === "monthly"}
-                    onChange={() => setSelectedPlan("monthly")}
-                    className="me-3 custom-radio"
-                  />
-                  <div className="d-flex flex-column flex-grow-1">
-                    <span className="text-white fw-bold">Premium Monthly Subscription</span>
-                    <div className="d-flex align-items-baseline">
-                      <span className="text-white fw-bold fs-4 me-1">$4.99</span>
-                      <span className="text-white-50 fs-6">/month</span>
-                    </div>
+        <ul className="list-unstyled text-center mb-4 benefits-list">
+          <li><BsMoonStarsFill className="benefits-icon" /> Peaceful and restful sleep for your child</li>
+          <li><BsMoonStarsFill className="benefits-icon" /> More than 3000 illustrations</li>
+          <li><BsMoonStarsFill className="benefits-icon" /> Cancel anytime</li>
+        </ul>
+
+        <div className="flex-grow-1 d-flex flex-column justify-content-center w-100">
+          <Row className="w-100 justify-content-center">
+            <Col xs={12} md={8} lg={6}>
+
+              <h5 className="mb-4 text-white text-center">Select Plan</h5>
+
+              {/* Monthly Plan */}
+              <div
+                className={`plan-option mb-3 p-3 rounded d-flex align-items-center ${selectedPlan === "monthly" ? "selected" : ""}`}
+                onClick={() => setSelectedPlan("monthly")}
+                style={{ cursor: "pointer" }}
+              >
+                <Form.Check
+                  type="radio"
+                  id="monthly"
+                  name="plan"
+                  checked={selectedPlan === "monthly"}
+                  onChange={() => setSelectedPlan("monthly")}
+                  className="me-3 custom-radio"
+                />
+                <div className="d-flex flex-column flex-grow-1">
+                  <span className="text-white fw-bold">Premium Monthly Subscription</span>
+                  <div className="d-flex align-items-baseline">
+                    <span className="text-white fw-bold fs-4 me-1">{monthlyPrice}</span>
+                    <span className="text-white-50 fs-6">/month</span>
                   </div>
                 </div>
+              </div>
 
-                {/* Yearly Plan */}
-                <div
-                  className={`plan-option mb-3 p-3 rounded d-flex align-items-center ${selectedPlan === "yearly" ? "selected" : ""}`}
-                  onClick={() => setSelectedPlan("yearly")}
-                  style={{ cursor: "pointer" }}
-                >
-                  <Form.Check
-                    type="radio"
-                    id="yearly"
-                    name="plan"
-                    checked={selectedPlan === "yearly"}
-                    onChange={() => setSelectedPlan("yearly")}
-                    className="me-3 custom-radio"
-                  />
-                  <div className="d-flex flex-column flex-grow-1">
-                    <span className="text-white fw-bold">Premium Yearly Subscription</span>
-                    <div className="d-flex align-items-baseline">
-                      <span className="text-white fw-bold fs-4 me-1">$34.99</span>
-                      <span className="text-white-50 fs-6">/year</span>
-                    </div>
+              {/* Yearly Plan */}
+              <div
+                className={`plan-option mb-3 p-3 rounded d-flex align-items-center ${selectedPlan === "yearly" ? "selected" : ""}`}
+                onClick={() => setSelectedPlan("yearly")}
+                style={{ cursor: "pointer" }}
+              >
+                <Form.Check
+                  type="radio"
+                  id="yearly"
+                  name="plan"
+                  checked={selectedPlan === "yearly"}
+                  onChange={() => setSelectedPlan("yearly")}
+                  className="me-3 custom-radio"
+                />
+                <div className="d-flex flex-column flex-grow-1">
+                  <span className="text-white fw-bold">Premium Yearly Subscription</span>
+                  <div className="d-flex align-items-baseline">
+                    <span className="text-white fw-bold fs-4 me-1">{yearlyPrice}</span>
+                    <span className="text-white-50 fs-6">/year</span>
                   </div>
                 </div>
+              </div>
 
-                {/* Network Status */}
-                {!networkStatus && (
-                  <div className="mt-3 text-center">
-                    <small className="text-warning">No internet connection</small>
-                  </div>
-                )}
-
-                {/* Error Display */}
-                {error && (
-                  <div className="mt-3 p-2 rounded text-center error-message">
-                    <small className="text-warning">{error}</small>
-                  </div>
-                )}
-
-                <div className="mt-4 p-3 rounded text-center" style={{ background: 'rgba(255,255,255,0.1)' }}>
-                  <small className="text-white-50">
-                    Payment processed securely through Apple. Subscriptions auto-renew until canceled in Settings.
-                  </small>
+              {/* Network warning */}
+              {!networkStatus && (
+                <div className="mt-3 text-center">
+                  <small className="text-warning">No internet connection</small>
                 </div>
-              </Col>
-            </Row>
-          </div>
+              )}
 
-          <div className="w-100 text-center pb-4">
+              {/* Error display */}
+              {error && (
+                <div className="mt-3 p-2 rounded text-center error-message">
+                  <small className="text-warning">{error}</small>
+                </div>
+              )}
+
+              <div className="mt-4 p-3 rounded text-center" style={{ background: "rgba(255,255,255,0.1)" }}>
+                <small className="text-white-50">
+                  Payment processed securely through{" "}
+                  {getPlatform() === "android" ? "Google Play" : "Apple"}.
+                  Subscriptions auto-renew until cancelled in Settings.
+                </small>
+              </div>
+
+            </Col>
+          </Row>
+        </div>
+
+        {/* CTA & footer */}
+        <div className="w-100 text-center pb-4">
+
+          <Button
+            variant="warning"
+            className="mt-4 w-75 fw-bold py-3 subscribe-button"
+            onClick={handleSubscribe}
+            disabled={isButtonDisabled()}
+            size="lg"
+          >
+            {(loading || purchaseInProgress || restoring) && (
+              <Spinner animation="border" size="sm" className="me-2" />
+            )}
+            {getButtonText()}
+          </Button>
+
+          <div className="mt-3">
             <Button
-              variant="warning"
-              className="mt-4 w-75 fw-bold py-3 subscribe-button"
-              onClick={handleSubscribe}
-              disabled={isButtonDisabled()}
-              size="lg"
+              variant="outline-light"
+              size="sm"
+              onClick={restorePurchases}
+              disabled={restoring || !initialized || !networkStatus}
+              className="restore-button"
             >
-              {loading || purchaseInProgress || restoring ? (
-                <Spinner animation="border" size="sm" className="me-2" />
-              ) : null}
-              {getButtonText()}
+              {restoring && <Spinner animation="border" size="sm" className="me-2" />}
+              Restore Purchases
             </Button>
-
-            <div className="mt-3">
-              <Button
-                variant="outline-light"
-                size="sm"
-                onClick={restorePurchases}
-                disabled={restoring || !initialized || !networkStatus}
-                className="restore-button"
-              >
-                {restoring ? <Spinner animation="border" size="sm" className="me-2" /> : null}
-                Restore Purchases
-              </Button>
-            </div>
-
-            <div className="mt-4 d-flex justify-content-center gap-4">
-              <a
-                href="https://www.privacypolicies.com/live/396845b8-e470-4bed-8cbb-5432ab867986"
-                className="text-decoration-underline text-warning"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Privacy Policy
-              </a>
-              <a
-                href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
-                className="text-decoration-underline text-warning"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Terms of Use
-              </a>
-            </div>
-
-            <div className="mt-3 text-center">
-              <small className="text-white-50">
-                Manage subscriptions in Settings
-              </small>
-            </div>
           </div>
-        </Modal.Body>
-      </Modal>
-    </>
+
+          <div className="mt-4 d-flex justify-content-center gap-4">
+            <a
+              href="https://www.privacypolicies.com/live/396845b8-e470-4bed-8cbb-5432ab867986"
+              className="text-decoration-underline text-warning"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Privacy Policy
+            </a>
+            <a
+              href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
+              className="text-decoration-underline text-warning"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Terms of Use
+            </a>
+          </div>
+
+          <div className="mt-3 text-center">
+            <small className="text-white-50">Manage subscriptions in Settings</small>
+          </div>
+
+        </div>
+      </Modal.Body>
+    </Modal>
   );
 };
 

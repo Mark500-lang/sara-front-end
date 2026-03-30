@@ -1,0 +1,4 @@
+{
+    "extensions.webWorker": false,
+    "java.configuration.updateBuildConfiguration": "interactive"
+}

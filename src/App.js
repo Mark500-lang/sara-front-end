@@ -27,6 +27,9 @@ import PaymentSuccess from "./Pages/PaymentSuccess";
 import backgroundMusic from "./assets/please-calm-my-mind-125566.mp3";
 import DataDeletionPolicy from "./Pages/AccountDeletion";
 
+import { tokenManager } from "./utils/tokenManager";
+import { initDeviceIdentity } from "./utils/deviceIdentity";
+
 function AnimatedRoutes({ 
   toggleMusic, 
   isMusicPlaying, 
@@ -127,91 +130,77 @@ function App() {
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
   const [volume, setVolume] = useState(0.5);
   const [booksData, setBooksData] = useState(null);
+  const [appReady, setAppReady] = useState(false); // ← new
   const musicRef = useRef(null);
 
-  // Fetch all book data once on app initialization
   useEffect(() => {
+    let cancelled = false; // guards against Strict Mode's second effect run
+
     const initializeApp = async () => {
+      // Fire registration in background — never await it here
+      initDeviceIdentity(tokenManager).catch(err =>
+        console.warn('[App] Device registration error:', err.message)
+      );
+
+      // Books fetch
       try {
-        // Check for cached data first
-        const cachedData = await Preferences.get({ key: 'booksData' });
+        const cachedData     = await Preferences.get({ key: 'booksData' });
         const cacheTimestamp = await Preferences.get({ key: 'booksDataTimestamp' });
-        
-        const isCacheValid = cachedData.value && cacheTimestamp.value && 
-          (Date.now() - parseInt(cacheTimestamp.value)) < (24 * 60 * 60 * 1000); // 24 hour cache
-        
+
+        const isCacheValid =
+          cachedData.value &&
+          cacheTimestamp.value &&
+          Date.now() - parseInt(cacheTimestamp.value) < 24 * 60 * 60 * 1000;
+
         if (isCacheValid) {
-          console.log("Loading books from cache");
-          setBooksData(JSON.parse(cachedData.value));
-          return;
-        }
-
-        // Fetch fresh data from API
-        const response = await fetch("https://kithia.com/website_b5d91c8e/api/books-with-first-pages", {
-          method: "GET",
-          headers: {
-            "ngrok-skip-browser-warning": "69420",
-            "Content-Type": "application/json",
-          },
-          timeout: 15000,
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch books: ${response.status}`);
-        }
-
-        const data = await response.json();
-        
-        if (!Array.isArray(data)) {
-          throw new Error("Invalid books response: not an array");
-        }
-
-        console.log("Fetched books with first pages:", data);
-        
-        // Transform data for easier access
-        const transformedData = {
-          books: data.map(book => ({
-            id: book.id,
-            title: book.title,
-            cover_image: book.cover_image,
-            first_page_image: book.first_page_image
-          })),
-          firstPages: data.reduce((acc, book) => {
-            if (book.first_page_image) {
-              acc[book.id] = `https://kithia.com/website_b5d91c8e/book-backend/public/${book.first_page_image}`;
-            }
-            return acc;
-          }, {})
-        };
-
-        setBooksData(transformedData);
-        
-        // Cache the data
-        await Preferences.set({ 
-          key: 'booksData', 
-          value: JSON.stringify(transformedData) 
-        });
-        await Preferences.set({ 
-          key: 'booksDataTimestamp', 
-          value: Date.now().toString() 
-        });
-        
-      } catch (error) {
-        console.error("Error initializing app:", error);
-        
-        // Try to use cached data even if expired
-        const cachedData = await Preferences.get({ key: 'booksData' });
-        if (cachedData.value) {
-          console.log("Using expired cache as fallback");
-          setBooksData(JSON.parse(cachedData.value));
+          console.log('Loading books from cache');
+          if (!cancelled) setBooksData(JSON.parse(cachedData.value));
         } else {
-          // No data available
-          setBooksData({ books: [], firstPages: {} });
+          const response = await fetch(
+            'https://kithia.com/website_b5d91c8e/api/books-with-first-pages',
+            { headers: { 'Content-Type': 'application/json' } }
+          );
+          if (!response.ok) throw new Error(`Books fetch failed: ${response.status}`);
+          const data = await response.json();
+          if (!Array.isArray(data)) throw new Error('Invalid books response');
+
+          const transformedData = {
+            books: data.map(book => ({
+              id:               book.id,
+              title:            book.title,
+              cover_image:      book.cover_image,
+              first_page_image: book.first_page_image,
+            })),
+            firstPages: data.reduce((acc, book) => {
+              if (book.first_page_image) {
+                acc[book.id] = `https://kithia.com/website_b5d91c8e/book-backend/public/${book.first_page_image}`;
+              }
+              return acc;
+            }, {}),
+          };
+
+          if (!cancelled) {
+            setBooksData(transformedData);
+            await Preferences.set({ key: 'booksData',          value: JSON.stringify(transformedData) });
+            await Preferences.set({ key: 'booksDataTimestamp', value: Date.now().toString() });
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching books:', error);
+        const cachedData = await Preferences.get({ key: 'booksData' });
+        if (!cancelled) {
+          setBooksData(
+            cachedData.value ? JSON.parse(cachedData.value) : { books: [], firstPages: {} }
+          );
         }
       }
+
+      if (!cancelled) setAppReady(true);
     };
 
     initializeApp();
+
+    return () => { cancelled = true; }; // cleanup for Strict Mode second run
   }, []);
 
   const toggleMusic = () => {
@@ -236,13 +225,22 @@ function App() {
         <source src={backgroundMusic} type="audio/mpeg" />
         Your browser does not support the audio tag.
       </audio>
-      <AnimatedRoutes
-        toggleMusic={toggleMusic}
-        isMusicPlaying={isMusicPlaying}
-        volume={volume}
-        setVolume={handleVolumeChange}
-        booksData={booksData}
-      />
+
+      {!appReady ? (
+        <div className="d-flex justify-content-center align-items-center vh-100">
+          <div className="spinner-border text-white" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      ) : (
+        <AnimatedRoutes
+          toggleMusic={toggleMusic}
+          isMusicPlaying={isMusicPlaying}
+          volume={volume}
+          setVolume={handleVolumeChange}
+          booksData={booksData}
+        />
+      )}
     </Router>
   );
 }

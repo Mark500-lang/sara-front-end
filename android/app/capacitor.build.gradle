@@ -15,8 +15,9 @@ dependencies {
     implementation project(':capacitor-device')
     implementation project(':capacitor-filesystem')
     implementation project(':capacitor-preferences')
+    implementation project(':revenuecat-purchases-capacitor')
     implementation project(':capacitor-voice-recorder')
-    implementation "com.android.billingclient:billing:7.1.1"
+
 }
 
 

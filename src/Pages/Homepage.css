@@ -110,12 +110,14 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 50px;
   color: white;
   background: rgba(0, 0, 0, 0.4);
-  border-radius: 50px;
-  width: 40px;
-  padding: 5px;
+  border-radius: 50%;
+  width: 52px;
+  height: 52px;
+  padding: 11px;
+  z-index: 2;
+  pointer-events: none;
 }
 .book-title {
   position: absolute;
@@ -132,9 +134,10 @@
 }
 
 @media (max-width: 890px) {
-  .book-grid {
-    /* grid-template-columns: repeat(2, 1fr); */
-    padding: 0px 30px 40px;
+  .book-lock {
+    width: 42px;
+    height: 42px;
+    padding: 9px;
   }
   .book-container {
     position: relative;

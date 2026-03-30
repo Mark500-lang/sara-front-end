@@ -31,7 +31,12 @@ const PageUploadForm = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setMessage(`Page ${data.page_number} uploaded successfully!`);
+        const isUpdate = response.status === 200;
+        setMessage(
+          isUpdate
+            ? `Page ${data.page_number} updated successfully!`
+            : `Page ${data.page_number} created successfully!`
+        );
         setPageNumber("");
         setWords("");
         setPageImage(null);
@@ -86,13 +91,13 @@ const PageUploadForm = () => {
         </div>
         <div className="mb-3">
           <label htmlFor="pageImage" className="form-label">
-            Page Image
+            Page Image <span className="text-muted">(leave blank to keep existing)</span>
           </label>
           <input
             type="file"
             className="form-control"
             id="pageImage"
-            onChange={(e) => setPageImage(e.target.files[0])}
+            onChange={(e) => setPageImage(e.target.files[0] || null)}
           />
         </div>
         <button type="submit" className="btn btn-primary">
