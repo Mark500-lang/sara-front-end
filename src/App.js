@@ -27,33 +27,32 @@ import PaymentSuccess from "./Pages/PaymentSuccess";
 import backgroundMusic from "./assets/please-calm-my-mind-125566.mp3";
 import DataDeletionPolicy from "./Pages/AccountDeletion";
 
-import { tokenManager } from "./utils/tokenManager";
-import { initDeviceIdentity } from "./utils/deviceIdentity";
+// ── tokenManager and initDeviceIdentity are NOT imported here ─────────────────
+// Registration is handled once in ChildProfileScreen which is always the
+// first screen. Calling it here as well caused the double-registration.
 
-function AnimatedRoutes({ 
-  toggleMusic, 
-  isMusicPlaying, 
-  volume, 
-  setVolume, 
-  booksData 
+function AnimatedRoutes({
+  toggleMusic,
+  isMusicPlaying,
+  volume,
+  setVolume,
+  booksData
 }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [adminToken, setAdminToken] = useState(localStorage.getItem("auth_token"));
-
   const isReturningFromBook = location.state?.returningFromBook || false;
 
   useEffect(() => {
-    const token = localStorage.getItem("auth_token");
-    setAdminToken(token);
+    setAdminToken(localStorage.getItem("auth_token"));
   }, [location.pathname]);
 
   useEffect(() => {
     const handleAppUrlOpen = (event) => {
       if (event.url) {
         try {
-          const url = new URL(event.url);
-          let path = url.host || url.pathname.replace(/^\/+/, "");
+          const url  = new URL(event.url);
+          const path = url.host || url.pathname.replace(/^\/+/, "");
 
           setTimeout(() => {
             const token = localStorage.getItem("auth_token");
@@ -62,17 +61,11 @@ function AnimatedRoutes({
             } else if (path === "verify-email") {
               navigate(`/verify-email?token=${url.searchParams.get("token")}`);
             } else if (path === "reset-password") {
-              navigate(
-                `/reset-password?token=${url.searchParams.get("token")}`
-              );
+              navigate(`/reset-password?token=${url.searchParams.get("token")}`);
             } else if (path === "login") {
               navigate("/login");
             } else if (path === "admin") {
-              if (!token) {
-                navigate("/login");
-              } else {
-                navigate("/admin");
-              }
+              navigate(token ? "/admin" : "/login");
             }
           }, 500);
         } catch (error) {
@@ -88,39 +81,33 @@ function AnimatedRoutes({
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        <Route path="/" element={<Navigate to="/profile" />} />
-        <Route path="/profile" element={<ChildProfileScreen />} />
-        <Route
-          path="/home"
-          element={
-            <HomePage
-              isReturningFromBook={isReturningFromBook}
-              toggleMusic={toggleMusic}
-              isMusicPlaying={isMusicPlaying}
-              booksData={booksData}
-            />
-          }
-        />
-        <Route
-          path="/book/:bookId/:pageId"
-          element={
-            <BookPage
-              toggleMusic={toggleMusic}
-              isMusicPlaying={isMusicPlaying}
-              volume={volume}
-              setVolume={setVolume}
-            />
-          }
-        />
-        <Route path="/book-animation" element={<BookOpeningAnimation />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/sign-up" element={<Signup />} />
-        <Route path="/login" element={<Login />} />
+        <Route path="/"               element={<Navigate to="/profile" />} />
+        <Route path="/profile"        element={<ChildProfileScreen />} />
+        <Route path="/home"           element={
+          <HomePage
+            isReturningFromBook={isReturningFromBook}
+            toggleMusic={toggleMusic}
+            isMusicPlaying={isMusicPlaying}
+            booksData={booksData}
+          />
+        } />
+        <Route path="/book/:bookId/:pageId" element={
+          <BookPage
+            toggleMusic={toggleMusic}
+            isMusicPlaying={isMusicPlaying}
+            volume={volume}
+            setVolume={setVolume}
+          />
+        } />
+        <Route path="/book-animation"  element={<BookOpeningAnimation />} />
+        <Route path="/admin"           element={<AdminDashboard />} />
+        <Route path="/sign-up"         element={<Signup />} />
+        <Route path="/login"           element={<Login />} />
         <Route path="/payment-success" element={<PaymentSuccess />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/data-deletion" element={<DataDeletionPolicy />} />
-        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/reset-password"  element={<ResetPassword />} />
+        <Route path="/data-deletion"   element={<DataDeletionPolicy />} />
+        <Route path="/verify-email"    element={<VerifyEmail />} />
       </Routes>
     </AnimatePresence>
   );
@@ -128,21 +115,15 @@ function AnimatedRoutes({
 
 function App() {
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.5);
-  const [booksData, setBooksData] = useState(null);
-  const [appReady, setAppReady] = useState(false); // ← new
+  const [volume,         setVolume]         = useState(0.5);
+  const [booksData,      setBooksData]      = useState(null);
+  const [appReady,       setAppReady]       = useState(false);
   const musicRef = useRef(null);
 
   useEffect(() => {
-    let cancelled = false; // guards against Strict Mode's second effect run
+    let cancelled = false;
 
     const initializeApp = async () => {
-      // Fire registration in background — never await it here
-      initDeviceIdentity(tokenManager).catch(err =>
-        console.warn('[App] Device registration error:', err.message)
-      );
-
-      // Books fetch
       try {
         const cachedData     = await Preferences.get({ key: 'booksData' });
         const cacheTimestamp = await Preferences.get({ key: 'booksDataTimestamp' });
@@ -190,7 +171,9 @@ function App() {
         const cachedData = await Preferences.get({ key: 'booksData' });
         if (!cancelled) {
           setBooksData(
-            cachedData.value ? JSON.parse(cachedData.value) : { books: [], firstPages: {} }
+            cachedData.value
+              ? JSON.parse(cachedData.value)
+              : { books: [], firstPages: {} }
           );
         }
       }
@@ -199,31 +182,26 @@ function App() {
     };
 
     initializeApp();
-
-    return () => { cancelled = true; }; // cleanup for Strict Mode second run
+    return () => { cancelled = true; };
   }, []);
 
   const toggleMusic = () => {
-    setIsMusicPlaying(!isMusicPlaying);
-    if (!isMusicPlaying) {
-      musicRef.current.play();
-    } else {
-      musicRef.current.pause();
-    }
+    setIsMusicPlaying(prev => {
+      if (!prev) musicRef.current?.play();
+      else       musicRef.current?.pause();
+      return !prev;
+    });
   };
 
   const handleVolumeChange = (newVolume) => {
     setVolume(newVolume);
-    if (musicRef.current) {
-      musicRef.current.volume = newVolume;
-    }
+    if (musicRef.current) musicRef.current.volume = newVolume;
   };
 
   return (
     <Router>
       <audio ref={musicRef} loop>
         <source src={backgroundMusic} type="audio/mpeg" />
-        Your browser does not support the audio tag.
       </audio>
 
       {!appReady ? (

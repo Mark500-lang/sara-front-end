@@ -1,12 +1,18 @@
-import { Capacitor } from '@capacitor/core';
-import { Device }    from '@capacitor/device';
+import { Capacitor }     from '@capacitor/core';
+import { Device }        from '@capacitor/device';
 import { SecureStorage } from '@aparajita/capacitor-secure-storage';
 
 const DEVICE_ID_KEY = 'sara_device_uuid';
 const API_BASE_URL  = 'https://kithia.com/website_b5d91c8e/api';
+const IS_NATIVE     = Capacitor.isNativePlatform();
 
-// Evaluated once at module load — never changes during a session
-const IS_NATIVE = Capacitor.isNativePlatform();
+// ── Module-level singleton ────────────────────────────────────────────────────
+// If initDeviceIdentity is called a second time while the first is still
+// running (React Strict Mode double-invoke, multiple components calling it
+// on mount), the second call returns the SAME promise instead of starting
+// a new registration. This guarantees only one UUID is ever generated and
+// only one /register-device POST is ever made per app session.
+let _initPromise = null;
 
 // ── UUID ──────────────────────────────────────────────────────────────────────
 const generateUUID = () => {
@@ -19,10 +25,7 @@ const generateUUID = () => {
   });
 };
 
-// ── UUID storage ──────────────────────────────────────────────────────────────
-// Native  → SecureStorage (survives uninstall on iOS Keychain / Android Keystore)
-// Browser → localStorage  (survives page refresh; dev-friendly)
-
+// ── Storage ───────────────────────────────────────────────────────────────────
 const storeDeviceId = async (uuid) => {
   try {
     if (IS_NATIVE) {
@@ -31,7 +34,6 @@ const storeDeviceId = async (uuid) => {
       localStorage.setItem(DEVICE_ID_KEY, uuid);
     }
   } catch {
-    // If SecureStorage fails, always fall back to localStorage
     localStorage.setItem(DEVICE_ID_KEY, uuid);
   }
 };
@@ -48,40 +50,46 @@ const retrieveDeviceId = async () => {
   }
 };
 
-// ── Register with backend ─────────────────────────────────────────────────────
-// Works on BOTH native AND browser — creates a real row in your users table.
-// The backend controller uses firstOrCreate so calling this multiple times
-// for the same UUID is completely safe (idempotent).
+// ── Token validation ──────────────────────────────────────────────────────────
+const validateToken = async (token) => {
+  if (!token) return false;
+  try {
+    const controller = new AbortController();
+    const timeout    = setTimeout(() => controller.abort(), 5000);
+    const response   = await fetch(`${API_BASE_URL}/user/subscription-status`, {
+      method:  'GET',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      signal:  controller.signal,
+    });
+    clearTimeout(timeout);
+    return response.status !== 401;
+  } catch {
+    return true; // Network error — assume valid, avoid unnecessary re-registration
+  }
+};
 
+// ── Backend registration ──────────────────────────────────────────────────────
 const registerWithBackend = async (deviceId, tokenManager) => {
-  // Collect as much device info as the environment allows
-  let platform   = 'web';
-  let model      = 'browser';
-  let osVersion  = 'unknown';
+  let platform  = 'web';
+  let model     = 'browser';
+  let osVersion = 'unknown';
 
   try {
     const info = await Device.getInfo();
     platform  = info.platform  || platform;
     model     = info.model     || model;
     osVersion = info.osVersion || osVersion;
-  } catch {
-    // Device.getInfo() can fail in the browser — keep defaults above
-  }
+  } catch {}
 
   const controller = new AbortController();
-  const timeout    = setTimeout(() => controller.abort(), 10000); // 10 s hard timeout
+  const timeout    = setTimeout(() => controller.abort(), 10000);
 
   try {
     const response = await fetch(`${API_BASE_URL}/register-device`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       signal:  controller.signal,
-      body: JSON.stringify({
-        device_uuid: deviceId,
-        platform,          // "web" in browser — backend accepts this value
-        model,
-        os_version: osVersion,
-      }),
+      body: JSON.stringify({ device_uuid: deviceId, platform, model, os_version: osVersion }),
     });
 
     if (!response.ok) {
@@ -90,15 +98,10 @@ const registerWithBackend = async (deviceId, tokenManager) => {
     }
 
     const data = await response.json();
-
-    if (!data.token) {
-      throw new Error('Backend returned no token');
-    }
+    if (!data.token) throw new Error('Backend returned no token');
 
     await tokenManager.setToken(data.token);
-    console.log(
-      `[DeviceIdentity] Registered. user_id=${data.user_id} is_new=${data.is_new}`
-    );
+    console.log(`[DeviceIdentity] Registered. user_id=${data.user_id} is_new=${data.is_new}`);
     return data.token;
 
   } finally {
@@ -107,51 +110,57 @@ const registerWithBackend = async (deviceId, tokenManager) => {
 };
 
 // ── Main export ───────────────────────────────────────────────────────────────
-// Call once on app launch (ChildProfileScreen bootstrap).
-// Safe to call multiple times — re-registration is skipped if token exists.
+export const initDeviceIdentity = (tokenManager) => {
+  // If already running or completed this session, return the same promise.
+  // This is the key fix — concurrent callers share one execution, so only
+  // one UUID is generated and only one /register-device POST fires.
+  if (_initPromise) return _initPromise;
 
-export const initDeviceIdentity = async (tokenManager) => {
-  try {
-    // ── Step 1: Get or generate stable UUID ──────────────────────────────────
-    let deviceId = await retrieveDeviceId();
+  _initPromise = (async () => {
+    try {
+      // Step 1 — Get or generate UUID
+      let deviceId = await retrieveDeviceId();
+      if (!deviceId) {
+        deviceId = generateUUID();
+        await storeDeviceId(deviceId);
+        console.log('[DeviceIdentity] First launch — UUID generated:', deviceId);
+      } else {
+        console.log('[DeviceIdentity] Existing UUID:', deviceId);
+      }
 
-    if (!deviceId) {
-      deviceId = generateUUID();
-      await storeDeviceId(deviceId);
-      console.log('[DeviceIdentity] First launch — UUID generated:', deviceId);
-    } else {
-      console.log('[DeviceIdentity] Existing UUID found:', deviceId);
-    }
+      // Step 2 — Validate existing token
+      const existingToken = await tokenManager.getToken();
+      if (existingToken) {
+        const isValid = await validateToken(existingToken);
+        if (isValid) {
+          console.log('[DeviceIdentity] Token valid — skipping registration.');
+          return deviceId;
+        }
+        console.warn('[DeviceIdentity] Token invalid — clearing and re-registering.');
+        await tokenManager.removeToken();
+        // Reset the promise so a fresh registration can be attempted next
+        // app session if this one also fails
+      }
 
-    // ── Step 2: Get or create backend token ──────────────────────────────────
-    // If a token already exists this is a returning user — skip registration.
-    const existingToken = await tokenManager.getToken();
-
-    if (existingToken) {
-      console.log('[DeviceIdentity] Token already present — skipping registration.');
+      // Step 3 — Register
+      console.log('[DeviceIdentity] Registering with backend...');
+      await registerWithBackend(deviceId, tokenManager);
       return deviceId;
+
+    } catch (err) {
+      // Reset singleton so the next app launch retries registration
+      _initPromise = null;
+
+      if (err.name === 'AbortError') {
+        console.warn('[DeviceIdentity] Registration timed out — will retry next launch.');
+      } else {
+        console.error('[DeviceIdentity] Error:', err.message);
+      }
+      return await retrieveDeviceId();
     }
+  })();
 
-    // No token: first launch or token was cleared (e.g. app reinstalled).
-    // Call the backend on ALL platforms including the browser.
-    console.log('[DeviceIdentity] No token — registering with backend...');
-    await registerWithBackend(deviceId, tokenManager);
-
-    return deviceId;
-
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      console.warn('[DeviceIdentity] Registration timed out — will retry next launch.');
-    } else {
-      console.error('[DeviceIdentity] Error:', err.message);
-    }
-    // Never crash the app — return whatever UUID we have
-    return await retrieveDeviceId();
-  }
+  return _initPromise;
 };
 
-// ── Getter ────────────────────────────────────────────────────────────────────
-// Use anywhere you need the device UUID (e.g. RevenueCat logIn in BookPage/SubscriptionModal)
-export const getDeviceId = async () => {
-  return retrieveDeviceId();
-};
+export const getDeviceId = async () => retrieveDeviceId();
