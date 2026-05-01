@@ -72,7 +72,7 @@ const ChildProfileScreen = () => {
   const checkVersion = async () => {
     try {
       let platform = 'web';
-      let version  = '1.1.0';
+      let version  = '1.1.2';
 
       try {
         const info = await Device.getInfo();

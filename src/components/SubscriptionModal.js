@@ -5,6 +5,7 @@ import { Modal, Button, Form, Spinner, Row, Col } from "react-bootstrap";
 import { Purchases, LOG_LEVEL } from "@revenuecat/purchases-capacitor";
 import { Capacitor } from "@capacitor/core";
 import { getDeviceId } from "../utils/deviceIdentity";
+import { setSubscribedInCache, syncSubscriptionToBackend } from "../utils/subscriptionManager";
 
 // ─── Config (sourced from .env) ───────────────────────────────────────────────
 const RC_API_KEYS = {
@@ -55,7 +56,6 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   }, []);
 
   // ── Load offerings → resolve real store prices ─────────────────────────
-  // Mirrors Dare to Connect's subscriptionService.getPaymentPackages()
   const loadOfferings = async () => {
     try {
       const { current } = await Purchases.getOfferings();
@@ -75,7 +75,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
     }
   };
 
-  // ── RevenueCat initialisation ──
+  // ── RevenueCat initialisation ──────────────────────────────────────────
   const initializeIAP = useCallback(async () => {
     if (!isNative()) {
       console.warn("[IAP] Non-native platform — skipping RevenueCat init.");
@@ -95,7 +95,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       await Purchases.configure({ apiKey });
       console.log("[IAP] RevenueCat configured for:", getPlatform());
 
-      // ── Log the device UUID into RevenueCat as the App User ID ──────────
+      // Log the device UUID into RevenueCat as the App User ID.
       // This ties all purchases to this device permanently.
       // If the app is reinstalled, the same UUID is restored from SecureStorage,
       // so the user can always restore their purchases.
@@ -120,7 +120,6 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   }, []);
 
   // ── Purchase handler ───────────────────────────────────────────────────
-  // Mirrors Dare to Connect's subscriptionService.purchasePackage()
   const handleSubscribe = async () => {
 
     if (!isNative()) {
@@ -162,7 +161,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         }
       }
 
-      // 3. Graceful fallback — mirrors Dare to Connect's fallback pattern
+      // 3. Graceful fallback
       if (!packageToPurchase) {
         const fallback = Object.values(current.availablePackages)[0];
         if (fallback) {
@@ -180,7 +179,7 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         aPackage: packageToPurchase,
       });
 
-      // 5. Entitlement check — mirrors Dare to Connect's purchaseResult.success check
+      // 5. Entitlement check
       const activeEntitlements = Object.keys(customerInfo.entitlements.active);
 
       const hasPremium =
@@ -189,6 +188,19 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
       if (hasPremium) {
         console.log("[IAP] Purchase successful. Active entitlements:", activeEntitlements);
+
+        // ── Update the subscriptionManager cache immediately so that the next
+        //    call to getSubscriptionStatus() (on any re-mount of HomePage) reads
+        //    true without waiting for a backend round-trip.
+        //    This is the key fix for books re-locking on app reload. ───────────
+        await setSubscribedInCache(true);
+
+        // ── Fire-and-forget backend sync.
+        //    The RevenueCat webhook may arrive at the backend seconds or minutes
+        //    later — this call bridges that gap so the backend record is updated
+        //    as soon as possible, without blocking the UI. ─────────────────────
+        syncSubscriptionToBackend();
+
         onPaymentSuccess();
         onClose();
       } else {
@@ -210,9 +222,13 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
         setError(null);
 
       } else if (msg.toLowerCase().includes("already owned")) {
-        // Android: Google Play returns "already owned" for active subscriptions
-        // Treat as success — mirrors Dare to Connect's "already own" handler
+        // Android: Google Play returns "already owned" for active subscriptions.
+        // Treat as success.
         console.log("[IAP] Product already owned — granting access.");
+
+        await setSubscribedInCache(true);
+        syncSubscriptionToBackend();
+
         onPaymentSuccess();
         onClose();
 
@@ -230,7 +246,6 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
   };
 
   // ── Restore purchases ──────────────────────────────────────────────────
-  // Mirrors Dare to Connect's subscriptionService.restorePurchases()
   const restorePurchases = async () => {
 
     if (!isNative()) {
@@ -250,6 +265,11 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
 
       if (activeEntitlements.length > 0) {
         console.log("[IAP] Restore successful. Entitlements:", activeEntitlements);
+
+        // ── Same cache + backend sync as purchase success path ───────────────
+        await setSubscribedInCache(true);
+        syncSubscriptionToBackend();
+
         onPaymentSuccess();
         onClose();
       } else {

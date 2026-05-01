@@ -131,7 +131,7 @@ function App() {
         const isCacheValid =
           cachedData.value &&
           cacheTimestamp.value &&
-          Date.now() - parseInt(cacheTimestamp.value) < 24 * 60 * 60 * 1000;
+          Date.now() - parseInt(cacheTimestamp.value) < 6 * 60 * 60 * 1000;
 
         if (isCacheValid) {
           console.log('Loading books from cache');

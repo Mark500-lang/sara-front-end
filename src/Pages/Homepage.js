@@ -7,13 +7,13 @@ import "./Homepage.css";
 import SubscriptionModal from "../components/SubscriptionModal";
 import EmailSetupModal from "../components/EmailSetupModal.js";
 import ParentalGateModal from "../components/ParentalGateModal";
-import emailIcon    from "../assets/Email Icon.png";
-import musicIcon    from "../assets/Music Icon.png";
+import emailIcon     from "../assets/Email Icon.png";
+import musicIcon     from "../assets/Music Icon.png";
 import StopMusicIcon from "../assets/Stop music icon.png";
-import settingsIcon from "../assets/Settings Icon.png";
-import loadingBG    from "../assets/loading-background.png";
+import settingsIcon  from "../assets/Settings Icon.png";
+import loadingBG     from "../assets/loading-background.png";
 import { IoIosLock } from "react-icons/io";
-import { tokenManager } from "../utils/tokenManager";
+import { getSubscriptionStatus } from "../utils/subscriptionManager";
 
 // ── Animation variants ─────────────────────────────────────────────────────────
 const headerVariants = {
@@ -32,14 +32,6 @@ const gridVariants = {
   exit:    { opacity: 0, transition: { duration: 0.3 } },
 };
 
-// ── Fetch with hard timeout ────────────────────────────────────────────────────
-const fetchWithTimeout = (url, options = {}, ms = 8000) => {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  return fetch(url, { ...options, signal: controller.signal })
-    .finally(() => clearTimeout(timer));
-};
-
 // ── Determine if a book is free (unlocked for everyone) ───────────────────────
 // Only book with id === 1 is free. Everything else requires an active subscription.
 const isBookFree = (book) => book.id === 1;
@@ -53,6 +45,7 @@ const HomePage = ({ toggleMusic, isMusicPlaying, booksData }) => {
 
   const [loading,           setLoading]           = useState(true);
   const [progress,          setProgress]          = useState(0);
+  // imageLoadedStatus now stores blob: URLs (string) on success, or false on failure.
   const [imageLoadedStatus, setImageLoadedStatus] = useState({});
   const [imagesReady,       setImagesReady]       = useState(false);
 
@@ -79,6 +72,8 @@ const HomePage = ({ toggleMusic, isMusicPlaying, booksData }) => {
   // Subscription state
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [isSubscribed,          setIsSubscribed]          = useState(false);
+  // Guard: do not render the book grid until we know subscription state.
+  // Prevents the brief flash where all books appear unlocked before the check resolves.
   const [subscriptionChecked,   setSubscriptionChecked]   = useState(false);
 
   // Parental gate state
@@ -97,77 +92,43 @@ const HomePage = ({ toggleMusic, isMusicPlaying, booksData }) => {
   }, []);
 
   // ── Subscription status check ────────────────────────────────────────────────
-  // Uses tokenManager.getToken() — same storage as where the token is written.
-  // Dev browser tokens (dev_browser_*) correctly reach the fetch but the backend
-  // will return 401, which is caught and defaults isSubscribed to false — correct
-  // behaviour for dev since RevenueCat isn't active in the browser anyway.
+  // Priority order (inside getSubscriptionStatus):
+  //   1. RevenueCat SDK — most authoritative on native (iOS/Android).
+  //      Entitlements are cached locally by the RC SDK so this works even
+  //      immediately after a cold start without a network round-trip.
+  //   2. Backend /subscription-status — fallback for web builds or if RC fails.
+  //   3. Short-lived 5-minute Preferences cache — used only when both
+  //      network calls fail (e.g. airplane mode).
+  //   4. false — safe hard default; never falsely unlocks books.
   useEffect(() => {
+    let cancelled = false;
+
     const checkSubscriptionStatus = async () => {
-      try {
-        const token = await tokenManager.getToken();
-
-        if (!token) {
-          setIsSubscribed(false);
-          setSubscriptionChecked(true);
-          await Preferences.set({ key: 'isSubscribed', value: 'false' });
-          return;
-        }
-
-        // Dev browser token — skip the real API call entirely
-        if (token.startsWith('dev_browser_')) {
-          console.log('[HomePage] Dev browser token — skipping subscription API call');
-          setIsSubscribed(false); // treat as unsubscribed in dev
-          setSubscriptionChecked(true);
-          return;
-        }
-
-        const response = await fetchWithTimeout(
-          "https://kithia.com/website_b5d91c8e/api/user/subscription-status",
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-              "ngrok-skip-browser-warning": "69420",
-            },
-          },
-          8000
-        );
-
-        if (!response.ok) throw new Error(`Subscription check: ${response.status}`);
-
-        const data = await response.json();
-
-        if (!data || typeof data.subscription_status !== 'string') {
-          throw new Error("Invalid subscription status response");
-        }
-
-        const subscribed = data.subscription_status === "active";
+      const subscribed = await getSubscriptionStatus();
+      if (!cancelled) {
         setIsSubscribed(subscribed);
         setSubscriptionChecked(true);
-        await Preferences.set({ key: 'isSubscribed', value: subscribed.toString() });
-
-      } catch (error) {
-        if (error.name === 'AbortError') {
-          console.warn('[HomePage] Subscription check timed out');
-        } else {
-          console.error('[HomePage] Subscription check error:', error.message);
-        }
-        setIsSubscribed(false);
-        setSubscriptionChecked(true);
-        await Preferences.set({ key: 'isSubscribed', value: 'false' });
       }
     };
 
     checkSubscriptionStatus();
+    return () => { cancelled = true; };
   }, []);
 
   // ── Image preloading ─────────────────────────────────────────────────────────
+  // Uses fetch({ cache: 'reload' }) instead of new Image() so that Capacitor's
+  // WebView HTTP cache is always bypassed. The response is stored as a blob: URL
+  // in imageLoadedStatus, which lives in JS memory for the session — this is
+  // what prevents covers from disappearing after the WebView evicts its cache.
   useEffect(() => {
     if (books.length === 0) {
       setLoading(false);
       return;
     }
+
+    // Track blob URLs created this session so we can revoke them on unmount
+    // to avoid memory leaks if the user navigates away and back.
+    const createdBlobUrls = [];
 
     let loadedCount   = 0;
     const totalImages = books.length * 2;
@@ -181,10 +142,29 @@ const HomePage = ({ toggleMusic, isMusicPlaying, booksData }) => {
           resolve();
           return;
         }
-        const img    = new Image();
-        img.onload  = () => { loadedCount++; updateProgress(); setImageLoadedStatus(prev => ({ ...prev, [id]: true  })); resolve(); };
-        img.onerror = () => { loadedCount++; updateProgress(); setImageLoadedStatus(prev => ({ ...prev, [id]: false })); resolve(); };
-        img.src     = url;
+
+        // Force a fresh network fetch — bypasses the WebView's stale HTTP cache.
+        fetch(url, { cache: 'reload' })
+          .then((res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.blob();
+          })
+          .then((blob) => {
+            const objectUrl = URL.createObjectURL(blob);
+            createdBlobUrls.push(objectUrl);
+            setImageLoadedStatus(prev => ({ ...prev, [id]: objectUrl }));
+            loadedCount++;
+            updateProgress();
+            resolve();
+          })
+          .catch(() => {
+            // Fetch failed — mark as false so the <img> falls back to the
+            // remote URL directly via its src / onError fallback chain.
+            loadedCount++;
+            updateProgress();
+            setImageLoadedStatus(prev => ({ ...prev, [id]: false }));
+            resolve();
+          });
       });
 
     const updateProgress = () => {
@@ -213,6 +193,11 @@ const HomePage = ({ toggleMusic, isMusicPlaying, booksData }) => {
     };
 
     preloadAllImages();
+
+    // Revoke all blob URLs when the component unmounts to free memory.
+    return () => {
+      createdBlobUrls.forEach(u => URL.revokeObjectURL(u));
+    };
   }, [books, preloadedFirstImages]);
 
   useEffect(() => {
@@ -313,12 +298,12 @@ const HomePage = ({ toggleMusic, isMusicPlaying, booksData }) => {
   };
   const handleModalClose = () => { setShowModal(false); setInputDigits(""); setErrorMessage(""); };
 
-  const handleSubscriptionModalOpen  = () => setShowSubscriptionModal(true);
   const handleSubscriptionModalClose = () => setShowSubscriptionModal(false);
 
   const handlePaymentSuccess = () => {
+    // RC SDK + subscriptionManager cache already updated inside SubscriptionModal
+    // before onPaymentSuccess fires — just mirror the state here.
     setIsSubscribed(true);
-    Preferences.set({ key: 'isSubscribed', value: 'true' });
     setShowSubscriptionModal(false);
   };
 
@@ -401,10 +386,21 @@ const HomePage = ({ toggleMusic, isMusicPlaying, booksData }) => {
           >
             <div className={`book-animated ${isBookOpen ? 'book-open' : ''}`}>
               <div className="book-cover-all">
+                {/* Use the blob: URL when available; fall back to the remote URL.
+                    onError handles the edge case where the blob URL was garbage-collected
+                    (e.g. after a very long session) — the remote URL is always the safety net. */}
                 <img
-                  src={imageLoadedStatus[selectedBook.id] ? `${imageBaseUrl}${selectedBook.cover_image}` : ''}
+                  src={
+                    imageLoadedStatus[selectedBook.id]
+                      ? imageLoadedStatus[selectedBook.id]
+                      : `${imageBaseUrl}${selectedBook.cover_image}`
+                  }
                   alt="Book Cover"
                   className="cover-image"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = `${imageBaseUrl}${selectedBook.cover_image}`;
+                  }}
                 />
                 <div className="book-cover-back"><div className="cover-back-inside" /></div>
               </div>
@@ -459,48 +455,66 @@ const HomePage = ({ toggleMusic, isMusicPlaying, booksData }) => {
         />
       </motion.div>
 
-      {/* Book grid */}
-      <motion.div
-        className="book-grid"
-        initial="initial"
-        variants={gridVariants}
-        animate={selectedBook ? "exit" : "animate"}
-        exit="exit"
-        style={{ pointerEvents: selectedBook ? 'none' : 'auto' }}
-      >
-        {books
-          .filter(book => book.cover_image)
-          .map((book) => {
-            const locked = !isBookFree(book) && !isSubscribed;
+      {/* Book grid
+          subscriptionChecked guard prevents a flash of all-unlocked books
+          while the RC / backend check is still in flight. The loading screen
+          above already covers the image-preload wait, so by the time we reach
+          this render the images are ready; we just need subscription state too. */}
+      {subscriptionChecked && (
+        <motion.div
+          className="book-grid"
+          initial="initial"
+          variants={gridVariants}
+          animate={selectedBook ? "exit" : "animate"}
+          exit="exit"
+          style={{ pointerEvents: selectedBook ? 'none' : 'auto' }}
+        >
+          {books
+            .filter(book => book.cover_image)
+            .map((book) => {
+              const locked = !isBookFree(book) && !isSubscribed;
 
-            return (
-              <motion.div
-                key={book.id}
-                className="book-item"
-                onClick={(e) => handleBookClick(book, e)}
-                variants={bookVariants}
-                transition={{ duration: 1 }}
-              >
-                <div className="book-container">
-                  <img
-                    src={`${imageBaseUrl}${book.cover_image}`}
-                    alt={book.title}
-                    className="book-cover"
-                    style={locked ? { filter: 'saturate(0.55)' } : undefined}
-                  />
+              return (
+                <motion.div
+                  key={book.id}
+                  className="book-item"
+                  onClick={(e) => handleBookClick(book, e)}
+                  variants={bookVariants}
+                  transition={{ duration: 1 }}
+                >
+                  <div className="book-container">
+                    {/* Prefer the in-memory blob: URL created during preload.
+                        If it is falsy (fetch failed) fall back to the remote URL directly.
+                        onError is a final safety net in case the blob URL was revoked
+                        or the remote URL changes between sessions. */}
+                    <img
+                      src={
+                        imageLoadedStatus[book.id]
+                          ? imageLoadedStatus[book.id]
+                          : `${imageBaseUrl}${book.cover_image}`
+                      }
+                      alt={book.title}
+                      className="book-cover"
+                      style={locked ? { filter: 'saturate(0.55)' } : undefined}
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = `${imageBaseUrl}${book.cover_image}`;
+                      }}
+                    />
 
-                  {locked && (
-                    <IoIosLock className="book-lock" />
-                  )}
+                    {locked && (
+                      <IoIosLock className="book-lock" />
+                    )}
 
-                  <div className="book-title-overlay">
-                    <h4 className="book-title">{book.title}</h4>
+                    <div className="book-title-overlay">
+                      <h4 className="book-title">{book.title}</h4>
+                    </div>
                   </div>
-                </div>
-              </motion.div>
-            );
-          })}
-      </motion.div>
+                </motion.div>
+              );
+            })}
+        </motion.div>
+      )}
 
       {/* Modals */}
       <SubscriptionModal
