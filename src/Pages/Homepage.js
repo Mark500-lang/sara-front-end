@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Container } from "react-bootstrap";
 import { motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Preferences } from '@capacitor/preferences';
 import "./Homepage.css";
 import SubscriptionModal from "../components/SubscriptionModal";
 import EmailSetupModal from "../components/EmailSetupModal.js";
@@ -40,14 +39,41 @@ const HomePage = ({ toggleMusic, isMusicPlaying, booksData }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const books                = booksData?.books      || [];
-  const preloadedFirstImages = booksData?.firstPages || {};
+  // ── Stable data refs ─────────────────────────────────────────────────────────
+  // booksData?.books and booksData?.firstPages produce NEW array/object literals
+  // on every render even when the underlying data is identical. Storing them in
+  // refs means the image-preload useEffect dependency never sees a new reference,
+  // so the effect fires exactly once — which is what eliminates the progress-bar
+  // resets. The ref is only updated when booksData itself changes identity
+  // (i.e. when App.js actually fetches fresh data).
+  const booksRef      = useRef(booksData?.books      || []);
+  const firstPagesRef = useRef(booksData?.firstPages || {});
 
+  useEffect(() => {
+    // Keep refs in sync if App.js delivers new booksData (cache → fresh fetch).
+    // This does NOT re-run the preload effect — the effect reads from the refs
+    // directly rather than from the dependency array.
+    if (booksData?.books)      booksRef.current      = booksData.books;
+    if (booksData?.firstPages) firstPagesRef.current = booksData.firstPages;
+  }, [booksData]);
+
+  // Convenience aliases used in JSX — these are just reads, not deps.
+  const books                = booksRef.current;
+  const preloadedFirstImages = firstPagesRef.current;
+
+  // loading stays true until BOTH images are fetched AND subscription is known.
+  // This is the single gate — nothing renders until it flips to false.
   const [loading,           setLoading]           = useState(true);
   const [progress,          setProgress]          = useState(0);
-  // imageLoadedStatus now stores blob: URLs (string) on success, or false on failure.
+  // imageLoadedStatus stores blob: URLs (string) on success, or false on failure.
   const [imageLoadedStatus, setImageLoadedStatus] = useState({});
   const [imagesReady,       setImagesReady]       = useState(false);
+
+  // Tracks whether each of the two parallel tasks has resolved.
+  const subscriptionReadyRef = useRef(false);
+  const imagesReadyRef       = useRef(false);
+  // Highest progress value seen so far — ensures the bar never moves backwards.
+  const progressHighWaterRef = useRef(0);
 
   // Modal state
   const [showModal,    setShowModal]    = useState(false);
@@ -72,15 +98,25 @@ const HomePage = ({ toggleMusic, isMusicPlaying, booksData }) => {
   // Subscription state
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [isSubscribed,          setIsSubscribed]          = useState(false);
-  // Guard: do not render the book grid until we know subscription state.
-  // Prevents the brief flash where all books appear unlocked before the check resolves.
-  const [subscriptionChecked,   setSubscriptionChecked]   = useState(false);
 
   // Parental gate state
   const [showParentalGate,    setShowParentalGate]    = useState(false);
   const [pendingSubscription, setPendingSubscription] = useState(false);
 
   const imageBaseUrl = "https://kithia.com/website_b5d91c8e/book-backend/public/";
+
+  // ── Both-ready gate ──────────────────────────────────────────────────────────
+  // Stable ref version — never changes identity, so it is safe to call from
+  // inside the preload effect without adding it to the dependency array.
+  const maybeFinishLoadingRef = useRef(null);
+  maybeFinishLoadingRef.current = () => {
+    if (subscriptionReadyRef.current && imagesReadyRef.current) {
+      setTimeout(() => {
+        setImagesReady(true);
+        setLoading(false);
+      }, 400);
+    }
+  };
 
   // ── Viewport center ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -92,113 +128,121 @@ const HomePage = ({ toggleMusic, isMusicPlaying, booksData }) => {
   }, []);
 
   // ── Subscription status check ────────────────────────────────────────────────
-  // Priority order (inside getSubscriptionStatus):
-  //   1. RevenueCat SDK — most authoritative on native (iOS/Android).
-  //      Entitlements are cached locally by the RC SDK so this works even
-  //      immediately after a cold start without a network round-trip.
-  //   2. Backend /subscription-status — fallback for web builds or if RC fails.
-  //   3. Short-lived 5-minute Preferences cache — used only when both
-  //      network calls fail (e.g. airplane mode).
-  //   4. false — safe hard default; never falsely unlocks books.
+  // Runs in parallel with image preloading.
+  // Priority: RevenueCat SDK → backend → 5-min cache → false.
   useEffect(() => {
     let cancelled = false;
-
-    const checkSubscriptionStatus = async () => {
+    const check = async () => {
       const subscribed = await getSubscriptionStatus();
       if (!cancelled) {
         setIsSubscribed(subscribed);
-        setSubscriptionChecked(true);
+        subscriptionReadyRef.current = true;
+        maybeFinishLoadingRef.current();
       }
     };
-
-    checkSubscriptionStatus();
+    check();
     return () => { cancelled = true; };
-  }, []);
+  }, []); // ← empty: subscription check runs exactly once on mount
 
   // ── Image preloading ─────────────────────────────────────────────────────────
-  // Uses fetch({ cache: 'reload' }) instead of new Image() so that Capacitor's
-  // WebView HTTP cache is always bypassed. The response is stored as a blob: URL
-  // in imageLoadedStatus, which lives in JS memory for the session — this is
-  // what prevents covers from disappearing after the WebView evicts its cache.
+  // Empty dependency array — runs exactly once on mount.
+  // Data is read from booksRef / firstPagesRef (stable refs) rather than from
+  // the dependency array, so re-renders in the parent never restart this effect.
   useEffect(() => {
+    const books         = booksRef.current;
+    const firstPages    = firstPagesRef.current;
+
     if (books.length === 0) {
-      setLoading(false);
+      imagesReadyRef.current = true;
+      maybeFinishLoadingRef.current();
       return;
     }
 
-    // Track blob URLs created this session so we can revoke them on unmount
-    // to avoid memory leaks if the user navigates away and back.
     const createdBlobUrls = [];
+    let cancelled = false;
 
-    let loadedCount   = 0;
+    let loadedCount = 0;
     const totalImages = books.length * 2;
+
+    // Advance the progress bar — never backwards.
+    // progressHighWaterRef ensures a re-render triggered by an unrelated state
+    // change can never visually regress the bar.
+    const advanceProgress = () => {
+      loadedCount++;
+      const raw = Math.min(100, Math.round((loadedCount / totalImages) * 100));
+      const clamped = Math.max(raw, progressHighWaterRef.current);
+      progressHighWaterRef.current = clamped;
+      setProgress(clamped);
+      if (loadedCount >= totalImages) {
+        imagesReadyRef.current = true;
+        maybeFinishLoadingRef.current();
+      }
+    };
 
     const preloadImage = (url, id) =>
       new Promise((resolve) => {
         if (!url || url.includes('undefined')) {
-          loadedCount++;
-          updateProgress();
           setImageLoadedStatus(prev => ({ ...prev, [id]: false }));
+          advanceProgress();
           resolve();
           return;
         }
 
-        // Force a fresh network fetch — bypasses the WebView's stale HTTP cache.
         fetch(url, { cache: 'reload' })
           .then((res) => {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             return res.blob();
           })
           .then((blob) => {
+            if (cancelled) { resolve(); return; }
             const objectUrl = URL.createObjectURL(blob);
             createdBlobUrls.push(objectUrl);
             setImageLoadedStatus(prev => ({ ...prev, [id]: objectUrl }));
-            loadedCount++;
-            updateProgress();
+            advanceProgress();
             resolve();
           })
           .catch(() => {
-            // Fetch failed — mark as false so the <img> falls back to the
-            // remote URL directly via its src / onError fallback chain.
-            loadedCount++;
-            updateProgress();
             setImageLoadedStatus(prev => ({ ...prev, [id]: false }));
+            advanceProgress();
             resolve();
           });
       });
 
-    const updateProgress = () => {
-      const newProgress = Math.min(100, Math.round((loadedCount / totalImages) * 100));
-      setProgress(newProgress);
-      if (loadedCount >= totalImages) {
-        setTimeout(() => { setImagesReady(true); setLoading(false); }, 500);
-      }
-    };
-
     const preloadAllImages = async () => {
       try {
         setProgress(0);
-        await Promise.all(books.map(async (book) => {
-          if (book.cover_image) await preloadImage(`${imageBaseUrl}${book.cover_image}`, book.id);
-          else { loadedCount++; updateProgress(); }
-        }));
-        await Promise.all(books.map(async (book) => {
-          if (preloadedFirstImages[book.id]) await preloadImage(preloadedFirstImages[book.id], `first_${book.id}`);
-          else { loadedCount++; updateProgress(); }
-        }));
+        progressHighWaterRef.current = 0;
+
+        await Promise.all([
+          ...books.map((book) => {
+            if (book.cover_image) {
+              return preloadImage(`${imageBaseUrl}${book.cover_image}`, book.id);
+            }
+            advanceProgress();
+            return Promise.resolve();
+          }),
+          ...books.map((book) => {
+            if (firstPages[book.id]) {
+              return preloadImage(firstPages[book.id], `first_${book.id}`);
+            }
+            advanceProgress();
+            return Promise.resolve();
+          }),
+        ]);
       } catch (error) {
         console.error("Error preloading images:", error);
-        setLoading(false);
+        imagesReadyRef.current = true;
+        maybeFinishLoadingRef.current();
       }
     };
 
     preloadAllImages();
 
-    // Revoke all blob URLs when the component unmounts to free memory.
     return () => {
+      cancelled = true;
       createdBlobUrls.forEach(u => URL.revokeObjectURL(u));
     };
-  }, [books, preloadedFirstImages]);
+  }, []); // ← empty: fires once on mount, reads live data from refs
 
   useEffect(() => {
     if (selectedBook && preloadedFirstImages[selectedBook.id]) {
@@ -456,11 +500,11 @@ const HomePage = ({ toggleMusic, isMusicPlaying, booksData }) => {
       </motion.div>
 
       {/* Book grid
-          subscriptionChecked guard prevents a flash of all-unlocked books
-          while the RC / backend check is still in flight. The loading screen
-          above already covers the image-preload wait, so by the time we reach
-          this render the images are ready; we just need subscription state too. */}
-      {subscriptionChecked && (
+          imagesReady is only true after BOTH cover images AND subscription status
+          are fully resolved (maybeFinishLoading requires both flags).
+          The grid therefore never renders with unresolved images or unknown
+          lock state — no skeleton flash is possible. */}
+      {imagesReady && (
         <motion.div
           className="book-grid"
           initial="initial"
@@ -484,9 +528,10 @@ const HomePage = ({ toggleMusic, isMusicPlaying, booksData }) => {
                 >
                   <div className="book-container">
                     {/* Prefer the in-memory blob: URL created during preload.
-                        If it is falsy (fetch failed) fall back to the remote URL directly.
-                        onError is a final safety net in case the blob URL was revoked
-                        or the remote URL changes between sessions. */}
+                        If fetch failed, imageLoadedStatus[book.id] is false and
+                        the src falls back to the remote URL directly.
+                        onError is a final safety net if the blob URL was somehow
+                        revoked or the remote URL has changed. */}
                     <img
                       src={
                         imageLoadedStatus[book.id]
