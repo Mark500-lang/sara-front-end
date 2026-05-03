@@ -90,6 +90,11 @@ class TokenManager {
     }
   }
 
+  async hasToken() {
+    const token = await this.getToken();
+    return !!token;   // returns true if token is a non‑empty string
+  }
+  
   async removeToken() {
     await this.initialize();
     try {

@@ -17,9 +17,9 @@ dependencies {
     implementation project(':capacitor-preferences')
     implementation project(':revenuecat-purchases-capacitor')
     implementation project(':capacitor-voice-recorder')
-    implementation "com.huawei.hms:iap:6.13.0.300"
+
 }
-apply from: "../../node_modules/@hmscore/cordova-plugin-hms-iap/src/android/build-extras.gradle"
+
 
 if (hasProperty('postBuildExtras')) {
   postBuildExtras()

@@ -5,7 +5,7 @@ import { Modal, Button, Form, Spinner, Row, Col } from "react-bootstrap";
 import { Purchases, LOG_LEVEL } from "@revenuecat/purchases-capacitor";
 import { Capacitor } from "@capacitor/core";
 import { getDeviceId } from "../utils/deviceIdentity";
-import { setSubscribedInCache, syncSubscriptionToBackend } from "../utils/subscriptionManager";
+import { setSubscribedInCache } from "../utils/subscriptionManager";
 
 // ─── Config (sourced from .env) ───────────────────────────────────────────────
 const RC_API_KEYS = {
@@ -95,10 +95,6 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       await Purchases.configure({ apiKey });
       console.log("[IAP] RevenueCat configured for:", getPlatform());
 
-      // Log the device UUID into RevenueCat as the App User ID.
-      // This ties all purchases to this device permanently.
-      // If the app is reinstalled, the same UUID is restored from SecureStorage,
-      // so the user can always restore their purchases.
       const deviceId = await getDeviceId();
       if (deviceId) {
         await Purchases.logIn({ appUserID: deviceId });
@@ -189,17 +185,15 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       if (hasPremium) {
         console.log("[IAP] Purchase successful. Active entitlements:", activeEntitlements);
 
-        // ── Update the subscriptionManager cache immediately so that the next
-        //    call to getSubscriptionStatus() (on any re-mount of HomePage) reads
-        //    true without waiting for a backend round-trip.
-        //    This is the key fix for books re-locking on app reload. ───────────
-        await setSubscribedInCache(true);
+        // Extract real expiry from RC
+        const activeEnt = customerInfo.entitlements.active[ENTITLEMENT_ID]
+                       || Object.values(customerInfo.entitlements.active)[0];
+        const expiryMs  = activeEnt?.expirationDate
+                       ? new Date(activeEnt.expirationDate).getTime()
+                       : null;
 
-        // ── Fire-and-forget backend sync.
-        //    The RevenueCat webhook may arrive at the backend seconds or minutes
-        //    later — this call bridges that gap so the backend record is updated
-        //    as soon as possible, without blocking the UI. ─────────────────────
-        syncSubscriptionToBackend();
+        // Persist and sync with the plan the user explicitly chose
+        await setSubscribedInCache(selectedPlan, expiryMs);
 
         onPaymentSuccess();
         onClose();
@@ -210,33 +204,70 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       }
 
     } catch (err) {
-      const msg  = err.message || "";
+      const msg  = (err.message || "").toLowerCase();
       const code = err.code;
 
-      if (
-        msg.toLowerCase().includes("cancelled") ||
-        msg.toLowerCase().includes("canceled")  ||
-        code === "1" || code === 1
-      ) {
-        // User tapped Cancel — not an error, dismiss silently
+      // ── User cancelled — silent dismiss ───────────────────────────────────
+      const userCancelled =
+        msg.includes("cancelled")  ||
+        msg.includes("canceled")   ||
+        msg.includes("user cancel") ||
+        code === "1" || code === 1;
+
+      // ── Store says subscription already active ────────────────────────────
+      const alreadyActive =
+        msg.includes("already owned")      ||
+        msg.includes("already purchased")  ||
+        msg.includes("already subscribed") ||
+        msg.includes("item already")       ||
+        err.code === "PRODUCT_ALREADY_PURCHASED" ||
+        err.underlyingErrorMessage?.toLowerCase().includes("already");
+
+      if (userCancelled) {
         setError(null);
 
-      } else if (msg.toLowerCase().includes("already owned")) {
-        // Android: Google Play returns "already owned" for active subscriptions.
-        // Treat as success.
-        console.log("[IAP] Product already owned — granting access.");
+      } else if (alreadyActive) {
+        console.log("[IAP] Store says already active — fetching live customerInfo.");
+        try {
+          const customerInfo    = await Purchases.getCustomerInfo();
+          const activeEnt       = customerInfo.entitlements.active[ENTITLEMENT_ID]
+                               || Object.values(customerInfo.entitlements.active)[0];
+          const activeCount     = Object.keys(customerInfo.entitlements.active).length;
 
-        await setSubscribedInCache(true);
-        syncSubscriptionToBackend();
+          if (activeEnt || activeCount > 0) {
+            // Determine plan from the product identifier if available,
+            // otherwise fall back to the user's last selected plan
+            let planFromEntitlement = selectedPlan;
+            if (activeEnt?.productIdentifier) {
+              if (activeEnt.productIdentifier.includes("monthly")) planFromEntitlement = "monthly";
+              else if (activeEnt.productIdentifier.includes("yearly")) planFromEntitlement = "yearly";
+            }
+            const expiryMs = activeEnt?.expirationDate
+                           ? new Date(activeEnt.expirationDate).getTime()
+                           : null;
+            await setSubscribedInCache(planFromEntitlement, expiryMs);
+            onPaymentSuccess();
+            onClose();
+          } else {
+            // No entitlement — use a 30‑day fallback to not lock out a paying customer
+            console.warn("[IAP] getCustomerInfo returned no entitlements — applying 30-day fallback.");
+            await setSubscribedInCache(selectedPlan, Date.now() + 30 * 24 * 60 * 60 * 1000);
+            onPaymentSuccess();
+            onClose();
+          }
+        } catch (infoErr) {
+          console.warn("[IAP] getCustomerInfo failed during already-active handling:", infoErr.message);
+          await setSubscribedInCache(selectedPlan, Date.now() + 30 * 24 * 60 * 60 * 1000);
+          onPaymentSuccess();
+          onClose();
+        }
 
-        onPaymentSuccess();
-        onClose();
-
-      } else if (msg.toLowerCase().includes("network")) {
+      } else if (msg.includes("network")) {
         setError("Network error. Please check your internet connection and try again.");
 
       } else {
-        setError(`Purchase failed: ${msg}`);
+        console.error("[IAP] Unhandled purchase error:", err);
+        setError(`Purchase failed: ${err.message || "Unknown error"}`);
       }
 
     } finally {
@@ -266,9 +297,20 @@ const SubscriptionModal = ({ show, onClose, onPaymentSuccess }) => {
       if (activeEntitlements.length > 0) {
         console.log("[IAP] Restore successful. Entitlements:", activeEntitlements);
 
-        // ── Same cache + backend sync as purchase success path ───────────────
-        await setSubscribedInCache(true);
-        syncSubscriptionToBackend();
+        const restoredEnt = customerInfo.entitlements.active[ENTITLEMENT_ID]
+                         || Object.values(customerInfo.entitlements.active)[0];
+
+        // Derive plan from product identifier
+        let plan = "monthly"; // default
+        if (restoredEnt?.productIdentifier) {
+          if (restoredEnt.productIdentifier.includes("yearly")) plan = "yearly";
+          else if (restoredEnt.productIdentifier.includes("monthly")) plan = "monthly";
+        }
+        const expiryMs = restoredEnt?.expirationDate
+                       ? new Date(restoredEnt.expirationDate).getTime()
+                       : null;
+
+        await setSubscribedInCache(plan, expiryMs);
 
         onPaymentSuccess();
         onClose();

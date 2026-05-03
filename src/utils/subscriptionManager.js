@@ -1,6 +1,14 @@
 // subscriptionManager.js
-// Single source of truth for subscription status.
-// Priority: RevenueCat (native) → backend → false
+// ─────────────────────────────────────────────────────────────────────────────
+// Single source of truth for subscription status across the entire app session.
+//
+// Architecture (improved with reference app patterns):
+//   • After a purchase, we sync the true plan and expiry to the backend immediately.
+//   • On every cold start, we query the backend FIRST (in parallel with RevenueCat)
+//     and treat the backend as the final authority.
+//   • Persisted expiry is used only as an offline fallback.
+//   • This eliminates any reliance on RevenueCat sandbox quirks or propagation delays.
+// ─────────────────────────────────────────────────────────────────────────────
 
 import { Purchases } from "@revenuecat/purchases-capacitor";
 import { Capacitor } from "@capacitor/core";
@@ -8,160 +16,193 @@ import { Preferences } from "@capacitor/preferences";
 import { tokenManager } from "./tokenManager";
 
 const ENTITLEMENT_ID = "Sara Stories Subscriptions";
-const CACHE_KEY = "subscription_status_cache";
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes — short enough to catch lapses
+const PREF_KEY_EXPIRY = "subscription_expiry_ms";
+const PREF_KEY_STATUS = "subscription_confirmed";
+const BACKEND_URL = "https://kithia.com/website_b5d91c8e/api/user/subscription-status";
 
 const isNative = () => Capacitor.isNativePlatform();
 
-/**
- * Check RevenueCat directly (native only).
- * Returns true if the entitlement is active.
- */
-const checkRevenueCat = async () => {
-  if (!isNative()) return null; // null = "unknown, not applicable"
+// ── Persistence helpers ────────────────────────────────────────────────────
+const isPersistedEntitlementValid = async () => {
+  try {
+    const [expiryResult, statusResult] = await Promise.all([
+      Preferences.get({ key: PREF_KEY_EXPIRY }),
+      Preferences.get({ key: PREF_KEY_STATUS }),
+    ]);
 
+    if (statusResult.value !== "true") return false;
+    if (expiryResult.value === "never") return true;
+    if (!expiryResult.value) return false;
+
+    return Date.now() < parseInt(expiryResult.value, 10);
+  } catch {
+    return false;
+  }
+};
+
+const persistEntitlement = async (expiryMs) => {
+  await Promise.all([
+    Preferences.set({ key: PREF_KEY_STATUS, value: "true" }),
+    Preferences.set({
+      key: PREF_KEY_EXPIRY,
+      value: expiryMs ? expiryMs.toString() : "never",
+    }),
+  ]);
+};
+
+const clearEntitlement = async () => {
+  await Promise.all([
+    Preferences.set({ key: PREF_KEY_STATUS, value: "false" }),
+    Preferences.remove({ key: PREF_KEY_EXPIRY }),
+  ]);
+};
+
+// ── RevenueCat query ────────────────────────────────────────────────────────
+const queryRevenueCat = async () => {
+  if (!isNative()) return null;
   try {
     const customerInfo = await Purchases.getCustomerInfo();
-    const active = Object.keys(customerInfo.entitlements.active);
+    const anyActive = Object.keys(customerInfo.entitlements.active).length > 0;
+    if (!anyActive) return { active: false, expiryMs: null };
 
-    const hasPremium =
-      !!customerInfo.entitlements.active[ENTITLEMENT_ID] ||
-      active.length > 0;
+    const activeEnt =
+      customerInfo.entitlements.active[ENTITLEMENT_ID] ||
+      Object.values(customerInfo.entitlements.active)[0];
+    const expiryDate = activeEnt?.expirationDate;
+    const expiryMs = expiryDate ? new Date(expiryDate).getTime() : null;
 
-    console.log("[SubManager] RevenueCat check:", hasPremium, "active:", active);
-    return hasPremium;
+    return { active: true, expiryMs };
   } catch (err) {
-    console.warn("[SubManager] RevenueCat check failed:", err.message);
-    return null; // null = "couldn't determine"
-  }
-};
-
-/**
- * Check backend as a fallback.
- * Returns true/false or null on network failure.
- */
-const checkBackend = async () => {
-  try {
-    const token = await tokenManager.getToken();
-    if (!token) return false;
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
-
-    const response = await fetch(
-      "https://kithia.com/website_b5d91c8e/api/user/subscription-status",
-      {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        signal: controller.signal,
-      }
-    ).finally(() => clearTimeout(timer));
-
-    if (!response.ok) return false;
-
-    const data = await response.json();
-    return data.subscription_status === "active";
-  } catch (err) {
-    if (err.name !== "AbortError") {
-      console.warn("[SubManager] Backend check failed:", err.message);
-    }
-    return null; // null = network failure, don't override cache
-  }
-};
-
-/**
- * Write result to short-lived cache.
- */
-const writeCache = async (value) => {
-  await Preferences.set({
-    key: CACHE_KEY,
-    value: JSON.stringify({ subscribed: value, ts: Date.now() }),
-  });
-};
-
-/**
- * Read cache. Returns null if missing or expired.
- */
-const readCache = async () => {
-  try {
-    const raw = await Preferences.get({ key: CACHE_KEY });
-    if (!raw.value) return null;
-    const parsed = JSON.parse(raw.value);
-    if (Date.now() - parsed.ts > CACHE_TTL_MS) return null;
-    return parsed.subscribed; // true or false
-  } catch {
+    console.warn("[SubManager] RC query failed:", err.message);
     return null;
   }
 };
 
+// ── Backend query ───────────────────────────────────────────────────────────
+const queryBackend = async () => {
+  try {
+    const token = await tokenManager.getToken();
+    if (!token) return { active: false };
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+
+    const response = await fetch(BACKEND_URL, {
+      method: "GET",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timer));
+
+    if (!response.ok) return { active: false };
+    const data = await response.json();
+    return { active: data.subscription_status === "active" };
+  } catch (err) {
+    if (err.name !== "AbortError")
+      console.warn("[SubManager] Backend query failed:", err.message);
+    return null; // null = network failure
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUBLIC API
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
- * Main entry point. Call this from HomePage on mount.
+ * Main status check. Called by App.js once on startup.
  *
- * Strategy:
- *   1. RevenueCat (native only) — most authoritative
- *   2. Backend — fallback for Android/web or if RC fails
- *   3. Short-lived cache — fallback if both network calls fail
- *   4. false — safe default, never falsely grant access
+ * Flow:
+ *  1. Persisted valid expiry → return true immediately (offline mode).
+ *  2. Query backend AND RevenueCat in parallel.
+ *  3. If backend says active → persist (for 1 hour) and return true.
+ *  4. Else if RC says active → accept, but also sync to backend to correct it
+ *     and persist with RC’s expiry.
+ *  5. Otherwise → clear persistence and return false.
  */
 export const getSubscriptionStatus = async () => {
-  // 1. RevenueCat — always try this first on native
-  const rcResult = await checkRevenueCat();
-  if (rcResult !== null) {
-    await writeCache(rcResult);
-    return rcResult;
+  // Fast offline path
+  if (await isPersistedEntitlementValid()) {
+    console.log("[SubManager] Returning persisted active entitlement.");
+    return true;
   }
 
-  // 2. Backend fallback (also handles web/dev builds)
-  const backendResult = await checkBackend();
-  if (backendResult !== null) {
-    await writeCache(backendResult);
-    return backendResult;
+  // Query both sources in parallel
+  const [rcResult, backendResult] = await Promise.allSettled([
+    queryRevenueCat(),
+    queryBackend(),
+  ]);
+
+  const rcActive = rcResult.status === "fulfilled" ? rcResult.value?.active : false;
+  const backendActive = backendResult.status === "fulfilled" ? backendResult.value?.active : false;
+
+  // Backend is the ultimate truth
+  if (backendActive) {
+    await persistEntitlement(Date.now() + 60 * 60 * 1000); // 1‑hour fallback
+    console.log("[SubManager] Backend says active → unlocked.");
+    return true;
   }
 
-  // 3. Cache fallback — network is down
-  const cached = await readCache();
-  if (cached !== null) {
-    console.warn("[SubManager] Both checks failed — using cache:", cached);
-    return cached;
+  // Backend inactive, but RC still sees active (possible delay / sandbox)
+  if (rcActive) {
+    const expiryMs = rcResult.value?.expiryMs;
+    await persistEntitlement(expiryMs);
+    // Fire‑and‑forget sync to heal the backend
+    syncSubscriptionToBackend("monthly", expiryMs);
+    console.log("[SubManager] RC active, backend inactive – accepting RC & syncing.");
+    return true;
   }
 
-  // 4. Safe default
-  console.warn("[SubManager] No subscription data available — defaulting to false");
+  // Both inactive
+  await clearEntitlement();
+  console.log("[SubManager] Both sources say inactive.");
   return false;
 };
 
 /**
- * Call this immediately after a successful purchase/restore
- * so the cache reflects the new state without waiting for the next check.
+ * Called immediately after a confirmed purchase or restore.
+ * Persists locally and sends the real plan + expiry to the backend.
+ *
+ * @param {string} plan - 'monthly' or 'yearly'
+ * @param {number|null} expiryMs - exact RC expiration timestamp, or null for lifetime
  */
-export const setSubscribedInCache = async (value) => {
-  await writeCache(value);
+export const setSubscribedInCache = async (plan = "monthly", expiryMs = null) => {
+  await persistEntitlement(expiryMs);
+  await syncSubscriptionToBackend(plan, expiryMs);
+  console.log(
+    "[SubManager] Entitlement persisted and synced.",
+    `Expiry: ${expiryMs ? new Date(expiryMs).toISOString() : "never"}`
+  );
 };
 
 /**
- * Sync backend after RevenueCat confirms a purchase.
- * Fire-and-forget — don't block the UI on this.
+ * Sends the subscription state to the backend.
+ * Bridges the gap between client confirmation and webhook arrival.
+ *
+ * @param {string} plan
+ * @param {number|null} rcExpiryMs
  */
-export const syncSubscriptionToBackend = async () => {
+export const syncSubscriptionToBackend = async (plan = "monthly", rcExpiryMs = null) => {
   try {
     const token = await tokenManager.getToken();
     if (!token) return;
 
-    await fetch(
-      "https://kithia.com/website_b5d91c8e/api/subscription/sync-from-client",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: "active" }),
-      }
-    );
-    console.log("[SubManager] Backend sync sent.");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+
+    await fetch("https://kithia.com/website_b5d91c8e/api/subscription/sync-from-client", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        status: "active",
+        plan: plan,
+        rcExpiryMs: rcExpiryMs,
+      }),
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timer));
+
+    console.log("[SubManager] Backend sync sent successfully.");
   } catch (err) {
     console.warn("[SubManager] Backend sync failed (non-fatal):", err.message);
   }

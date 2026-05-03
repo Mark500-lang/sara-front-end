@@ -13,7 +13,6 @@
     "@capacitor/filesystem": "^7.0.0",
     "@capacitor/ios": "^7.0.1",
     "@capacitor/preferences": "^7.0.0",
-    "@hmscore/cordova-plugin-hms-iap": "^6.13.0-304",
     "@revenuecat/purchases-capacitor": "^11.2.12",
     "bootstrap": "^5.3.3",
     "bootstrap-icons": "^1.11.3",
